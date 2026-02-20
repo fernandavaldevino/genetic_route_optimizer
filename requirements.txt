@@ -1,0 +1,12 @@
+# Dependências do Sistema de Otimização de Rotas
+# Requer Python 3.12 ou superior
+
+# Visualização
+pygame>=2.5.0
+
+# Computação científica
+numpy>=1.24.0
+
+# Opcional: para análise de dados
+# pandas>=2.0.0
+# matplotlib>=3.7.0
