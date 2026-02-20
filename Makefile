@@ -67,7 +67,7 @@ test:
 	cd tests && ../$(PYTHON_VENV) test_restrictions.py
 
 # Executa tudo de uma vez
-all: install run
+all: install run clean
 
 # Limpa ambiente virtual e cache
 clean:
