@@ -2,7 +2,7 @@
 # Autor: Fernanda Valdevino
 
 # Variáveis
-VENV_NAME = ga_routes
+VENV_NAME = .ga_routes
 PYTHON = python3
 PIP = $(VENV_NAME)/bin/pip
 PYTHON_VENV = $(VENV_NAME)/bin/python
@@ -19,7 +19,7 @@ NC = \033[0m # No Color
 help:
 	@echo "$(GREEN)Sistema de Otimização de Rotas - Comandos Disponíveis:$(NC)"
 	@echo ""
-	@echo "  $(YELLOW)make setup$(NC)    - Cria ambiente virtual 'ga_routes'"
+	@echo "  $(YELLOW)make setup$(NC)    - Cria ambiente virtual '.ga_routes'"
 	@echo "  $(YELLOW)make install$(NC)  - Instala dependências no ambiente"
 	@echo "  $(YELLOW)make run$(NC)      - Executa o sistema principal"
 	@echo "  $(YELLOW)make test$(NC)     - Executa os testes"
@@ -51,7 +51,7 @@ run:
 		echo "$(YELLOW)Execute 'make install' primeiro.$(NC)"; \
 		exit 1; \
 	fi
-	@echo "$(GREEN)Executando sistema...$(NC)"
+	@echo "$(GREEN)Executando sistema... (pode levar alguns instantes)$(NC)"
 	@echo ""
 	$(PYTHON_VENV) main.py
 
