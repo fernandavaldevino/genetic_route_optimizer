@@ -27,10 +27,12 @@ Sistema de otimização de rotas utilizando Algoritmo Genético para resolver o 
   - Penalização por atrasos em atendimentos prioritários
 
 - **Visualização em Tempo Real**:
-  - Interface gráfica com Pygame
+  - **Interface Pygame**: Visualização animada completa
+  - **Interface Streamlit**: Dashboard web interativo
   - Gráfico de evolução do fitness
   - Mapa de rotas colorido por prioridade
   - Informações detalhadas de cada atendimento
+  - Screenshot final da otimização
 
 ---
 
@@ -92,7 +94,28 @@ pip install -r requirements.txt
 
 ## 💻 Uso
 
-### Executar o Sistema
+### Opção 1: Interface Streamlit (Recomendado)
+
+**Com Makefile:**
+```bash
+make all
+# ou
+make streamlit
+```
+
+**Manualmente:**
+```bash
+streamlit run app_streamlit.py
+```
+
+A aplicação abrirá automaticamente no navegador em `http://localhost:8501`
+
+**Funcionalidades:**
+- ▶️ **Start**: Inicia otimização (Pygame + Streamlit)
+- 🔄 **Reiniciar**: Nova otimização automática
+- ❌ **Encerrar**: Limpa tudo e fecha
+
+### Opção 2: Interface Pygame (Standalone)
 
 **Com Makefile:**
 ```bash
@@ -103,6 +126,10 @@ make run
 ```bash
 python main.py
 ```
+
+**Controles:**
+- **Q** ou **ESC**: Sair do sistema
+- **R**: Reiniciar com novos pontos aleatórios
 
 ### Executar os Testes
 
@@ -117,20 +144,18 @@ cd tests
 python test_restrictions.py
 ```
 
-### Controles da Interface
-
-- **Q** ou **ESC**: Sair do sistema
-- **R**: Reiniciar com novos pontos aleatórios
-
 ---
 
 ## 📁 Estrutura do Projeto
 
 ```
-genetic_algorithm_routes_optimization/
+genetic_route_optimizer/
 ├── README.md                    # Este arquivo
+├── README_STREAMLIT.md          # Documentação Streamlit
 ├── requirements.txt             # Dependências do projeto
-├── main.py                      # Ponto de entrada principal
+├── Makefile                     # Comandos automatizados
+├── main.py                      # Interface Pygame standalone
+├── app_streamlit.py             # Interface Streamlit (recomendado)
 │
 ├── src/                         # Código fonte
 │   ├── __init__.py
@@ -149,9 +174,9 @@ genetic_algorithm_routes_optimization/
 │   └── test_restrictions.py    # Testes de validação
 │
 └── docs/                        # Documentação
-    ├── GUIA_RAPIDO.md          # Guia rápido de uso
-    ├── README_RESTRICOES.md    # Detalhes das restrições
-    └── README_FIAP.md          # Documentação FIAP
+    ├── GUIA_RAPIDO_review.md   # Guia rápido de uso
+    ├── README_RESTRICOES_review.md # Detalhes das restrições
+    └── README2_FIAP_review.md  # Documentação FIAP
 ```
 
 ---
@@ -251,11 +276,29 @@ Projeto acadêmico - FIAP Fase 2
 
 ---
 
+## 🌐 Interface Streamlit
+
+A interface Streamlit oferece uma experiência web completa:
+
+### Características:
+- **Visualização Dupla**: Pygame (animado) + Streamlit (resultados)
+- **Progresso em Tempo Real**: Barra e status durante otimização
+- **Screenshot Final**: Captura da tela do Pygame exibida no Streamlit
+- **Gráficos Interativos**: Evolução do fitness, estatísticas
+- **Métricas Detalhadas**: Fitness, dias, horários, melhorias
+- **Controles Intuitivos**: Start, Reiniciar (auto-executa), Encerrar
+
+### Documentação Completa:
+Veja [`README_STREAMLIT.md`](README_STREAMLIT.md) para detalhes completos.
+
+---
+
 ## 📚 Documentação Adicional
 
-- [Guia Rápido](docs/GUIA_RAPIDO.md)
-- [Detalhes das Restrições](docs/README_RESTRICOES.md)
-- [Documentação FIAP](docs/README_FIAP.md)
+- [Interface Streamlit](README_STREAMLIT.md) - **Recomendado**
+- [Guia Rápido](docs/GUIA_RAPIDO_review.md)
+- [Detalhes das Restrições](docs/README_RESTRICOES_review.md)
+- [Documentação FIAP](docs/README2_FIAP_review.md)
 
 ---
 
@@ -267,8 +310,9 @@ Nenhum problema conhecido no momento.
 
 ## 🔮 Melhorias Futuras
 
+- [x] Interface web com Streamlit ✅
 - [ ] Exportação de rotas para CSV/JSON
 - [ ] Análise estatística de múltiplas execuções
-- [ ] Interface web com Flask/Django
 - [ ] Integração com APIs de mapas reais
 - [ ] Otimização multi-objetivo (Pareto)
+- [ ] Histórico de execuções no Streamlit
