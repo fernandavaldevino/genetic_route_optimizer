@@ -1,4 +1,4 @@
-# Sistema de Otimização de Rotas com Restrições
+g# Sistema de Otimização de Rotas com Restrições
 
 **Algoritmo Genético para Roteamento de Atendimentos em Saúde da Mulher**
 
@@ -29,6 +29,7 @@ Sistema de otimização de rotas utilizando Algoritmo Genético para resolver o 
 - **Visualização em Tempo Real**:
   - **Interface Pygame**: Visualização animada completa
   - **Interface Streamlit**: Dashboard web interativo
+  - **Opção de 1 ou 2 veículos**: Escolha na interface
   - Gráfico de evolução do fitness
   - Mapa de rotas colorido por prioridade
   - Informações detalhadas de cada atendimento
@@ -111,6 +112,9 @@ streamlit run app_streamlit.py
 A aplicação abrirá automaticamente no navegador em `http://localhost:8501`
 
 **Funcionalidades:**
+- 🚗 **Seletor de Veículos**: Escolha entre 1 ou 2 veículos
+  - **1 veículo**: Otimização tradicional (múltiplos dias)
+  - **2 veículos**: Otimização multi-veículo com depósito (1 dia)
 - ▶️ **Start**: Inicia otimização (Pygame + Streamlit)
 - 🔄 **Reiniciar**: Nova otimização automática
 - ❌ **Encerrar**: Limpa tudo e fecha
@@ -154,7 +158,8 @@ genetic_route_optimizer/
 ├── README_STREAMLIT.md          # Documentação Streamlit
 ├── requirements.txt             # Dependências do projeto
 ├── Makefile                     # Comandos automatizados
-├── main.py                      # Interface Pygame standalone
+├── main.py                      # Pygame 1 veículo (standalone)
+├── main_2v.py                   # Pygame 2 veículos (standalone)
 ├── app_streamlit.py             # Interface Streamlit (recomendado)
 │
 ├── src/                         # Código fonte
@@ -162,10 +167,12 @@ genetic_route_optimizer/
 │   ├── core/                    # Lógica principal
 │   │   ├── __init__.py
 │   │   ├── service_points.py   # Pontos de atendimento e restrições
-│   │   └── genetic_algorithm.py # Algoritmo genético
+│   │   ├── genetic_algorithm.py # Algoritmo genético (1 veículo)
+│   │   └── multi_vehicle.py    # Algoritmo genético (2 veículos)
 │   ├── visualization/           # Interface gráfica
 │   │   ├── __init__.py
-│   │   └── pygame_viewer.py    # Visualização com Pygame
+│   │   ├── pygame_viewer.py    # Visualização 1 veículo
+│   │   └── pygame_viewer_2v.py # Visualização 2 veículos
 │   └── utils/                   # Utilitários
 │       └── __init__.py
 │
@@ -281,6 +288,9 @@ Projeto acadêmico - FIAP Fase 2
 A interface Streamlit oferece uma experiência web completa:
 
 ### Características:
+- **Seleção de Veículos**: Escolha entre 1 ou 2 veículos
+  - **1 veículo**: Otimização tradicional (pode levar múltiplos dias)
+  - **2 veículos**: Otimização multi-veículo com depósito (todos os pontos em 1 dia)
 - **Visualização Dupla**: Pygame (animado) + Streamlit (resultados)
 - **Progresso em Tempo Real**: Barra e status durante otimização
 - **Screenshot Final**: Captura da tela do Pygame exibida no Streamlit
