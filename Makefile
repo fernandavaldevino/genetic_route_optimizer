@@ -13,19 +13,27 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help setup install run streamlit test clean
+.PHONY: help setup install run streamlit test test-specific test-cov test-html clean
 
 # Target padrão
 help:
 	@echo "$(GREEN)Sistema de Otimização de Rotas - Comandos Disponíveis:$(NC)"
 	@echo ""
-	@echo "  $(YELLOW)make setup$(NC)      - Cria ambiente virtual '.ga_routes'"
-	@echo "  $(YELLOW)make install$(NC)    - Instala dependências no ambiente"
-	@echo "  $(YELLOW)make run$(NC)        - Executa o sistema principal (Pygame)"
-	@echo "  $(YELLOW)make streamlit$(NC)  - Executa interface web (Streamlit)"
-	@echo "  $(YELLOW)make test$(NC)       - Executa os testes"
-	@echo "  $(YELLOW)make app$(NC)        - Setup + Install + Streamlit"
-	@echo "  $(YELLOW)make clean$(NC)      - Remove ambiente virtual e cache"
+	@echo "$(YELLOW)Execução:$(NC)"
+	@echo "  $(YELLOW)make setup$(NC)           - Cria ambiente virtual '.ga_routes'"
+	@echo "  $(YELLOW)make install$(NC)         - Instala dependências no ambiente"
+	@echo "  $(YELLOW)make run$(NC)             - Executa o sistema principal (Pygame)"
+	@echo "  $(YELLOW)make streamlit$(NC)       - Executa interface web (Streamlit)"
+	@echo "  $(YELLOW)make app$(NC)             - Setup + Install + Streamlit"
+	@echo ""
+	@echo "$(YELLOW)Testes:$(NC)"
+	@echo "  $(YELLOW)make test$(NC)            - Executa todos os testes (console)"
+	@echo "  $(YELLOW)make test-specific$(NC)   - Executa teste específico (ex: FILE=test_service_points.py)"
+	@echo "  $(YELLOW)make test-cov$(NC)        - Mostra cobertura de código"
+	@echo "  $(YELLOW)make test-html$(NC)       - Executa testes e gera relatório HTML"
+	@echo ""
+	@echo "$(YELLOW)Limpeza:$(NC)"
+	@echo "  $(YELLOW)make clean$(NC)           - Remove ambiente virtual e cache"
 	@echo ""
 
 # Cria o ambiente virtual
@@ -68,16 +76,67 @@ streamlit:
 	@echo ""
 	$(VENV_NAME)/bin/streamlit run streamlit/app_streamlit.py
 
-# Executa os testes
+# Executa todos os testes com pytest
 test:
 	@if [ ! -d "$(VENV_NAME)" ]; then \
 		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
 		echo "$(YELLOW)Execute 'make install' primeiro.$(NC)"; \
 		exit 1; \
 	fi
-	@echo "$(GREEN)Executando testes...$(NC)"
+	@echo "$(GREEN)Executando todos os testes...$(NC)"
 	@echo ""
-	cd tests && ../$(PYTHON_VENV) test_restrictions.py
+	$(VENV_NAME)/bin/pytest tests/ -v
+
+# Executa teste específico
+test-specific:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make install' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -z "$(FILE)" ]; then \
+		echo "$(RED)Erro: Especifique o arquivo de teste!$(NC)"; \
+		echo "$(YELLOW)Uso: make test-specific FILE=test_service_points.py$(NC)"; \
+		echo "$(YELLOW)Ou:  make test-specific FILE=test_service_points.py::TestPriorityOrdering$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Executando teste específico: $(FILE)$(NC)"
+	@echo ""
+	@if echo "$(FILE)" | grep -q "^tests/"; then \
+		$(VENV_NAME)/bin/pytest $(FILE) -v; \
+	else \
+		$(VENV_NAME)/bin/pytest tests/$(FILE) -v; \
+	fi
+
+# Mostra cobertura de código (sem executar testes)
+test-cov:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make install' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@if [ ! -f ".coverage" ]; then \
+		echo "$(YELLOW)Nenhum dado de cobertura encontrado. Executando testes primeiro...$(NC)"; \
+		echo ""; \
+		$(VENV_NAME)/bin/pytest tests/ --cov=src --cov-report= -q; \
+	fi
+	@echo "$(GREEN)Relatório de Cobertura de Código:$(NC)"
+	@echo ""
+	@$(VENV_NAME)/bin/coverage report --include="src/*"
+
+# Executa testes e gera relatório HTML
+test-html:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make install' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Executando testes e gerando relatório HTML...$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/pytest tests/ --cov=src --cov-report=html --cov-report=term -v
+	@echo ""
+	@echo "$(GREEN)✓ Relatório HTML gerado em: htmlcov/index.html$(NC)"
+	@echo "$(YELLOW)Abra o arquivo no navegador para visualizar a cobertura detalhada.$(NC)"
 
 # Executa tudo de uma vez
 app: install streamlit
@@ -92,6 +151,9 @@ clean:
 	rm -rf src/visualization/__pycache__
 	rm -rf src/utils/__pycache__
 	rm -rf tests/__pycache__
+	rm -rf htmlcov
+	rm -rf .coverage
+	rm -rf .pytest_cache
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	@echo "$(GREEN)✓ Limpeza concluída!$(NC)"
