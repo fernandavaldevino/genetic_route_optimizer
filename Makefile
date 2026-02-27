@@ -24,7 +24,7 @@ help:
 	@echo "  $(YELLOW)make run$(NC)        - Executa o sistema principal (Pygame)"
 	@echo "  $(YELLOW)make streamlit$(NC)  - Executa interface web (Streamlit)"
 	@echo "  $(YELLOW)make test$(NC)       - Executa os testes"
-	@echo "  $(YELLOW)make all$(NC)        - Setup + Install + Streamlit"
+	@echo "  $(YELLOW)make app$(NC)        - Setup + Install + Streamlit"
 	@echo "  $(YELLOW)make clean$(NC)      - Remove ambiente virtual e cache"
 	@echo ""
 
@@ -54,7 +54,7 @@ run:
 	fi
 	@echo "$(GREEN)Executando sistema... (pode levar alguns instantes)$(NC)"
 	@echo ""
-	$(PYTHON_VENV) main.py
+	$(PYTHON_VENV) app/main.py
 
 # Executa a interface web com Streamlit
 streamlit:
@@ -66,7 +66,7 @@ streamlit:
 	@echo "$(GREEN)Iniciando interface web Streamlit...$(NC)"
 	@echo "$(YELLOW)A aplicação será aberta no navegador em http://localhost:8501$(NC)"
 	@echo ""
-	$(VENV_NAME)/bin/streamlit run app_streamlit.py
+	$(VENV_NAME)/bin/streamlit run streamlit/app_streamlit.py
 
 # Executa os testes
 test:
@@ -80,7 +80,7 @@ test:
 	cd tests && ../$(PYTHON_VENV) test_restrictions.py
 
 # Executa tudo de uma vez
-all: install streamlit
+app: install streamlit
 
 # Limpa ambiente virtual e cache
 clean:

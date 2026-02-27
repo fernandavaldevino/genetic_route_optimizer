@@ -5,6 +5,10 @@ Interface Gráfica com Streamlit para o Sistema de Otimização de Rotas
 Autor: Fernanda Valdevino - Projeto Fase 2
 """
 
+# Suprimir mensagem de boas-vindas do pygame
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+
 import streamlit as st
 import sys
 import os
@@ -17,10 +21,12 @@ import pickle
 import time
 from PIL import Image
 
-# Adicionar src ao path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# Adicionar src ao path (ajustar para a nova estrutura de pastas)
+project_root = os.path.join(os.path.dirname(__file__), '..')
+sys.path.insert(0, project_root)
+sys.path.insert(0, os.path.join(project_root, 'src'))
 
-from core.genetic_algorithm import (
+from src.core.genetic_algorithm import (
     calculate_constrained_fitness,
     generate_priority_aware_population,
     sort_population_by_fitness,
@@ -28,7 +34,7 @@ from core.genetic_algorithm import (
     constrained_mutate,
     calculate_route_time_and_distance
 )
-from core.service_points import create_service_point, ServicePriority
+from src.core.service_points import create_service_point, ServicePriority
 
 # Configuração da página
 st.set_page_config(
@@ -42,7 +48,7 @@ st.set_page_config(
 N_POINTS = 20
 POPULATION_SIZE = 100
 MUTATION_PROBABILITY = 0.5
-MAX_GENERATIONS = 200
+# MAX_GENERATIONS será definido dinamicamente pelo usuário
 
 # Cores por prioridade (em formato hex para Streamlit)
 PRIORITY_COLORS = {
@@ -107,21 +113,21 @@ def get_day_from_minutes(minutes):
     """Retorna o dia a partir dos minutos"""
     return int(minutes // 1440) + 1
 
-def run_pygame_2_vehicles(service_points_file, progress_file, screenshot_file, depot_location):
+def run_pygame_2_vehicles(service_points_file, progress_file, screenshot_file, depot_location, max_generations):
     """Executa visualização com 2 veículos - chama main_2v.py integrado"""
     import subprocess
     import sys
     
-    # Caminho para o main_2v.py do projeto
-    main_2v_path = os.path.join(os.path.dirname(__file__), 'main_2v.py')
+    # Caminho para o main_2v.py do projeto (agora na pasta app)
+    main_2v_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'main_2v.py')
     
-    # Executar o main_2v.py
+    # Executar o main_2v.py passando max_generations como argumento
     print(f"\n{'='*60}")
     print("EXECUTANDO OTIMIZAÇÃO COM 2 VEÍCULOS")
     print(f"{'='*60}\n")
     
     result = subprocess.run(
-        [sys.executable, main_2v_path],
+        [sys.executable, main_2v_path, str(max_generations)],
         cwd=os.path.dirname(__file__),
         capture_output=False
     )
@@ -134,11 +140,37 @@ def run_pygame_2_vehicles(service_points_file, progress_file, screenshot_file, d
     # Os dados estão em progress_file e screenshot_file
 
 
-def run_pygame_with_full_visualization(service_points_file, progress_file, screenshot_file):
+def run_pygame_with_full_visualization(service_points_file, progress_file, screenshot_file, max_generations):
     """Executa visualização completa do Pygame (1 veículo)"""
+    import sys
+    import os
+    
+    # Configurar sys.path para o processo filho
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    src_path = os.path.join(project_root, 'src')
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
+    
     # Importar módulo completo do pygame_viewer
-    from visualization import pygame_viewer
+    from src.visualization import pygame_viewer
+    from src.core.genetic_algorithm import (
+        calculate_constrained_fitness,
+        generate_priority_aware_population,
+        sort_population_by_fitness,
+        constrained_order_crossover,
+        constrained_mutate,
+        calculate_route_time_and_distance
+    )
     import pygame
+    import pickle
+    import random
+    import time
+    
+    # Constantes necessárias
+    POPULATION_SIZE = 100
+    MUTATION_PROBABILITY = 0.5
     
     # Carregar pontos
     with open(service_points_file, 'rb') as f:
@@ -170,7 +202,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
                     running = False
         
         # Verificar se atingiu o critério de parada
-        if generation >= MAX_GENERATIONS and not optimization_complete:
+        if generation >= max_generations and not optimization_complete:
             optimization_complete = True
             # Salvar screenshot final
             pygame.image.save(screen, screenshot_file)
@@ -178,7 +210,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         # Se otimização completa, mostrar tela de conclusão
         if optimization_complete:
             # Desenhar tela de conclusão
-            from visualization.pygame_viewer import draw_completion_screen
+            from src.visualization.pygame_viewer import draw_completion_screen
             draw_completion_screen(screen, generation, best_fitness, best_route, arrival_times, service_points)
             pygame.display.flip()
             
@@ -208,8 +240,8 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         _, _, arrival_times = calculate_route_time_and_distance(best_route)
         
         # Desenhar visualização completa
-        from visualization.pygame_viewer import (
-            draw_info_panel, draw_simple_plot, draw_route, 
+        from src.visualization.pygame_viewer import (
+            draw_info_panel, draw_simple_plot, draw_route,
             draw_service_points, NODE_RADIUS
         )
         
@@ -306,21 +338,94 @@ def display_results(best_route, best_fitness, arrival_times):
     max_day = get_day_from_minutes(last_service_arrival)
     time_str = format_time(last_service_arrival)
     
+    from src.core.service_points import calculate_distance
+    
+    # Agrupar pontos por dia
+    points_by_day = {}
+    for i, point in enumerate(best_route):
+        if point.id == 0:
+            continue
+        day = get_day_from_minutes(arrival_times[i])
+        if day not in points_by_day:
+            points_by_day[day] = []
+        points_by_day[day].append((point, arrival_times[i]))
+    
+    # Calcular distância por dia e distância total
+    distance_by_day = {}
+    depot = best_route[0]
+    sorted_days = sorted(points_by_day.keys())
+    total_distance_km = 0.0
+    
+    # Calcular distâncias
+    for day_idx, day in enumerate(sorted_days):
+        day_distance = 0
+        day_points = points_by_day[day]
+        
+        if day_points:
+            # Primeiro dia: sai do depósito
+            if day_idx == 0:
+                day_distance += calculate_distance(depot.location, day_points[0][0].location)
+            else:
+                # Dias seguintes: continua do último ponto do dia anterior
+                prev_day = sorted_days[day_idx - 1]
+                last_point_prev_day = points_by_day[prev_day][-1][0]
+                day_distance += calculate_distance(last_point_prev_day.location, day_points[0][0].location)
+            
+            # Distâncias entre pontos do dia
+            for j in range(len(day_points) - 1):
+                day_distance += calculate_distance(day_points[j][0].location, day_points[j+1][0].location)
+            
+            # Último dia: volta ao depósito
+            if day_idx == len(sorted_days) - 1:
+                day_distance += calculate_distance(day_points[-1][0].location, depot.location)
+        
+        distance_by_day[day] = day_distance * 0.1
+        total_distance_km += distance_by_day[day]
+    
+    # Métricas principais
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("Fitness", f"{best_fitness:.2f}")
+        st.metric("Fitness Total", f"{best_fitness:.2f}")
     
     with col2:
-        if max_day == 1:
-            st.metric("Dias para Entrega", f"{max_day} dia", delta="Ótimo", delta_color="normal")
-        elif max_day == 2:
-            st.metric("Dias para Entrega", f"{max_day} dias", delta="Aceitável", delta_color="off")
-        else:
-            st.metric("Dias para Entrega", f"{max_day} dias", delta="Atenção", delta_color="inverse")
+        total_points = len([p for p in best_route if p.id != 0])
+        st.metric("Total de Pontos", total_points)
     
     with col3:
-        st.metric("Horário da Última Entrega", time_str)
+        st.metric("Distância Total", f"{total_distance_km:.1f} km")
+    
+    st.divider()
+    
+    # Informações dos Dias
+    st.subheader("🚗 Informações dos Dias")
+    
+    cols = st.columns(max_day)
+    
+    for day_idx, day in enumerate(sorted(points_by_day.keys())):
+        with cols[day_idx]:
+            st.markdown(f"### :green[Dia {day}]")
+            st.metric("Pontos Atendidos", len(points_by_day[day]))
+            st.metric("Distância", f"{distance_by_day[day]:.1f} km")
+            
+            day_points = points_by_day[day]
+            if day_points:
+                first_arrival = day_points[0][1]
+                last_arrival = day_points[-1][1]
+                day_time = last_arrival - first_arrival + day_points[-1][0].service_duration
+                
+                # Se for o último dia, adicionar tempo de retorno ao depósito
+                if day_idx == len(sorted_days) - 1:
+                    return_distance = calculate_distance(day_points[-1][0].location, depot.location)
+                    # Velocidade média: 50 km/h = 0.833 km/min
+                    # Distância em unidades do jogo * 0.1 = km
+                    # Tempo = distância_km / velocidade_km_por_min
+                    return_time = (return_distance * 0.1) / 0.833
+                    day_time += return_time
+                
+                hours = int(day_time // 60)
+                minutes = int(day_time % 60)
+                st.metric("Tempo Total", f"{hours}h{minutes:02d}")
     
     st.divider()
     
@@ -376,15 +481,44 @@ def display_results(best_route, best_fitness, arrival_times):
             else:
                 ids_str = "()"
             
-            color = PRIORITY_COLORS[priority]
-            st.markdown(f":{color}[●] **{priority_names[priority]} ({priority_abbr[priority]})** - {ids_str}")
+            # Usar cores nomeadas do Streamlit ao invés de hexadecimal
+            color_map = {
+                ServicePriority.EMERGENCY_OBSTETRIC: "red",
+                ServicePriority.DOMESTIC_VIOLENCE: "orange",
+                ServicePriority.HORMONAL_MEDICATION: "blue",
+                ServicePriority.POSTPARTUM_CARE: "violet",
+                ServicePriority.REGULAR: "gray"
+            }
+            color_name = color_map[priority]
+            st.markdown(f":{color_name}[●] **{priority_names[priority]} ({priority_abbr[priority]})** - {ids_str}")
     
     st.divider()
     
     st.subheader("📋 Melhor Solução Encontrada")
+    
+    # Mapeamento de cores HTML
+    PRIORITY_COLORS_HTML = {
+        ServicePriority.EMERGENCY_OBSTETRIC: "#FF0000",  # Vermelho
+        ServicePriority.DOMESTIC_VIOLENCE: "#FFA500",    # Laranja
+        ServicePriority.HORMONAL_MEDICATION: "#0000FF",  # Azul
+        ServicePriority.POSTPARTUM_CARE: "#800080",      # Roxo
+        ServicePriority.REGULAR: "#808080"               # Cinza
+    }
+    
+    # Criar HTML com IDs coloridos por prioridade
     route_without_depot = [p for p in best_route if p.id != 0]
-    route_ids = [str(p.id) for p in route_without_depot]
-    st.code(f"[ {', '.join(route_ids)} ]", language=None)
+    html_parts = ["<div style='font-family: monospace; font-size: 16px; padding: 10px; background-color: #0e1117; border-radius: 5px;'>[ "]
+    
+    for i, point in enumerate(route_without_depot):
+        color = PRIORITY_COLORS_HTML.get(point.priority, "#000000")
+        html_parts.append(f"<span style='color: {color}; font-weight: bold;'>{point.id}</span>")
+        
+        if i < len(route_without_depot) - 1:
+            html_parts.append(", ")
+    
+    html_parts.append(" ]</div>")
+    
+    st.markdown("".join(html_parts), unsafe_allow_html=True)
 
 def display_results_multi_vehicle(best_solution, best_fitness):
     """Exibe os resultados da otimização com múltiplos veículos"""
@@ -423,7 +557,9 @@ def display_results_multi_vehicle(best_solution, best_fitness):
     
     with col3:
         total_distance = sum(v.total_distance for v in best_solution.vehicles)
-        st.metric("Distância Total", f"{total_distance:.0f}")
+        # Converter para km (multiplicar por 0.1)
+        total_distance_km = total_distance * 0.1
+        st.metric("Distância Total", f"{total_distance_km:.1f} km")
     
     st.divider()
     
@@ -436,7 +572,10 @@ def display_results_multi_vehicle(best_solution, best_fitness):
         with cols[i]:
             st.markdown(f"### :green[Veículo {vehicle.vehicle_id}]")
             st.metric("Pontos Atendidos", len(vehicle.route))
-            st.metric("Distância", f"{vehicle.total_distance:.0f}")
+            
+            # Converter distância para km (multiplicar por 0.1)
+            distance_km = vehicle.total_distance * 0.1
+            st.metric("Distância", f"{distance_km:.1f} km")
             
             # Converter tempo de minutos para horas e minutos
             hours = int(vehicle.total_time // 60)
@@ -476,7 +615,9 @@ def display_results_multi_vehicle(best_solution, best_fitness):
     for vehicle in best_solution.vehicles:
         for point in vehicle.route:
             if point.id != 0:  # Excluir depósito (ID 0)
-                priority_ids[point.priority].append(point.id)
+                # Verificar se a prioridade existe no dicionário
+                if point.priority in priority_ids:
+                    priority_ids[point.priority].append(point.id)
     
     # Exibir em colunas
     col1, col2 = st.columns(2)
@@ -548,6 +689,9 @@ def main():
     st.title("🚗 Sistema de Otimização de Rotas com Restrições")
     st.markdown("**Algoritmo Genético para Roteamento de Atendimentos em Saúde da Mulher**")
     
+    # Adicionar divisor após o título
+    st.divider()
+    
     # Placeholder para sidebar (será preenchido depois)
     sidebar_placeholder = st.sidebar.empty()
     
@@ -557,6 +701,9 @@ def main():
     if 'num_vehicles' not in st.session_state:
         st.session_state.num_vehicles = 1
     
+    if 'max_generations' not in st.session_state:
+        st.session_state.max_generations = 10
+    
     if not st.session_state.optimization_done:
         # Verificar se deve auto-iniciar (após Reiniciar)
         auto_start = st.session_state.get('auto_start', False)
@@ -564,66 +711,87 @@ def main():
         if not auto_start:
             st.markdown("### 🚀 Configuração da Otimização")
             
-            # CSS para aumentar o tamanho das fontes do radio button
+            # CSS para aumentar fontes e ajustar layout
             st.markdown("""
             <style>
             div[role="radiogroup"] label {
-                font-size: 1.2rem !important;
-                font-weight: 500 !important;
+                font-size: 1.5rem !important;
+                font-weight: 600 !important;
             }
             div[role="radiogroup"] label p {
-                font-size: 1.2rem !important;
+                font-size: 1.5rem !important;
             }
             </style>
             """, unsafe_allow_html=True)
             
-            # Criar duas colunas: uma para o seletor, outra para o texto de restrições
-            col_selector, col_restriction = st.columns([1, 1.5])
+            # Layout em 3 colunas (veículos, gerações, vazia)
+            col_vehicles, col_generations, col_empty = st.columns(3)
             
-            with col_selector:
+            with col_vehicles:
                 # Seletor de número de veículos
+                st.markdown("<h3 style='font-size: 1.3rem; margin-bottom: 15px;'>Número de veículos:</h3>", unsafe_allow_html=True)
                 num_vehicles = st.radio(
-                    "**Escolha o número de veículos:**",
+                    "Número de veículos",
                     options=[1, 2],
                     format_func=lambda x: f"🚗 {x} veículo" if x == 1 else f"🚗🚗 {x} veículos",
                     horizontal=True,
                     help="1 veículo: Otimização tradicional | 2 veículos: Otimização multi-veículo com depósito",
-                    key='num_vehicles_radio'
+                    key='num_vehicles_radio',
+                    label_visibility="collapsed"
                 )
                 st.session_state.num_vehicles = num_vehicles
-            
-            with col_restriction:
-                # Texto de restrição de medicamentos prioritários depende do número de veículos
+                
+                # Texto de restrição de medicamentos prioritários (abaixo dos veículos)
+                st.markdown("<br>", unsafe_allow_html=True)
                 if num_vehicles == 1:
-                    # Usar HTML para fonte maior e destaque (na mesma linha)
                     restriction_html = """
-                    <div style='margin-top: 20px;'>
-                        <span style='font-size: 18px; font-weight: 600;'>Medicamentos prioritários entregues </span>
-                        <span style='font-size: 24px; font-weight: 700; color: #FF8C00; background-color: rgba(255, 140, 0, 0.1); padding: 4px 8px; border-radius: 4px;'>até o 1º dia</span>
+                    <div style='margin-top: 10px; margin-bottom: 20px; white-space: nowrap;'>
+                        <span style='font-size: 18px; font-weight: 600;'>Medicamentos prioritários entregues <span style='font-size: 22px; font-weight: 700; color: #FF8C00; background-color: rgba(255, 140, 0, 0.1); padding: 4px 8px; border-radius: 4px;'>até o 1º dia</span></span>
                     </div>
                     """
                 else:  # 2 veículos
                     restriction_html = """
-                    <div style='margin-top: 20px;'>
-                        <span style='font-size: 18px; font-weight: 600;'>Medicamentos prioritários entregues </span>
-                        <span style='font-size: 24px; font-weight: 700; color: #FF8C00; background-color: rgba(255, 140, 0, 0.1); padding: 4px 8px; border-radius: 4px;'>até 12:00</span>
+                    <div style='margin-top: 10px; margin-bottom: 20px; white-space: nowrap;'>
+                        <span style='font-size: 18px; font-weight: 600;'>Medicamentos prioritários entregues <span style='font-size: 22px; font-weight: 700; color: #FF8C00; background-color: rgba(255, 140, 0, 0.1); padding: 4px 8px; border-radius: 4px;'>até 12:00</span></span>
                     </div>
                     """
-                
                 st.markdown(restriction_html, unsafe_allow_html=True)
             
+            with col_generations:
+                # Seletor de número de gerações
+                st.markdown("<h3 style='font-size: 1.3rem; margin-bottom: 15px;'>Número de gerações:</h3>", unsafe_allow_html=True)
+                max_generations = st.selectbox(
+                    "Número de gerações",
+                    options=[10, 100, 200, 500, 1000, 2000, 5000, 10000, 15000, 20000],
+                    index=0,  # 10 como padrão
+                    help="Número máximo de gerações do algoritmo genético",
+                    key='max_generations_select',
+                    label_visibility="collapsed"
+                )
+                st.session_state.max_generations = max_generations
+            
+            with col_empty:
+                # Coluna vazia (reservada para futuras opções)
+                pass
+            
+            st.markdown("<br>", unsafe_allow_html=True)
             st.divider()
-            st.markdown("Clique no botão abaixo para iniciar o processo de otimização de rotas.")
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<p style='font-size: 1.2rem; margin-bottom: 20px;'>Clique no botão abaixo para iniciar o processo de otimização de rotas.</p>", unsafe_allow_html=True)
     
     # Preencher sidebar com informações (agora que num_vehicles está definido)
     with sidebar_placeholder.container():
         st.header("ℹ️ Informações do Sistema")
         
         st.markdown("### 🧬 Parâmetros do Algoritmo Genético")
-        st.markdown("""
+        
+        # Obter número de gerações atual
+        max_generations = st.session_state.get('max_generations', 10)
+        
+        st.markdown(f"""
         - **Pontos de Atendimento:** 20
         - **Tamanho da População:** 100
-        - **Gerações Máximas:** 200
+        - **Gerações Máximas:** {max_generations}
         - **Probabilidade de Mutação:** 50%
         - **Seleção:** Torneio (tamanho 5)
         - **Elitismo:** Ativo
@@ -664,13 +832,14 @@ def main():
         """)
     
     if not st.session_state.optimization_done:
-        if st.button("▶️ Start", type="primary", use_container_width=True) or auto_start:
+        if st.button("▶️ Iniciar otimização", type="primary") or auto_start:
             # Limpar flag de auto_start
             if 'auto_start' in st.session_state:
                 del st.session_state['auto_start']
             
-            # Obter número de veículos selecionado
+            # Obter número de veículos e gerações selecionados
             num_vehicles = st.session_state.num_vehicles
+            MAX_GENERATIONS = st.session_state.max_generations
             
             # Arquivos temporários
             temp_dir = '/tmp'
@@ -745,19 +914,21 @@ def main():
             if num_vehicles == 1:
                 pygame_process = multiprocessing.Process(
                     target=run_pygame_with_full_visualization,
-                    args=(service_points_file, progress_file, screenshot_file)
+                    args=(service_points_file, progress_file, screenshot_file, max_generations)
                 )
             else:  # 2 veículos
                 with open(depot_file, 'rb') as f:
                     depot_location = pickle.load(f)
                 pygame_process = multiprocessing.Process(
                     target=run_pygame_2_vehicles,
-                    args=(service_points_file, progress_file, screenshot_file, depot_location)
+                    args=(service_points_file, progress_file, screenshot_file, depot_location, max_generations)
                 )
             
             pygame_process.start()
             
             # Monitorar progresso
+            st.markdown("---")
+            st.markdown("### 📊 Progresso da Otimização")
             progress_bar = st.progress(0)
             status_text = st.empty()
             
@@ -770,6 +941,7 @@ def main():
                         generation = progress_data.get('generation', 0)
                         best_fitness = progress_data.get('best_fitness', 0)
                         
+                        # Usar generation diretamente (pygame_viewer_2v.py já salva o valor correto)
                         progress = generation / MAX_GENERATIONS
                         progress_bar.progress(min(progress, 1.0))
                         status_text.text(f"Geração {generation}/{MAX_GENERATIONS} - Fitness: {best_fitness:.2f}")
@@ -839,7 +1011,7 @@ def main():
         if 'fitness_history' in st.session_state:
             st.markdown("### 📊 Evolução do Fitness ao Longo das Gerações")
             df = pd.DataFrame({
-                'Geração': list(range(len(st.session_state.fitness_history))),
+                'Geração': list(range(1, len(st.session_state.fitness_history) + 1)),
                 'Fitness': st.session_state.fitness_history
             })
             st.line_chart(df.set_index('Geração'), width='stretch')
@@ -880,8 +1052,9 @@ def main():
         
         with col1:
             if st.button("🔄 Reiniciar", type="secondary", use_container_width=True):
-                # Salvar número de veículos atual antes de limpar
+                # Salvar configurações atuais antes de limpar
                 current_num_vehicles = st.session_state.get('num_vehicles', 1)
+                current_max_generations = st.session_state.get('max_generations', 10)
                 
                 # Limpar arquivos temporários
                 temp_dir = '/tmp'
@@ -897,14 +1070,15 @@ def main():
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 
-                # Restaurar número de veículos e marcar para auto-start
+                # Restaurar configurações e marcar para auto-start
                 st.session_state.num_vehicles = current_num_vehicles
+                st.session_state.max_generations = current_max_generations
                 st.session_state.optimization_done = False
                 st.session_state.auto_start = True
                 st.rerun()
         
         with col2:
-            if st.button("🔧 Alterar Veículos", type="secondary", use_container_width=True):
+            if st.button("🔧 Alterar Parâmetros Iniciais", type="secondary", use_container_width=True):
                 # Limpar arquivos temporários
                 temp_dir = '/tmp'
                 for filename in ['service_points.pkl', 'progress.pkl', 'pygame_final.png', 'depot_location.pkl']:
@@ -941,9 +1115,20 @@ def main():
                 
                 def run_clean():
                     try:
-                        subprocess.run(['make', 'clean'], check=False, cwd=os.path.dirname(os.path.abspath(__file__)))
-                    except:
-                        pass
+                        # Executar make clean no diretório raiz do projeto
+                        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+                        result = subprocess.run(['make', 'clean'],
+                                              check=False,
+                                              cwd=project_root,
+                                              capture_output=True,
+                                              text=True)
+                        print(f"Make clean executado: {result.returncode}")
+                        if result.stdout:
+                            print(f"Output: {result.stdout}")
+                        if result.stderr:
+                            print(f"Errors: {result.stderr}")
+                    except Exception as e:
+                        print(f"Erro ao executar make clean: {e}")
                     # Encerrar o servidor após limpeza
                     import signal
                     time.sleep(1)

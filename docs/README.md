@@ -188,12 +188,48 @@ genetic_route_optimizer/
 
 ---
 
+## 📏 Unidades de Medida
+
+### Distância
+As distâncias são calculadas usando **distância euclidiana** entre coordenadas (x, y) no plano 2D.
+
+**Conversão para unidades reais:**
+- **1 unidade de coordenada = 100 metros (0,1 km)**
+- **Fator de escala:** `scale_factor = 0.1`
+- **Fórmula:** `distância_km = distância_unidades × 0.1`
+
+**Exemplos:**
+- 500 unidades = 50,0 km
+- 1000 unidades = 100,0 km
+- 2934 unidades = 293,4 km
+
+### Tempo de Viagem
+Calculado com base na distância e velocidade média:
+- **Velocidade padrão:** 40 km/h (velocidade urbana típica)
+- **Fórmula:** `tempo_minutos = (distância_km / velocidade_kmh) × 60`
+
+**Exemplos:**
+- 50 km a 40 km/h = 75 minutos (1h15min)
+- 10 km a 40 km/h = 15 minutos
+- 293,4 km a 40 km/h = 440 minutos (7h20min)
+
+### Tempo de Atendimento
+Cada tipo de serviço tem duração específica:
+- **Emergência Obstétrica:** 30 minutos
+- **Violência Doméstica:** 45 minutos (protocolo especial)
+- **Medicamento Hormonal:** 10 minutos (entrega rápida)
+- **Pós-Parto:** 20 minutos
+- **Regular:** 15 minutos
+- **Depósito:** 0 minutos (ponto de partida/retorno)
+
+---
+
 ## 🧬 Algoritmo Genético
 
 ### Parâmetros
 
 - **População**: 100 indivíduos
-- **Taxa de Mutação**: 30%
+- **Taxa de Mutação**: 30% (1 veículo) / 50% (2 veículos)
 - **Seleção**: Torneio (tamanho 5)
 - **Elitismo**: Melhor indivíduo preservado
 - **Crossover**: Order Crossover (OX) com viés de prioridade
@@ -202,7 +238,7 @@ genetic_route_optimizer/
 ### Função de Fitness
 
 A função de fitness considera:
-- Distância total percorrida
+- Distância total percorrida (em km)
 - Penalização por ordem incorreta de prioridades
 - Penalização por violação de janelas de tempo
 - Penalização por violação de controle de temperatura

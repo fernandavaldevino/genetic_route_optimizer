@@ -8,7 +8,7 @@ from pygame.locals import *
 import random
 import sys
 import numpy as np
-from core.genetic_algorithm import (
+from src.core.genetic_algorithm import (
     calculate_constrained_fitness,
     generate_priority_aware_population,
     sort_population_by_fitness,
@@ -16,7 +16,7 @@ from core.genetic_algorithm import (
     constrained_mutate,
     calculate_route_time_and_distance
 )
-from core.service_points import create_service_point, ServicePriority
+from src.core.service_points import create_service_point, ServicePriority
 
 # Constantes
 WIDTH, HEIGHT = 1400, 800
@@ -271,7 +271,7 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
     # Calcular retorno ao depósito
     depot = best_route[0]
     last_point = best_route[-1]
-    from core.service_points import calculate_travel_time
+    from src.core.service_points import calculate_travel_time
     return_travel_time = calculate_travel_time(last_point.location, depot.location, 40.0)
     return_arrival = arrival_times[-1] + last_point.service_duration + return_travel_time
     
@@ -690,7 +690,7 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
     last_point = best_route[-1]
     
     # Calcular tempo de retorno ao depósito
-    from core.service_points import calculate_travel_time
+    from src.core.service_points import calculate_travel_time
     return_travel_time = calculate_travel_time(last_point.location, depot.location, 40.0)
     return_arrival = arrival_times[-1] + last_point.service_duration + return_travel_time
     

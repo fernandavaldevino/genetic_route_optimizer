@@ -9,10 +9,12 @@ Autor: Fernanda Valdevino - Projeto Fase 2
 import sys
 import os
 
-# Adicionar src ao path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# Adicionar src ao path (ajustar para a nova estrutura)
+project_root = os.path.join(os.path.dirname(__file__), '..')
+sys.path.insert(0, project_root)
+sys.path.insert(0, os.path.join(project_root, 'src'))
 
-from visualization.pygame_viewer import main as run_visualization
+from src.visualization.pygame_viewer import main as run_visualization
 
 if __name__ == '__main__':
     print("="*60)

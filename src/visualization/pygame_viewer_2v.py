@@ -9,7 +9,7 @@ from pygame.locals import *
 import random
 import sys
 import numpy as np
-from core.multi_vehicle import (
+from src.core.multi_vehicle import (
     generate_multi_vehicle_population,
     calculate_multi_vehicle_fitness,
     multi_vehicle_crossover,
@@ -17,7 +17,7 @@ from core.multi_vehicle import (
     sort_multi_vehicle_population,
     MultiVehicleSolution
 )
-from core.service_points import create_service_point, ServicePriority, calculate_distance
+from src.core.service_points import create_service_point, ServicePriority, calculate_distance
 
 # Constantes
 WIDTH, HEIGHT = 1400, 800
@@ -272,9 +272,12 @@ def draw_info_panel(screen, generation, best_solution):
         minutes = int(vehicle.total_time % 60)
         time_str = f"{hours}h{minutes:02d}"
         
+        # Converter distância para km (dividir por 0.1)
+        distance_km = vehicle.total_distance * 0.1
+        
         data_items = [
             ("Pontos:", f"{len(vehicle.route)}"),
-            ("Dist:", f"{vehicle.total_distance:.0f}"),
+            ("Dist:", f"{distance_km:.1f} km"),
             ("Tempo:", time_str)
         ]
         
@@ -714,7 +717,7 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
                 vehicle2_deliveries.append((f"P{point.id}", abbr, arrival, day, False, 2))
     
     # Adicionar retorno ao depósito para cada veículo
-    from core.service_points import calculate_travel_time
+    from src.core.service_points import calculate_travel_time
     
     for vehicle in best_solution.vehicles:
         if vehicle.arrival_times and len(vehicle.arrival_times) > 0:
@@ -945,7 +948,7 @@ def create_depot_and_service_points(n_points):
     return depot_location, service_points
 
 
-def main():
+def main(max_generations=10):
     import pickle
     import time
     
@@ -959,7 +962,7 @@ def main():
     
     best_fitness_history = []
     generation = 0
-    MAX_GENERATIONS = 300  # Aumentado de 200 para 300 para mais evolução
+    MAX_GENERATIONS = max_generations  # Parâmetro configurável
     finished = False  # Flag para controlar estado final
     screenshot_saved = False  # Flag para salvar screenshot apenas uma vez
     
@@ -993,8 +996,9 @@ def main():
             for vehicle in best_solution.vehicles:
                 hours = int(vehicle.total_time // 60)
                 minutes = int(vehicle.total_time % 60)
+                distance_km = vehicle.total_distance * 0.1
                 print(f"  Veículo {vehicle.vehicle_id}: {len(vehicle.route)} pontos, "
-                      f"Dist={vehicle.total_distance:.1f}, Tempo={hours}h{minutes:02d}")
+                      f"Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
             print(f"{'='*60}\n")
             finished = True
         
@@ -1091,8 +1095,9 @@ def main():
             for vehicle in best_solution.vehicles:
                 hours = int(vehicle.total_time // 60)
                 minutes = int(vehicle.total_time % 60)
+                distance_km = vehicle.total_distance * 0.1
                 print(f"  Veículo {vehicle.vehicle_id}: {len(vehicle.route)} pontos, "
-                      f"Dist={vehicle.total_distance:.1f}, Tempo={hours}h{minutes:02d}")
+                      f"Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
         
         # Criar nova população com ELITISMO FORTE
         elite_size = 10  # Aumentado de 5 para 10 para preservar mais boas soluções
