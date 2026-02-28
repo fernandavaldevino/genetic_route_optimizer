@@ -62,7 +62,7 @@ pip install -r requirements.txt
 make run
 
 # Opção 2: Manual
-python main.py
+python app/main.py
 ```
 
 ### Exemplo Básico
@@ -293,7 +293,7 @@ O sistema já está integrado. Execute:
 ```bash
 make run
 # ou
-python main.py
+python app/main.py
 ```
 
 A interface mostra:

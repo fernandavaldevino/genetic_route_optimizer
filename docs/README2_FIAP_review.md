@@ -169,7 +169,7 @@ fitness = (distância × 10) +
 #### Opção 1: Usando Makefile (Recomendado)
 
 ```bash
-cd genetic_algorithm_routes_optimization
+cd genetic_route_optimizer
 
 # Ver comandos disponíveis
 make help
@@ -193,7 +193,7 @@ make clean
 #### Opção 2: Manual
 
 ```bash
-cd genetic_algorithm_routes_optimization
+cd genetic_route_optimizer
 
 # Criar ambiente virtual
 python3 -m venv ga_routes
@@ -205,7 +205,7 @@ source ga_routes/bin/activate
 pip install -r requirements.txt
 
 # Executar sistema
-python main.py
+python app/main.py
 ```
 
 ### Controles
@@ -218,8 +218,10 @@ python main.py
 ## 📁 Estrutura de Arquivos
 
 ```
-genetic_algorithm_routes_optimization/
-├── main.py                      # Ponto de entrada principal
+genetic_route_optimizer/
+├── app/                         # Aplicações principais
+│   ├── main.py                  # Pygame 1 veículo (standalone)
+│   └── main_2v.py               # Pygame 2 veículos (standalone)
 ├── Makefile                     # Automação de tarefas
 ├── requirements.txt             # Dependências
 ├── README.md                    # Documentação principal
@@ -271,7 +273,7 @@ genetic_algorithm_routes_optimization/
 - Gráfico de evolução
 - Destaque visual de alertas
 
-### 4. **main.py**
+### 4. **app/main.py**
 - Ponto de entrada do sistema
 - Configuração inicial
 - Execução da visualização
