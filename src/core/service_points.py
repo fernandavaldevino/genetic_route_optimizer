@@ -10,17 +10,17 @@ import math
 
 
 class ServicePriority(Enum):
-    """Níveis de prioridade para diferentes tipos de atendimento"""
-    EMERGENCY_OBSTETRIC = 1      # Prioridade máxima
-    DOMESTIC_VIOLENCE = 2         # Protocolos especiais
-    HORMONAL_MEDICATION = 3       # Temperatura controlada
-    POSTPARTUM_CARE = 4          # Janelas de tempo específicas
-    REGULAR = 5                   # Atendimento regular
+    """ Níveis de prioridade para diferentes tipos de atendimento """
+    EMERGENCY_OBSTETRIC = 1         # Prioridade máxima
+    DOMESTIC_VIOLENCE = 2           # Protocolos especiais
+    HORMONAL_MEDICATION = 3         # Temperatura controlada
+    POSTPARTUM_CARE = 4             # Janelas de tempo específicas
+    REGULAR = 5                     # Atendimento regular
 
 
 @dataclass
 class TimeWindow:
-    """Janela de tempo para atendimento"""
+    """ Janela de tempo para atendimento """
     start_time: float  # Tempo inicial (em minutos desde início do dia)
     end_time: float    # Tempo final (em minutos desde início do dia)
     
@@ -32,17 +32,17 @@ class TimeWindow:
         """Calcula penalidade por violação da janela de tempo"""
         if self.is_valid_time(arrival_time):
             return 0.0
-        elif arrival_time < self.start_time:
-            return (self.start_time - arrival_time) * 10  # Penalidade por chegar cedo
+        elif arrival_time > self.end_time:
+            # Chegar atrasado: penalidade MUITO ALTA (viola compromisso)
+            return (arrival_time - self.end_time) * 5000  # Era 50, agora 5000
         else:
-            return (arrival_time - self.end_time) * 50  # Penalidade maior por atraso
+            # Chegar cedo: sem penalidade (pode esperar)
+            return 0.0
 
 
 @dataclass
 class ServicePoint:
-    """
-    Representa um ponto de atendimento com suas características específicas
-    """
+    """ Representa um ponto de atendimento com suas características específicas """
     id: int
     location: Tuple[float, float]  # Coordenadas (x, y)
     priority: ServicePriority
@@ -52,11 +52,11 @@ class ServicePoint:
     service_duration: float = 15.0  # Duração do atendimento em minutos
     
     def get_priority_weight(self) -> float:
-        """Retorna peso baseado na prioridade (menor = mais importante)"""
+        """ Retorna peso baseado na prioridade (menor = mais importante) """
         return self.priority.value
     
     def get_penalty_for_late_service(self, delay: float) -> float:
-        """Calcula penalidade baseada no atraso e prioridade"""
+        """ Calcula penalidade baseada no atraso e prioridade """
         base_penalty = delay * self.get_priority_weight()
         
         # Penalidades específicas por tipo
@@ -142,12 +142,12 @@ def create_service_point(
 
 
 def calculate_distance(point1: Tuple[float, float], point2: Tuple[float, float]) -> float:
-    """Calcula distância euclidiana entre dois pontos"""
+    """ Calcula distância euclidiana entre dois pontos """
     return math.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
 
 
 def calculate_travel_time(point1: Tuple[float, float], point2: Tuple[float, float],
-                          speed: float = 40.0, scale_factor: float = 0.1) -> float:
+                          speed: float = 60.0, scale_factor: float = 0.1) -> float:
     """
     Calcula tempo de viagem entre dois pontos
     

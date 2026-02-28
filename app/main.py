@@ -3,13 +3,13 @@
 Sistema de Otimização de Rotas com Restrições
 Algoritmo Genético para Roteamento de Atendimentos em Saúde da Mulher
 
-Autor: Fernanda Valdevino - Projeto Fase 2
+Autor: Fernanda Valdevino - Projeto Fase 2 - FIAP - Pós-Graduação IA para Devs
 """
 
 import sys
 import os
 
-# Adicionar src ao path (ajustar para a nova estrutura)
+# Adicionar src ao path para permitir importações
 project_root = os.path.join(os.path.dirname(__file__), '..')
 sys.path.insert(0, project_root)
 sys.path.insert(0, os.path.join(project_root, 'src'))
@@ -18,7 +18,7 @@ from src.visualization.pygame_viewer import main as run_visualization
 
 if __name__ == '__main__':
     print("="*60)
-    print("SISTEMA DE ROTEAMENTO COM RESTRIÇÕES")
+    print("SISTEMA DE OTIMIZAÇÃO DE ROTAS COM RESTRIÇÕES")
     print("="*60)
     print("\nControles:")
     print("  Q ou ESC - Sair")

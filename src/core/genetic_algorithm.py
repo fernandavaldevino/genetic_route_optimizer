@@ -16,10 +16,10 @@ from .service_points import (
 
 
 def calculate_route_time_and_distance(route: List[ServicePoint],
-                                     start_time: float = 480.0,
-                                     speed: float = 40.0,
-                                     work_start: float = 480.0,
-                                     work_end: float = 1080.0) -> Tuple[float, float, List[float]]:
+                                      start_time: float = 480.0,
+                                      speed: float = 60.0,
+                                      work_start: float = 480.0,
+                                      work_end: float = 1080.0) -> Tuple[float, float, List[float]]:
     """
     Calcula tempo total e distância de uma rota, considerando tempos de serviço
     e pausas noturnas (horário comercial: 8h-18h)
@@ -88,12 +88,21 @@ def calculate_route_time_and_distance(route: List[ServicePoint],
 
 def calculate_constrained_fitness(route: List[ServicePoint],
                                   start_time: float = 480.0,
-                                  speed: float = 40.0) -> float:
+                                  speed: float = 60.0,
+                                  priority_deadline: float = 1440.0) -> float:
     """
-    Calcula fitness BALANCEANDO distância e prioridades:
+    Calcula fitness balanceando distância e prioridades:
     - Ordem de prioridades: EME → VIO → MED → POS → REG
     - Permite até 1 parada entre pontos da mesma prioridade para otimizar distância
     - Penaliza violações de ordem, mas prioriza minimização de distância
+    
+    Args:
+        route: Lista de pontos de atendimento
+        start_time: Horário de início (default: 8h = 480 min)
+        speed: Velocidade do veículo em km/h (default: 60 km/h)
+        priority_deadline: Deadline para medicamentos prioritários em minutos desde início do dia
+                          - 1440 min (24h/fim do Dia 1) para 1 veículo
+                          - 720 min (12h) para 2 veículos
     """
     if not route:
         return float('inf')
@@ -103,7 +112,7 @@ def calculate_constrained_fitness(route: List[ServicePoint],
         route, start_time, speed
     )
     
-    # Fitness base: DISTÂNCIA (peso principal)
+    # Fitness base: Distância (peso principal)
     fitness = total_distance * 10  # Multiplicar para dar peso à distância
     
     # Encontrar posições de cada prioridade
@@ -127,7 +136,7 @@ def calculate_constrained_fitness(route: List[ServicePoint],
         ServicePriority.REGULAR
     ]
     
-    # Penalidade MODERADA por violação de ordem (permite otimização)
+    # Penalidade moderada por violação de ordem (permite otimização)
     priority_order_penalty = 0.0
     for i in range(len(priority_order) - 1):
         current_priority = priority_order[i]
@@ -145,14 +154,13 @@ def calculate_constrained_fitness(route: List[ServicePoint],
                 violation_size = max_current - min_next
                 priority_order_penalty += violation_size * 5000  # Penalidade moderada
     
-    # Penalidade LEVE por gaps (permite 1 parada)
+    # Penalidade leve por gaps (permite 1 parada)
     gap_penalty = 0.0
     for priority, positions in priority_positions.items():
         if len(positions) > 1:
             for i in range(len(positions) - 1):
                 gap = positions[i + 1] - positions[i] - 1
                 if gap > 1:  # Mais de 1 parada
-                    # Penalidade leve: permite otimização de distância
                     gap_penalty += (gap - 1) * 1000
     
     # Penalidades por violação de janelas de tempo
@@ -162,8 +170,8 @@ def calculate_constrained_fitness(route: List[ServicePoint],
             penalty = point.time_window.get_penalty(arrival_time)
             time_window_penalty += penalty
     
-    # NOVA RESTRIÇÃO: Medicamentos prioritários DEVEM ser entregues no Dia 1
-    priority_day_penalty = 0.0
+    # Restrição: Medicamentos prioritários devem ser entregues antes do deadline
+    priority_deadline_penalty = 0.0
     priority_types = [
         ServicePriority.EMERGENCY_OBSTETRIC,
         ServicePriority.DOMESTIC_VIOLENCE,
@@ -173,16 +181,17 @@ def calculate_constrained_fitness(route: List[ServicePoint],
     
     for point, arrival_time in zip(route, arrival_times):
         if point.priority in priority_types:
-            day = int(arrival_time // 1440) + 1
-            if day > 1:
-                # Penalidade ENORME se medicamento prioritário não for entregue no Dia 1
-                priority_day_penalty += 1000000  # 1 milhão por violação
+            # Verificar se passou do deadline
+            if arrival_time > priority_deadline:
+                # Penalidade forte se medicamento prioritário passar do deadline: 10.000 por minuto de atraso
+                delay = arrival_time - priority_deadline
+                priority_deadline_penalty += delay * 10000
     
-    # Validação de controle de temperatura
+    # Validação de controle de temperatura: penalidade alta se rota não atender requisitos - 50000
     temp_valid, temp_message = validate_temperature_control_route(route)
     temperature_penalty = 0.0 if temp_valid else 50000
     
-    # Validação de protocolos especiais
+    # Validação de protocolos especiais: penalidade alta se sequência de protocolos for violada - 20000
     protocol_valid, protocol_message = validate_special_protocol_sequence(route)
     protocol_penalty = 0.0 if protocol_valid else 20000
     
@@ -190,16 +199,16 @@ def calculate_constrained_fitness(route: List[ServicePoint],
     max_work_time = 480.0  # 8 horas
     overtime_penalty = max(0, total_time - max_work_time) * 100
     
-    # Fitness total: DISTÂNCIA é o fator principal
+    # Fitness total: distância é o fator principal
     total_fitness = (
-        fitness +                  # Distância x10 (peso principal)
-        priority_order_penalty +   # Penalidade moderada por ordem
-        gap_penalty +              # Penalidade leve por gaps
-        time_window_penalty +
+        fitness +                    # Distância x10 (peso principal)
+        priority_order_penalty +     # Penalidade moderada por ordem
+        gap_penalty +                # Penalidade leve por gaps
+        time_window_penalty +        # Penalidade por janelas de tempo
         temperature_penalty +
         protocol_penalty +
         overtime_penalty +
-        priority_day_penalty       # NOVA: Penalidade por medicamentos prioritários fora do Dia 1
+        priority_deadline_penalty    # Penalidade por deadline de prioritários
     )
     
     return total_fitness
@@ -210,7 +219,7 @@ def generate_priority_aware_population(service_points: List[ServicePoint],
                                        priority_bias: float = 0.9) -> List[List[ServicePoint]]:
     """
     Gera população inicial com viés para ordem de prioridade
-    SEMPRE coloca o depósito (ID=0) como primeiro ponto
+    Sempre coloca o depósito (ID=0) como primeiro ponto
     
     Args:
         service_points: Lista de pontos de atendimento
@@ -275,7 +284,7 @@ def constrained_order_crossover(parent1: List[ServicePoint],
                                 preserve_priority_blocks: bool = True) -> List[ServicePoint]:
     """
     Crossover que preserva ordem de prioridades
-    SEMPRE mantém o depósito (ID=0) na primeira posição
+    Sempre mantém o depósito (ID=0) na primeira posição
     
     Args:
         parent1, parent2: Rotas dos pais
@@ -353,11 +362,11 @@ def constrained_order_crossover(parent1: List[ServicePoint],
 
 
 def constrained_mutate(route: List[ServicePoint],
-                      mutation_probability: float,
-                      respect_priorities: bool = True) -> List[ServicePoint]:
+                       mutation_probability: float,
+                       respect_priorities: bool = True) -> List[ServicePoint]:
     """
-    Mutação que RESPEITA ordem de prioridades
-    SEMPRE mantém o depósito (ID=0) na primeira posição
+    Mutação que respeita ordem de prioridades
+    Sempre mantém o depósito (ID=0) na primeira posição
     
     Args:
         route: Rota a ser mutada
@@ -402,7 +411,7 @@ def constrained_mutate(route: List[ServicePoint],
         
         return mutated_route
     
-    # 10% das vezes: mutação livre (para diversidade, mas sem tocar no depósito)
+    # 10% das vezes: mutação livre (para diversidade, exceto depósito)
     mutation_type = random.choice(['swap', 'inversion'])
     
     # Criar lista de índices válidos (sem o depósito)
@@ -420,104 +429,10 @@ def constrained_mutate(route: List[ServicePoint],
     return mutated_route
 
 
-def sort_population_by_fitness(population: List[List[ServicePoint]], 
+def sort_population_by_fitness(population: List[List[ServicePoint]],
                                fitness_values: List[float]) -> Tuple[List[List[ServicePoint]], List[float]]:
-    """Ordena população por fitness (menor = melhor)"""
+    """ Ordena população por fitness (menor = melhor) """
     combined = list(zip(population, fitness_values))
     sorted_combined = sorted(combined, key=lambda x: x[1])
     sorted_population, sorted_fitness = zip(*sorted_combined)
     return list(sorted_population), list(sorted_fitness)
-
-
-# Exemplo de uso
-if __name__ == '__main__':
-    from service_points import create_service_point
-    
-    # Criar pontos de atendimento de exemplo
-    service_points = [
-        create_service_point(1, (100, 200), 'emergency'),
-        create_service_point(2, (300, 400), 'violence', time_window=(480, 600)),
-        create_service_point(3, (500, 100), 'medication'),
-        create_service_point(4, (200, 300), 'postpartum', time_window=(540, 660)),
-        create_service_point(5, (400, 500), 'regular'),
-        create_service_point(6, (150, 350), 'regular'),
-        create_service_point(7, (600, 200), 'medication'),
-        create_service_point(8, (250, 450), 'emergency'),
-    ]
-    
-    # Parâmetros do AG
-    POPULATION_SIZE = 50
-    N_GENERATIONS = 100
-    MUTATION_PROBABILITY = 0.5
-    
-    # Criar população inicial
-    population = generate_priority_aware_population(service_points, POPULATION_SIZE)
-    
-    best_fitness_history = []
-    
-    print("Iniciando Algoritmo Genético com Restrições...\n")
-    
-    for generation in range(N_GENERATIONS):
-        # Calcular fitness
-        fitness_values = [calculate_constrained_fitness(route) for route in population]
-        
-        # Ordenar população
-        population, fitness_values = sort_population_by_fitness(population, fitness_values)
-        
-        best_fitness = fitness_values[0]
-        best_route = population[0]
-        
-        best_fitness_history.append(best_fitness)
-        
-        # Imprimir cada geração
-        print(f"Geração {generation}: Melhor fitness = {best_fitness:.2f}")
-        
-        # Mostrar detalhes a cada 10 gerações
-        if generation % 10 == 0:
-            print(f"  Ordem de prioridades na melhor rota:")
-            for i, point in enumerate(best_route[:5]):  # Mostrar primeiros 5
-                print(f"    {i+1}. Ponto {point.id} - {point.priority.name}")
-        
-        # Criar nova população (elitismo)
-        new_population = [population[0]]  # Manter o melhor
-        
-        while len(new_population) < POPULATION_SIZE:
-            # Seleção por torneio
-            tournament_size = 5
-            tournament = random.sample(list(zip(population, fitness_values)), tournament_size)
-            tournament.sort(key=lambda x: x[1])
-            parent1 = tournament[0][0]
-            parent2 = tournament[1][0]
-            
-            # Crossover
-            child = constrained_order_crossover(parent1, parent2)
-            
-            # Mutação
-            child = constrained_mutate(child, MUTATION_PROBABILITY)
-            
-            new_population.append(child)
-        
-        population = new_population
-    
-    # Resultado final
-    print("\n" + "="*60)
-    print("MELHOR ROTA ENCONTRADA:")
-    print("="*60)
-    
-    final_fitness = calculate_constrained_fitness(population[0])
-    distance, time, arrivals = calculate_route_time_and_distance(population[0])
-    
-    print(f"\nFitness total: {final_fitness:.2f}")
-    print(f"Distância total: {distance:.2f}")
-    print(f"Tempo total: {time:.2f} minutos ({time/60:.2f} horas)")
-    
-    print("\nOrdem de atendimento:")
-    for i, (point, arrival) in enumerate(zip(population[0], arrivals)):
-        hours = int(arrival // 60)
-        minutes = int(arrival % 60)
-        print(f"{i+1}. Ponto {point.id} - {point.priority.name}")
-        print(f"   Chegada: {hours:02d}:{minutes:02d}")
-        print(f"   Duração serviço: {point.service_duration} min")
-        if point.time_window:
-            print(f"   Janela: {int(point.time_window.start_time//60):02d}:{int(point.time_window.start_time%60):02d} - "
-                  f"{int(point.time_window.end_time//60):02d}:{int(point.time_window.end_time%60):02d}")
