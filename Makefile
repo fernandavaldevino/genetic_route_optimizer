@@ -19,12 +19,13 @@ NC = \033[0m # No Color
 help:
 	@echo "$(GREEN)Sistema de Otimização de Rotas - Comandos Disponíveis:$(NC)"
 	@echo ""
+	@echo "$(YELLOW)Início Rápido:$(NC)"
+	@echo "  $(YELLOW)make setup$(NC)           - Cria ambiente + Instala dependências (RECOMENDADO)"
+	@echo "  $(YELLOW)make app$(NC)             - Setup + Executa Streamlit"
+	@echo ""
 	@echo "$(YELLOW)Execução:$(NC)"
-	@echo "  $(YELLOW)make setup$(NC)           - Cria ambiente virtual '.ga_routes'"
-	@echo "  $(YELLOW)make install$(NC)         - Instala dependências no ambiente"
 	@echo "  $(YELLOW)make run$(NC)             - Executa o sistema principal (Pygame)"
 	@echo "  $(YELLOW)make streamlit$(NC)       - Executa interface web (Streamlit)"
-	@echo "  $(YELLOW)make app$(NC)             - Setup + Install + Streamlit"
 	@echo ""
 	@echo "$(YELLOW)Testes:$(NC)"
 	@echo "  $(YELLOW)make test$(NC)            - Executa todos os testes (console)"
@@ -32,32 +33,35 @@ help:
 	@echo "  $(YELLOW)make test-cov$(NC)        - Mostra cobertura de código"
 	@echo "  $(YELLOW)make test-html$(NC)       - Executa testes e gera relatório HTML"
 	@echo ""
-	@echo "$(YELLOW)Limpeza:$(NC)"
+	@echo "$(YELLOW)Utilitários:$(NC)"
 	@echo "  $(YELLOW)make clean$(NC)           - Remove ambiente virtual e cache"
+	@echo "  $(YELLOW)make info$(NC)            - Mostra informações do ambiente"
 	@echo ""
 
-# Cria o ambiente virtual
+# Cria o ambiente virtual e instala dependências
 setup:
-	@echo "$(GREEN)Criando ambiente virtual '$(VENV_NAME)'...$(NC)"
+	@echo "$(GREEN)Configurando ambiente...$(NC)"
 	@if [ -d "$(VENV_NAME)" ]; then \
-		echo "$(YELLOW)Ambiente '$(VENV_NAME)' já existe. Removendo...$(NC)"; \
-		rm -rf $(VENV_NAME); \
+		echo "$(YELLOW)Ambiente '$(VENV_NAME)' já existe.$(NC)"; \
+		echo "$(YELLOW)Verificando dependências...$(NC)"; \
+	else \
+		echo "$(GREEN)Criando ambiente virtual '$(VENV_NAME)'...$(NC)"; \
+		$(PYTHON) -m venv $(VENV_NAME); \
+		echo "$(GREEN)✓ Ambiente virtual criado!$(NC)"; \
 	fi
-	$(PYTHON) -m venv $(VENV_NAME)
-	@echo "$(GREEN)✓ Ambiente virtual criado com sucesso!$(NC)"
-
-# Instala as dependências
-install: setup
-	@echo "$(GREEN)Instalando dependências...$(NC)"
+	@echo "$(GREEN)Instalando/Atualizando dependências...$(NC)"
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt
-	@echo "$(GREEN)✓ Dependências instaladas com sucesso!$(NC)"
+	@echo "$(GREEN)✓ Setup concluído com sucesso!$(NC)"
+
+# Alias para setup (compatibilidade)
+install: setup
 
 # Executa o sistema principal
 run:
 	@if [ ! -d "$(VENV_NAME)" ]; then \
 		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
-		echo "$(YELLOW)Execute 'make install' primeiro.$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)Executando sistema... (pode levar alguns instantes)$(NC)"
@@ -68,7 +72,7 @@ run:
 streamlit:
 	@if [ ! -d "$(VENV_NAME)" ]; then \
 		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
-		echo "$(YELLOW)Execute 'make install' primeiro.$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)Iniciando interface web Streamlit...$(NC)"
@@ -80,7 +84,7 @@ streamlit:
 test:
 	@if [ ! -d "$(VENV_NAME)" ]; then \
 		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
-		echo "$(YELLOW)Execute 'make install' primeiro.$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)Executando todos os testes...$(NC)"
@@ -91,7 +95,7 @@ test:
 test-specific:
 	@if [ ! -d "$(VENV_NAME)" ]; then \
 		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
-		echo "$(YELLOW)Execute 'make install' primeiro.$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
 		exit 1; \
 	fi
 	@if [ -z "$(FILE)" ]; then \
@@ -112,7 +116,7 @@ test-specific:
 test-cov:
 	@if [ ! -d "$(VENV_NAME)" ]; then \
 		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
-		echo "$(YELLOW)Execute 'make install' primeiro.$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
 		exit 1; \
 	fi
 	@if [ ! -f ".coverage" ]; then \
@@ -128,7 +132,7 @@ test-cov:
 test-html:
 	@if [ ! -d "$(VENV_NAME)" ]; then \
 		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
-		echo "$(YELLOW)Execute 'make install' primeiro.$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)Executando testes e gerando relatório HTML...$(NC)"
@@ -139,7 +143,7 @@ test-html:
 	@echo "$(YELLOW)Abra o arquivo no navegador para visualizar a cobertura detalhada.$(NC)"
 
 # Executa tudo de uma vez
-app: install streamlit
+app: setup streamlit
 
 # Limpa ambiente virtual e cache
 clean:
@@ -171,5 +175,5 @@ info:
 		$(PIP) list; \
 	else \
 		echo "  Status: $(RED)Não criado$(NC)"; \
-		echo "  Execute 'make install' para criar."; \
+		echo "  Execute 'make setup' para criar."; \
 	fi
