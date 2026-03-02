@@ -1,8 +1,8 @@
 """
 Sistema de Otimização de Rotas com Múltiplos Veículos
-Gerencia 2 veículos para atender todos os pontos em 1 dia
+Gerencia 2 veículos para atender todos os pontos em até 1 dia
 - Pontos prioritários (EME, VIO, MED, POS) devem ser atendidos até 12h
-- Pontos regulares (REG) podem ser atendidos após 12h
+- Pontos regulares (REG) podem ser atendidos após a entrega dos prioritários, mas devem ser concluídos até 18h
 - Veículos partem e retornam ao mesmo depósito
 """
 
@@ -18,7 +18,7 @@ DEPOT_LOCATION: Optional[Tuple[float, float]] = None
 
 @dataclass
 class VehicleRoute:
-    """Representa a rota de um veículo"""
+    """ Representa a rota de um veículo """
     vehicle_id: int
     route: List[ServicePoint]
     total_distance: float = 0.0
@@ -32,30 +32,28 @@ class VehicleRoute:
 
 @dataclass
 class MultiVehicleSolution:
-    """Representa uma solução completa com múltiplos veículos"""
+    """ Representa uma solução completa com múltiplos veículos """
     vehicles: List[VehicleRoute]
     total_fitness: float = float('inf')
     
     def get_all_points(self) -> List[ServicePoint]:
-        """Retorna todos os pontos de todas as rotas"""
+        """ Retorna todos os pontos de todas as rotas """
         all_points = []
         for vehicle in self.vehicles:
             all_points.extend(vehicle.route)
         return all_points
     
     def get_point_ids(self) -> set:
-        """Retorna conjunto de IDs de todos os pontos"""
+        """ Retorna conjunto de IDs de todos os pontos """
         return {point.id for vehicle in self.vehicles for point in vehicle.route}
 
 
-def calculate_vehicle_route_time_and_distance(
-    route: List[ServicePoint],
-    depot_location: Tuple[float, float],
-    start_time: float = 450.0,  # 7:30h (7*60 + 30 = 450 min)
-    speed: float = 40.0,
-    work_start: float = 450.0,  # 7:30h
-    work_end: float = 1080.0    # 18h
-) -> Tuple[float, float, List[float]]:
+def calculate_vehicle_route_time_and_distance(route: List[ServicePoint],
+                                              depot_location: Tuple[float, float],
+                                              start_time: float = 450.0,  # 7:30h (7*60 + 30 = 450 min)
+                                              speed: float = 60.0,
+                                              work_start: float = 450.0,  # 7:30h      # 1080.0 = 18h
+                                              work_end: float = 1080.0) -> Tuple[float, float, List[float]]:
     """
     Calcula tempo total e distância de uma rota de veículo
     Inclui viagem do depósito ao primeiro ponto e do último ponto ao depósito
@@ -142,10 +140,8 @@ def split_points_by_priority(service_points: List[ServicePoint]) -> Tuple[List[S
     return priority_points, regular_points
 
 
-def divide_priority_points_geographically(
-    priority_points: List[ServicePoint],
-    num_vehicles: int = 2
-) -> List[List[ServicePoint]]:
+def divide_priority_points_geographically(priority_points: List[ServicePoint],
+                                          num_vehicles: int = 2) -> List[List[ServicePoint]]:
     """
     Divide pontos prioritários geograficamente entre veículos usando K-means
     Cria territórios distintos para minimizar cruzamentos
@@ -235,7 +231,7 @@ def count_route_crossings(vehicles: List[VehicleRoute]) -> int:
         return 0
     
     def segments_intersect(p1, p2, p3, p4):
-        """Verifica se segmento p1-p2 cruza com p3-p4"""
+        """ Verifica se segmento p1-p2 cruza com p3-p4 """
         def ccw(A, B, C):
             return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
         
@@ -268,7 +264,8 @@ def count_route_crossings(vehicles: List[VehicleRoute]) -> int:
     return crossings
 
 
-def validate_solution(solution: MultiVehicleSolution, expected_points: int = 20) -> Tuple[bool, str]:
+def validate_solution(solution: MultiVehicleSolution, 
+                      expected_points: int = 20) -> Tuple[bool, str]:
     """
     Valida se solução tem exatamente os pontos esperados sem duplicação
     
@@ -296,18 +293,16 @@ def validate_solution(solution: MultiVehicleSolution, expected_points: int = 20)
     return True, "Solução válida"
 
 
-def calculate_multi_vehicle_fitness(
-    solution: MultiVehicleSolution,
-    depot_location: Tuple[float, float],
-    start_time: float = 450.0,  # 7:30h (7*60 + 30 = 450 min)
-    priority_deadline: float = 720.0,  # 12h (meio-dia)
-    speed: float = 40.0
-) -> float:
+def calculate_multi_vehicle_fitness(solution: MultiVehicleSolution,
+                                    depot_location: Tuple[float, float],
+                                    start_time: float = 450.0,          # 7:30h (7*60 + 30 = 450 min)
+                                    priority_deadline: float = 720.0,   # 12h (meio-dia)
+                                    speed: float = 60.0) -> float:
     """
     Calcula fitness para solução com múltiplos veículos
     
     Restrições:
-    - TODOS os 20 pontos devem estar presentes SEM duplicação
+    - Todos os 20 pontos devem estar presentes sem duplicação
     - Pontos prioritários DEVEM ser atendidos até 12h (720 min)
     - Todos os pontos devem ser atendidos em 1 dia (até 18h = 1080 min)
     - Minimizar distância total
@@ -327,7 +322,7 @@ def calculate_multi_vehicle_fitness(
     # VALIDAÇÃO CRÍTICA: Verificar unicidade de pontos
     is_valid, error_msg = validate_solution(solution, expected_points=20)
     if not is_valid:
-        # PENALIDADE MASSIVA para soluções inválidas
+        # Penalidade forte para soluções inválidas
         return float('inf')
     
     fitness = 0.0
@@ -361,18 +356,18 @@ def calculate_multi_vehicle_fitness(
         # Verificar restrições de tempo para pontos prioritários
         for point, arrival_time in zip(vehicle.route, arrival_times):
             if point.priority in priority_types:
-                # Pontos prioritários DEVEM ser atendidos até 12h
+                # Pontos prioritários devem ser atendidos até 12h
                 if arrival_time > priority_deadline:
-                    # Penalidade MASSIVA por violar deadline de prioridade
+                    # Penalidade forte por violar deadline de prioridade: 10000 por minuto de atraso
                     overtime = arrival_time - priority_deadline
-                    fitness += overtime * 10000  # Aumentado de 1000 para 10000
+                    fitness += overtime * 10000
             
             # Verificar se passou das 18h (fim do dia)
             time_of_day = arrival_time % 1440
             if time_of_day >= 1080:  # 18h
-                # Penalidade MASSIVA por passar das 18h
+                # Penalidade pesada por passar das 18h: 500000 base + 10000 por minuto de atraso
                 overtime_18h = time_of_day - 1080
-                fitness += 500000 + (overtime_18h * 10000)  # Aumentado de 100k para 500k base
+                fitness += 500000 + (overtime_18h * 10000)
         
         # Penalidade por violação de janelas de tempo
         for point, arrival_time in zip(vehicle.route, arrival_times):
@@ -381,41 +376,36 @@ def calculate_multi_vehicle_fitness(
                 fitness += penalty
     
     # Fitness base: distância total (peso baixo para priorizar restrições)
-    fitness += total_distance * 1  # Reduzido de 2 para 1
+    fitness += total_distance * 1
     
-    # Penalidade FORTE por desbalanceamento entre veículos
+    # Penalidade forte por desbalanceamento entre veículos: 500 por minuto de diferença
     if len(vehicle_times) > 1:
         max_time = max(vehicle_times)
         min_time = min(vehicle_times)
         imbalance = max_time - min_time
-        # Penalidade forte para balanceamento (evitar um veículo sobrecarregado)
-        fitness += imbalance * 500  # Aumentado de 100 para 500
+        fitness += imbalance * 500
     
-    # Penalidade FORTE por desbalanceamento de número de pontos
+    # Penalidade forte por desbalanceamento de número de pontos: 5000 por ponto de diferença
     if len(solution.vehicles) >= 2:
         point_counts = [len(v.route) for v in solution.vehicles]
         max_points = max(point_counts)
         min_points = min(point_counts)
         point_imbalance = max_points - min_points
-        # Penalidade forte por diferença de pontos (deve ser equilibrado)
-        fitness += point_imbalance * 5000  # Aumentado de 1000 para 5000
+        fitness += point_imbalance * 5000 
     
-    # Penalidade moderada por cruzamento de rotas
+    # Penalidade moderada por cruzamento de rotas: 2000 por cruzamento
     if len(solution.vehicles) >= 2:
         crossings = count_route_crossings(solution.vehicles)
-        # Penalidade moderada por cruzamento
-        fitness += crossings * 2000  # Reduzido de 5000 para 2000
+        fitness += crossings * 2000
     
     solution.total_fitness = fitness
     return fitness
 
 
-def create_initial_multi_vehicle_solution(
-    service_points: List[ServicePoint],
-    depot_location: Tuple[float, float],
-    num_vehicles: int = 2,
-    apply_2opt: bool = False
-) -> MultiVehicleSolution:
+def create_initial_multi_vehicle_solution(service_points: List[ServicePoint],
+                                          depot_location: Tuple[float, float],
+                                          num_vehicles: int = 2,
+                                          apply_2opt: bool = False) -> MultiVehicleSolution:
     """
     Cria solução inicial dividindo pontos entre veículos
     
@@ -454,7 +444,7 @@ def create_initial_multi_vehicle_solution(
     vehicles = []
     for i in range(num_vehicles):
         route = priority_groups[i] + regular_groups[i]
-        # Aplicar otimização 2-opt APENAS se solicitado
+        # Aplicar otimização 2-opt apenas se solicitado
         if apply_2opt:
             route = two_opt_optimize(route, depot_location)
         vehicle = VehicleRoute(vehicle_id=i + 1, route=route)
@@ -466,15 +456,13 @@ def create_initial_multi_vehicle_solution(
     return solution
 
 
-def generate_multi_vehicle_population(
-    service_points: List[ServicePoint],
-    depot_location: Tuple[float, float],
-    population_size: int,
-    num_vehicles: int = 2
-) -> List[MultiVehicleSolution]:
+def generate_multi_vehicle_population(service_points: List[ServicePoint],
+                                      depot_location: Tuple[float, float],
+                                      population_size: int,
+                                      num_vehicles: int = 2) -> List[MultiVehicleSolution]:
     """
     Gera população inicial de soluções com múltiplos veículos
-    COM DIVERSIDADE: Apenas 20% das soluções são otimizadas com 2-opt
+    Com diversidade: Apenas 20% das soluções são otimizadas com 2-opt
     
     Args:
         service_points: Lista de todos os pontos
@@ -487,17 +475,13 @@ def generate_multi_vehicle_population(
     """
     population = []
     
-    # Debug: imprimir informação sobre geração da população
-    print(f"Gerando população: 0% com 2-opt (máxima diversidade inicial)")
-    
     for i in range(population_size):
-        # MUDANÇA RADICAL: NUNCA aplicar 2-opt na população inicial
-        # Isso garante máxima diversidade e espaço para evolução
+        # Nunca aplicar 2-opt na população inicial: Isso garante máxima diversidade e espaço para evolução
         apply_2opt = False
         
         solution = create_initial_multi_vehicle_solution(service_points, depot_location, num_vehicles, apply_2opt=apply_2opt)
         
-        # Adicionar MÁXIMA variação: embaralhar TUDO (exceto ordem de prioridades)
+        # Adicionar máxima variação: embaralhar tudo (exceto ordem de prioridades)
         for vehicle in solution.vehicles:
             priority_points, regular_points = split_points_by_priority(vehicle.route)
             
@@ -508,14 +492,14 @@ def generate_multi_vehicle_population(
                     priority_dict[point.priority] = []
                 priority_dict[point.priority].append(point)
             
-            # Reconstruir rota com ordem de prioridade mas TOTALMENTE embaralhado dentro
+            # Reconstruir rota com ordem de prioridade, mas totalmente embaralhado dentro
             new_route = []
             for priority in sorted(priority_dict.keys(), key=lambda p: p.value):
                 group = priority_dict[priority]
                 random.shuffle(group)
                 new_route.extend(group)
             
-            # Adicionar pontos regulares TOTALMENTE embaralhados
+            # Adicionar pontos regulares totalmente embaralhados
             random.shuffle(regular_points)
             new_route.extend(regular_points)
             
@@ -528,25 +512,23 @@ def generate_multi_vehicle_population(
     return population
 
 
-def multi_vehicle_crossover(
-    parent1: MultiVehicleSolution,
-    parent2: MultiVehicleSolution,
-    depot_location: Tuple[float, float]
-) -> MultiVehicleSolution:
+def multi_vehicle_crossover(parent1: MultiVehicleSolution,
+                            parent2: MultiVehicleSolution,
+                            depot_location: Tuple[float, float]) -> MultiVehicleSolution:
     """
     Crossover entre duas soluções multi-veículo
-    GARANTIA: Todos os 20 pontos são preservados sem duplicação
+    Garantia: Todos os 20 pontos são preservados sem duplicação
     """
     num_vehicles = len(parent1.vehicles)
     
-    # Coletar TODOS os pontos de ambos os pais
+    # Coletar todos os pontos de ambos os pais
     all_points_p1 = parent1.get_all_points()
     all_points_p2 = parent2.get_all_points()
     
-    # Criar dicionário de pontos por ID (para acesso rápido)
+    # Criar dicionário de pontos por ID
     points_dict = {p.id: p for p in all_points_p1}
     
-    # Rastrear IDs já alocados GLOBALMENTE
+    # Rastrear IDs já alocados globalmente
     global_used_ids = set()
     child_vehicles = []
     
@@ -579,7 +561,7 @@ def multi_vehicle_crossover(
         child_vehicle = VehicleRoute(vehicle_id=i + 1, route=child_route)
         child_vehicles.append(child_vehicle)
     
-    # CRÍTICO: Garantir que TODOS os 20 pontos estão presentes
+    # Garantir que TODOS os 20 pontos estão presentes
     # Se faltam pontos, adicionar ao veículo com menos pontos
     expected_ids = set(range(1, 21))  # IDs de 1 a 20
     missing_ids = expected_ids - global_used_ids
@@ -610,7 +592,7 @@ def multi_vehicle_crossover(
                     # Adicionar no final (com regulares)
                     vehicle_with_least.route.append(missing_point)
     
-    # Otimizar rotas com 2-opt 80% das vezes (aumentado para compensar população inicial sem 2-opt)
+    # Otimizar rotas com 2-opt 80% das vezes para melhorar qualidade sem perder diversidade (já que na inicial 2-opt não foi aplicado)
     if random.random() < 0.8:
         for vehicle in child_vehicles:
             vehicle.route = two_opt_optimize(vehicle.route, depot_location)
@@ -620,16 +602,14 @@ def multi_vehicle_crossover(
     return child
 
 
-def multi_vehicle_mutate(
-    solution: MultiVehicleSolution,
-    depot_location: Tuple[float, float],
-    mutation_probability: float
-) -> MultiVehicleSolution:
+def multi_vehicle_mutate(solution: MultiVehicleSolution,
+                         depot_location: Tuple[float, float],
+                         mutation_probability: float) -> MultiVehicleSolution:
     """
-    Mutação de solução multi-veículo com BALANCEAMENTO INTELIGENTE
+    Mutação de solução multi-veículo com balanceamento inteligente de prioridades e carga
     - Transfere pontos prioritários atrasados para veículo com tempo disponível
     - Troca pontos dentro do mesmo veículo
-    - Troca pontos entre veículos (SWAP seguro)
+    - Troca pontos entre veículos (swap seguro)
     """
     if random.random() >= mutation_probability:
         return solution
@@ -639,7 +619,7 @@ def multi_vehicle_mutate(
     # Calcular fitness atual para ter tempos de chegada
     calculate_multi_vehicle_fitness(mutated, depot_location)
     
-    # 60% das vezes: MUTAÇÃO INTELIGENTE - transferir prioridades atrasadas
+    # 60% das vezes: mutação inteligente - transferir prioridades atrasadas
     if random.random() < 0.6 and len(mutated.vehicles) >= 2:
         priority_deadline = 720.0  # 12h
         priority_types = [
@@ -687,7 +667,7 @@ def multi_vehicle_mutate(
                         regular_point = random.choice(regular_points)
                         reg_idx = other_vehicle.route.index(regular_point)
                         
-                        # SWAP: prioridade atrasada vai para veículo com tempo
+                        # swap: prioridade atrasada vai para veículo com tempo
                         vehicle_with_late.route[late_priority_idx] = regular_point
                         other_vehicle.route[reg_idx] = late_point
                         
@@ -741,10 +721,68 @@ def multi_vehicle_mutate(
     return mutated
 
 
-def two_opt_optimize(route: List[ServicePoint], depot_location: Tuple[float, float]) -> List[ServicePoint]:
+def _optimize_points_group(points: List[ServicePoint],
+                           prev_location: Tuple[float, float],
+                           next_location: Optional[Tuple[float, float]]) -> List[ServicePoint]:
     """
-    Otimização 2-opt SIMPLIFICADA para eliminar cruzamentos em uma rota
-    Mantém pontos prioritários no início, otimiza apenas pontos regulares
+    Otimiza um grupo de pontos usando algoritmo 2-opt
+    
+    Args:
+        points: Lista de pontos a otimizar
+        prev_location: Localização do ponto anterior (ou depósito)
+        next_location: Localização do próximo ponto (ou None se for o último grupo)
+    
+    Returns:
+        Lista de pontos otimizada
+    """
+    if len(points) <= 2:
+        return points
+    
+    def calc_distance(pts):
+        if not pts:
+            return 0
+        total = calculate_distance(prev_location, pts[0].location)
+        for i in range(len(pts) - 1):
+            total += calculate_distance(pts[i].location, pts[i + 1].location)
+        if next_location:
+            total += calculate_distance(pts[-1].location, next_location)
+        return total
+    
+    improved = True
+    max_iterations = 30
+    iteration = 0
+    optimized_points = points[:]
+    
+    while improved and iteration < max_iterations:
+        improved = False
+        iteration += 1
+        best_distance = calc_distance(optimized_points)
+        
+        for i in range(len(optimized_points) - 1):
+            for j in range(i + 2, len(optimized_points) + 1):
+                # Tentar reverter segmento [i:j]
+                new_route = optimized_points[:i] + list(reversed(optimized_points[i:j])) + optimized_points[j:]
+                new_distance = calc_distance(new_route)
+                
+                # Se melhorou, aplicar
+                if new_distance < best_distance - 0.1:
+                    optimized_points = new_route
+                    best_distance = new_distance
+                    improved = True
+                    break
+            
+            if improved:
+                break
+    
+    return optimized_points
+
+
+def two_opt_optimize(route: List[ServicePoint],
+                     depot_location: Tuple[float, float]) -> List[ServicePoint]:
+    """
+    Otimização 2-opt para eliminar cruzamentos em uma rota
+    Otimiza pontos prioritários dentro de cada nível de prioridade (respeitando ordem EME > VIO > MED > POS)
+    Otimiza pontos regulares separadamente
     
     Args:
         route: Rota a otimizar
@@ -759,59 +797,57 @@ def two_opt_optimize(route: List[ServicePoint], depot_location: Tuple[float, flo
     # Separar prioridades e regulares
     priority_points, regular_points = split_points_by_priority(route)
     
-    # Otimizar apenas pontos regulares (prioridades devem manter ordem)
-    if len(regular_points) <= 2:
-        return route
+    # Agrupar pontos prioritários por nível de prioridade
+    priority_groups = {}
+    for point in priority_points:
+        if point.priority not in priority_groups:
+            priority_groups[point.priority] = []
+        priority_groups[point.priority].append(point)
     
-    # Calcular distância total de uma rota
-    def calc_total_distance(points):
-        if not points:
-            return 0
-        total = 0
-        # Do último ponto prioritário (ou depósito) ao primeiro regular
-        if priority_points:
-            total += calculate_distance(priority_points[-1].location, points[0].location)
+    # Otimizar cada grupo de prioridade separadamente, mantendo ordem entre grupos
+    optimized_priority_points = []
+    prev_location = depot_location
+    
+    # Ordenar grupos por prioridade (EME=1, VIO=2, MED=3, POS=4)
+    sorted_priorities = sorted(priority_groups.keys(), key=lambda p: p.value)
+    
+    for i, priority in enumerate(sorted_priorities):
+        group = priority_groups[priority]
+        
+        # Determinar próxima localização para cálculo de distância
+        if i < len(sorted_priorities) - 1:
+            # Próximo grupo de prioridade
+            next_priority = sorted_priorities[i + 1]
+            next_location = priority_groups[next_priority][0].location if priority_groups[next_priority] else None
+        elif regular_points:
+            # Primeiro ponto regular
+            next_location = regular_points[0].location
         else:
-            total += calculate_distance(depot_location, points[0].location)
+            # Volta ao depósito
+            next_location = depot_location
         
-        # Entre pontos regulares
-        for i in range(len(points) - 1):
-            total += calculate_distance(points[i].location, points[i + 1].location)
+        # Otimizar grupo
+        optimized_group = _optimize_points_group(group, prev_location, next_location)
+        optimized_priority_points.extend(optimized_group)
         
-        # Do último regular de volta ao depósito
-        total += calculate_distance(points[-1].location, depot_location)
-        return total
+        # Atualizar localização anterior para próximo grupo
+        if optimized_group:
+            prev_location = optimized_group[-1].location
     
-    improved = True
-    max_iterations = 30
-    iteration = 0
-    
-    while improved and iteration < max_iterations:
-        improved = False
-        iteration += 1
-        best_distance = calc_total_distance(regular_points)
+    # Otimizar pontos regulares
+    optimized_regular_points = regular_points
+    if len(regular_points) > 2:
+        # Localização anterior é o último ponto prioritário ou depósito
+        if optimized_priority_points:
+            prev_loc = optimized_priority_points[-1].location
+        else:
+            prev_loc = depot_location
         
-        for i in range(len(regular_points) - 1):
-            for j in range(i + 2, len(regular_points) + 1):
-                # Tentar reverter segmento [i:j]
-                new_route = regular_points[:i] + list(reversed(regular_points[i:j])) + regular_points[j:]
-                new_distance = calc_total_distance(new_route)
-                
-                # Se melhorou, aplicar
-                if new_distance < best_distance - 0.1:
-                    regular_points = new_route
-                    best_distance = new_distance
-                    improved = True
-                    break
-            
-            if improved:
-                break
+        optimized_regular_points = _optimize_points_group(regular_points, prev_loc, depot_location)
     
-    return priority_points + regular_points
+    return optimized_priority_points + optimized_regular_points
 
 
-def sort_multi_vehicle_population(
-    population: List[MultiVehicleSolution]
-) -> List[MultiVehicleSolution]:
-    """Ordena população por fitness (menor = melhor)"""
+def sort_multi_vehicle_population(population: List[MultiVehicleSolution]) -> List[MultiVehicleSolution]:
+    """ Ordena população por fitness (menor = melhor) """
     return sorted(population, key=lambda s: s.total_fitness)

@@ -20,7 +20,7 @@ from src.core.service_points import create_service_point, ServicePriority
 
 # Constantes
 WIDTH, HEIGHT = 1400, 800
-NODE_RADIUS = 12            # raios dos círculos dos pontos de atendimento
+NODE_RADIUS = 12  # raios dos círculos dos pontos de atendimento
 FPS = 10
 
 # Áreas da tela
@@ -30,9 +30,9 @@ MAP_WIDTH = WIDTH - MAP_X_START - 20
 MAP_HEIGHT = HEIGHT - 20
 
 PLOT_X_START = 10
-PLOT_Y_START = 500  # Posição do gráfico (aumentada para não sobrepor a ordem de atendimento)
+PLOT_Y_START = 500  # Posição do gráfico
 PLOT_WIDTH = INFO_PANEL_WIDTH - 20
-PLOT_HEIGHT = 180  # Altura do gráfico (reduzida um pouco)
+PLOT_HEIGHT = 180  # Altura do gráfico
 
 # Cores
 WHITE = (255, 255, 255)
@@ -56,10 +56,11 @@ PRIORITY_COLORS = {
 }
 
 # Parâmetros do AG
-N_POINTS = 20  # Número total de pontos de atendimento
+N_POINTS = 20               # Número total de pontos de atendimento
 POPULATION_SIZE = 100
 MUTATION_PROBABILITY = 0.3
-MAX_GENERATIONS = 200  # Critério de parada
+MAX_GENERATIONS = 100       # Critério de parada
+VEHICLE_SPEED = 60.0        # Velocidade do veículo em km/h
 
 def draw_service_points(screen, service_points, radius, start_points_by_day=None):
     """
@@ -72,7 +73,7 @@ def draw_service_points(screen, service_points, radius, start_points_by_day=None
         start_points_by_day: Dict {dia: point_id} para destacar pontos iniciais de cada dia
     """
     for point in service_points:
-        # Depósito (ID 0) é desenhado em amarelo
+        # Depósito (ID=0) é desenhado em amarelo
         if point.id == 0:
             color = YELLOW
         else:
@@ -137,9 +138,9 @@ def draw_route(screen, route, color=None, width=2, use_priority_colors=True):
 
 
 def calculate_days_message(arrival_times):
-    """Calcula a mensagem de dias necessários para entrega e horário da última entrega"""
+    """ Calcula o dia e horário da última entrega """
     if arrival_times and len(arrival_times) > 0:
-        # Pegar o último arrival_time (última entrega antes do retorno)
+        # Calcular o dia da última entrega - arrival_time (antes do retorno ao depósito)
         last_service_arrival = arrival_times[-1]
         max_day = int(last_service_arrival // 1440) + 1
         
@@ -150,9 +151,9 @@ def calculate_days_message(arrival_times):
         time_str = f"{hours:02d}:{minutes:02d}"
         
         if max_day == 1:
-            return "1 dia", (0, 150, 0), time_str  # Verde
+            return "1 dia", (0, 150, 0), time_str           # Verde
         elif max_day == 2:
-            return "2 dias", (204, 85, 0), time_str  # Laranja escuro
+            return "2 dias", (204, 85, 0), time_str         # Laranja escuro
         else:
             return f"{max_day} dias", (200, 0, 0), time_str  # Vermelho
     else:
@@ -160,7 +161,7 @@ def calculate_days_message(arrival_times):
 
 
 def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times):
-    """Desenha painel de informações no lado esquerdo"""
+    """ Desenha painel de informações no lado esquerdo """
     # Fundo do painel
     pygame.draw.rect(screen, LIGHT_GRAY, (0, 0, INFO_PANEL_WIDTH, HEIGHT))
     pygame.draw.line(screen, BLACK, (INFO_PANEL_WIDTH, 0), (INFO_PANEL_WIDTH, HEIGHT), 2)
@@ -177,8 +178,8 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
     screen.blit(title, (x_start, y_start))
     y_start += 35
     
-    # Calcular mensagem de dias (não usamos o horário aqui)
-    days_text, days_color, _ = calculate_days_message(arrival_times)
+    # # Calcular mensagem de dias (sem horário)
+    # days_text, days_color, _ = calculate_days_message(arrival_times)
     
     # Informações gerais
     info_texts = [
@@ -246,7 +247,7 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
         pygame.draw.circle(screen, color, (x_start + 8, y_start + 8), 7)
         pygame.draw.circle(screen, BLACK, (x_start + 8, y_start + 8), 7, 1)
         
-        # Texto com nome completo e range de IDs na mesma linha
+        # Texto da prioridade
         id_range = format_id_range(priority_ids[priority], use_dots)
         text = font_text.render(f"{label} - {id_range}", True, BLACK)
         screen.blit(text, (x_start + 22, y_start))
@@ -272,7 +273,7 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
     depot = best_route[0]
     last_point = best_route[-1]
     from src.core.service_points import calculate_travel_time
-    return_travel_time = calculate_travel_time(last_point.location, depot.location, 40.0)
+    return_travel_time = calculate_travel_time(last_point.location, depot.location, VEHICLE_SPEED)
     return_arrival = arrival_times[-1] + last_point.service_duration + return_travel_time
     
     # Verificar se retorno passa das 18h
@@ -283,14 +284,14 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
     
     # Configuração das colunas
     col1_x = x_start + 5
-    col2_x = x_start + 185  # Segunda coluna (aumentada significativamente para dar mais espaço)
+    col2_x = x_start + 185
     y_col_start = y_start
     
     # Total de itens: saída do depósito + pontos de atendimento + retorno ao depósito
     total_items = len(best_route) + 1  # +1 para o retorno
     
     # Calcular quantos itens por coluna (coluna esquerda tem 1 a mais se ímpar)
-    items_col1 = (total_items + 1) // 2  # Arredonda para cima
+    items_col1 = (total_items + 1) // 2     # Arredonda para cima
     items_col2 = total_items - items_col1
     
     # Desenhar em 2 colunas balanceadas
@@ -312,7 +313,7 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
         
         abbr = priority_abbr.get(point.priority, "???")
         
-        # Determinar coluna e posição Y (balanceado)
+        # Determinar coluna e posição Y
         if i < items_col1:
             # Coluna 1
             x_pos = col1_x
@@ -350,7 +351,7 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
         if day == 1:
             day_color = BLACK  # Dia 1: preto (normal)
         elif day >= 2 and is_priority_med:
-            # Medicamento prioritário no Dia 2+: VERMELHO (alerta!)
+            # Medicamento prioritário no Dia 2+: VERMELHO
             day_color = (200, 0, 0)
         elif day == 2:
             day_color = (0, 100, 0)  # Dia 2 regular: verde escuro
@@ -366,7 +367,7 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
         rendered_part3 = font_text.render(text_part3, True, BLACK)
         screen.blit(rendered_part3, (x_pos + x_offset, y_pos))
         
-        # Se for depósito, adicionar identificador (Saída na mesma linha, Retorno em nova linha)
+        # Se for depósito, adicionar identificador (Saída/Retorno)
         if point.id == 0:
             if i == 0:
                 # Saída do depósito - mesma linha
@@ -383,11 +384,10 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
 
 
 def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None, arrival_times=None):
-    """Desenha gráfico com eixos e valores"""
+    """ Desenha gráfico com eixos e valores """
     if len(x_data) < 2:
         return
     
-    # Margens para os eixos (aumentada à esquerda para acomodar label e valores)
     margin_left = 60
     margin_bottom = 25
     margin_top = 25
@@ -396,7 +396,7 @@ def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None,
     plot_x = PLOT_X_START + margin_left
     plot_y = PLOT_Y_START + margin_top
     plot_w = PLOT_WIDTH - margin_left - margin_right
-    plot_h = PLOT_HEIGHT - margin_top - margin_bottom - 5  # Margem extra para não tocar o eixo X
+    plot_h = PLOT_HEIGHT - margin_top - margin_bottom - 5
     
     # Fundo do gráfico
     pygame.draw.rect(screen, WHITE, (PLOT_X_START, PLOT_Y_START, PLOT_WIDTH, PLOT_HEIGHT))
@@ -408,15 +408,14 @@ def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None,
     range_y = max_y - min_y if max_y != min_y else 1
     max_x = len(x_data) - 1
     
-    # Desenhar linha do gráfico (com margem maior para NUNCA tocar o eixo X)
+    # Desenhar linha do gráfico
     points = []
     margin_top_graph = 5
-    margin_bottom_graph = 15  # Margem maior embaixo para garantir que NUNCA toque o eixo X
+    margin_bottom_graph = 15
     for i, (x, y) in enumerate(zip(x_data, y_data)):
         px = plot_x + int((i / max_x) * plot_w)
-        # Adicionar margem no topo e embaixo
         py = plot_y + margin_top_graph + int(((y - min_y) / range_y) * (plot_h - margin_top_graph - margin_bottom_graph))
-        py = plot_y + plot_h - py + plot_y  # Inverter Y
+        py = plot_y + plot_h - py + plot_y  # Inverter Y para gráfico
         points.append((px, py))
     
     if len(points) > 1:
@@ -430,17 +429,16 @@ def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None,
     title = font_title.render("Evolução do Fitness", True, BLACK)
     screen.blit(title, (PLOT_X_START + 5, PLOT_Y_START + 5))
     
-    # Valores do eixo Y (fitness) - mais à direita para dar espaço ao label
+    # Valores do eixo Y (fitness)
     y_labels = [min_y, (min_y + max_y) / 2, max_y]
     for i, val in enumerate(y_labels):
         y_pos = plot_y + plot_h - int((i / 2) * plot_h)
         label = font_axis.render(f"{val:.0f}", True, BLACK)
         screen.blit(label, (PLOT_X_START + 25, y_pos - 6))
     
-    # Label do eixo Y (rotacionado 90 graus) - dentro da área branca, à esquerda dos valores
+    # Label do eixo Y
     y_label = font_axis.render("Fitness", True, BLACK)
     y_label_rotated = pygame.transform.rotate(y_label, 90)
-    # Posicionar dentro da área branca, entre a borda e os valores numéricos
     y_label_rect = y_label_rotated.get_rect(center=(PLOT_X_START + 12, plot_y + plot_h // 2))
     screen.blit(y_label_rotated, y_label_rect)
     
@@ -457,7 +455,7 @@ def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None,
     x_label_rect = x_label.get_rect(center=(plot_x + plot_w // 2, plot_y + plot_h + 20))
     screen.blit(x_label, x_label_rect)
     
-    # Melhor solução abaixo do gráfico (COLORIDO POR PRIORIDADE, SEM DEPÓSITO)
+    # Melhor solução abaixo do gráfico
     if best_route and best_fitness is not None:
         font_title = pygame.font.Font(None, 16)
         font_solution = pygame.font.Font(None, 15)
@@ -469,11 +467,11 @@ def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None,
         screen.blit(text_title, (PLOT_X_START + 5, y_below))
         y_below += 18
         
-        # Desenhar vetor com cores por prioridade (SEM DEPÓSITO)
+        # Desenhar vetor com cores por prioridade (excluindo depósito)
         x_pos = PLOT_X_START + 5
         y_pos = y_below
         
-        # Desenhar colchete de abertura com espaço
+        # Desenhar colchete de abertura
         bracket_open = font_solution.render("[ ", True, BLACK)
         screen.blit(bracket_open, (x_pos, y_pos))
         x_pos += bracket_open.get_width()
@@ -504,7 +502,7 @@ def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None,
                 screen.blit(comma, (x_pos, y_pos))
                 x_pos += comma.get_width()
         
-        # Desenhar colchete de fechamento com espaço
+        # Desenhar colchete de fechamento
         bracket_close = font_solution.render(" ]", True, BLACK)
         screen.blit(bracket_close, (x_pos, y_pos))
         
@@ -513,10 +511,10 @@ def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None,
         text_fitness = font_fitness.render(f"Fitness: {best_fitness:.2f}", True, BLACK)
         screen.blit(text_fitness, (PLOT_X_START + 5, y_below))
         
-        # Texto de dias necessários (reformatado)
+        # Texto de dias necessários
         y_below += 25
         
-        # Linha 1: "Entrega dos medicamentos estimada em até" (fonte maior, ocupando largura)
+        # Linha 1: "Entrega dos medicamentos estimada em até"
         font_delivery = pygame.font.Font(None, 18)
         text_delivery = "Entrega dos medicamentos estimada em até"
         rendered_delivery = font_delivery.render(text_delivery, True, BLACK)
@@ -524,23 +522,21 @@ def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None,
         x_centered = PLOT_X_START + (PLOT_WIDTH - rendered_delivery.get_width()) // 2
         screen.blit(rendered_delivery, (x_centered, y_below))
         
-        # Linha 2: número de dias + horário (colorido, fonte maior, centralizado)
+        # Linha 2: número de dias + horário
         y_below += 22
-        font_days = pygame.font.Font(None, 28)  # Fonte maior para destaque
+        font_days = pygame.font.Font(None, 28)
         days_text, days_color, time_str = calculate_days_message(arrival_times)
         
         # Combinar dias e horário
         full_text = f"{days_text}, às {time_str}."
         rendered_days = font_days.render(full_text, True, days_color)
-        # Centralizar na largura do painel
+        # Centralizar
         x_centered_days = PLOT_X_START + (PLOT_WIDTH - rendered_days.get_width()) // 2
         screen.blit(rendered_days, (x_centered_days, y_below))
 
 
 def draw_completion_screen(screen, generation, best_fitness, best_route, arrival_times, service_points):
-    """
-    Desenha tela de conclusão da otimização mostrando vetor único com cores
-    """
+    """ Desenha tela de conclusão da otimização mostrando vetor único com cores """
     screen.fill(WHITE)
     
     # Fontes
@@ -581,7 +577,7 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
     
     y_pos += 20
     
-    # Melhor Solução - Vetor único com cores (SEM O DEPÓSITO)
+    # Melhor Solução - Vetor único com cores (excluindo depósito)
     solution_title = font_subtitle.render("Melhor Solução:", True, BLACK)
     screen.blit(solution_title, (left_x, y_pos))
     y_pos += 45
@@ -691,7 +687,7 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
     
     # Calcular tempo de retorno ao depósito
     from src.core.service_points import calculate_travel_time
-    return_travel_time = calculate_travel_time(last_point.location, depot.location, 40.0)
+    return_travel_time = calculate_travel_time(last_point.location, depot.location, VEHICLE_SPEED)
     return_arrival = arrival_times[-1] + last_point.service_duration + return_travel_time
     
     # Verificar se retorno passa das 18h
@@ -878,7 +874,7 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
 
 
 def create_random_service_points(n_points):
-    """Cria pontos de atendimento aleatórios com diferentes tipos, incluindo depósito"""
+    """ Cria pontos de atendimento aleatórios com diferentes tipos, incluindo depósito """
     service_points = []
     
     # Criar DEPÓSITO (ponto D/0) - ponto de partida em amarelo
@@ -904,12 +900,12 @@ def create_random_service_points(n_points):
             random.randint(NODE_RADIUS + 20, HEIGHT - NODE_RADIUS - 20)
         )
         
-        # Definir janelas de tempo específicas
+        # Definir janelas de tempo específicas (4h para 1 veículo)
         time_window = None
         if service_type == 'violence':
-            time_window = (480, 600)  # 8h às 10h
+            time_window = (480, 720)  # 8h às 12h (4h)
         elif service_type == 'postpartum':
-            time_window = (540, 660)  # 9h às 11h
+            time_window = (540, 780)  # 9h às 13h (4h)
         
         point = create_service_point(i + 1, location, service_type, time_window)
         service_points.append(point)
@@ -996,8 +992,8 @@ def main():
         # Limpar tela
         screen.fill(WHITE)
         
-        # Calcular fitness
-        fitness_values = [calculate_constrained_fitness(route) for route in population]
+        # Calcular fitness (1 veículo: deadline = fim do Dia 1 = 1440 min)
+        fitness_values = [calculate_constrained_fitness(route, speed=VEHICLE_SPEED, priority_deadline=1440.0) for route in population]
         
         # Ordenar população
         population, fitness_values = sort_population_by_fitness(population, fitness_values)

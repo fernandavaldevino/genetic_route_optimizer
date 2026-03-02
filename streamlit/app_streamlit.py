@@ -176,6 +176,26 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
     with open(service_points_file, 'rb') as f:
         service_points = pickle.load(f)
     
+    # Prints informativos iniciais
+    print("="*60)
+    print("SISTEMA DE ROTEAMENTO COM 1 VEÍCULO")
+    print("="*60)
+    print(f"\nGerações: {max_generations}")
+    print("\nControles:")
+    print("  Q ou ESC - Sair")
+    print("  R - Reiniciar com novos pontos")
+    print("\nObjetivo:")
+    print("  - Veículo parte e retorna ao depósito (D)")
+    print("  - Pontos prioritários (EME, VIO, MED, POS) até o 1º dia")
+    print("  - Pontos regulares (REG) após prioridades")
+    print("  - Todos os 20 pontos")
+    print("\nVisualização:")
+    print("  - Linhas finas coloridas: prioridade de cada entrega")
+    print("  - Linha grossa: rota do veículo")
+    print("  - Círculo 'D' amarelo: depósito (origem/destino)")
+    print("\n" + "="*60)
+    print("Iniciando visualização...\n")
+    
     # Executar visualização completa (código do pygame_viewer.py adaptado)
     pygame.init()
     WIDTH, HEIGHT = 1400, 800
@@ -184,12 +204,15 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
     clock = pygame.time.Clock()
     FPS = 10
     
+    print("Gerando população: 0% com 2-opt (máxima diversidade inicial)\n")
+    
     # Criar população inicial
     population = generate_priority_aware_population(service_points, POPULATION_SIZE)
     
     best_fitness_history = []
     generation = 0
     optimization_complete = False
+    first_fitness_printed = False
     
     # Loop principal
     running = True
@@ -204,8 +227,29 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         # Verificar se atingiu o critério de parada
         if generation >= max_generations and not optimization_complete:
             optimization_complete = True
+            
+            # Print final
+            print()
+            print("="*60)
+            print(f"CRITÉRIO DE PARADA ATINGIDO: {max_generations} gerações")
+            print("="*60)
+            
+            # Calcular métricas finais
+            total_distance, total_time, _ = calculate_route_time_and_distance(best_route)
+            distance_km = total_distance * 0.1
+            hours = int(total_time // 60)
+            minutes = int(total_time % 60)
+            num_points = len([p for p in best_route if p.id != 0])
+            
+            print(f"Melhor Fitness Final: {best_fitness:.2f}")
+            print(f"  Veículo: {num_points} pontos, Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
+            print("="*60)
+            print()
+            
             # Salvar screenshot final
             pygame.image.save(screen, screenshot_file)
+            print(f"Screenshot salvo em: {screenshot_file}")
+            print(f"Dados salvos em: {progress_file}")
         
         # Se otimização completa, mostrar tela de conclusão
         if optimization_complete:
@@ -218,6 +262,8 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
             pygame.image.save(screen, screenshot_file)
             
             # Aguardar um pouco antes de fechar
+            print("Fechando em 2 segundos...")
+            print()
             time.sleep(2)
             running = False
             continue
@@ -238,6 +284,27 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         
         # Calcular tempos de chegada
         _, _, arrival_times = calculate_route_time_and_distance(best_route)
+        
+        # Print do fitness inicial (apenas uma vez)
+        if not first_fitness_printed:
+            print("="*60)
+            print(f"FITNESS INICIAL: {best_fitness:.2f}")
+            print("="*60)
+            print()
+            first_fitness_printed = True
+        
+        # Print a cada geração
+        if generation == 0 or generation % 1 == 0:
+            # Calcular distância e tempo
+            total_distance, total_time, _ = calculate_route_time_and_distance(best_route)
+            distance_km = total_distance * 0.1
+            hours = int(total_time // 60)
+            minutes = int(total_time % 60)
+            num_points = len([p for p in best_route if p.id != 0])
+            
+            print(f"Geração {generation}: Fitness = {best_fitness:.2f}")
+            print(f"  Veículo: {num_points} pontos, Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
+            print()
         
         # Desenhar visualização completa
         from src.visualization.pygame_viewer import (
@@ -816,18 +883,22 @@ def main():
         # Obter número de veículos atual
         num_vehicles = st.session_state.get('num_vehicles', 1)
         
-        # Texto de restrição de medicamentos prioritários depende do número de veículos
+        # Texto de restrição de medicamentos prioritários e janelas de tempo dependem do número de veículos
         if num_vehicles == 1:
             priority_restriction = "Devem ser entregues no :orange[**1º dia**]"
+            vio_window = ":orange[**8h às 12h**]"
+            pos_window = ":orange[**9h às 13h**]"
         else:  # 2 veículos
             priority_restriction = "Devem ser entregues até :orange[**12:00h**]"
+            vio_window = ":orange[**8h às 10h**]"
+            pos_window = ":orange[**9h às 11h**]"
         
         st.markdown(f"""
         - **Horário Comercial:** 8h às 18h
         - **Medicamentos prioritários:** {priority_restriction}
         - **Emergência Obstétrica:** Prioridade máxima
-        - **Violência Doméstica:** 8h às 10h
-        - **Pós-Parto:** 9h às 11h
+        - **Violência Doméstica:** {vio_window}
+        - **Pós-Parto:** {pos_window}
         - **Medicamentos Hormonais:** Controle de temperatura
         """)
     

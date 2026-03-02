@@ -130,11 +130,12 @@ class TestTimeWindows:
         # Dentro da janela: sem penalidade
         assert window.get_penalty(500) == 0.0
         
-        # Fora da janela: deve ter penalidade
+        # Antes da janela: sem penalidade (pode esperar)
         penalty_before = window.get_penalty(450)
-        penalty_after = window.get_penalty(650)
+        assert penalty_before == 0.0
         
-        assert penalty_before > 0
+        # Depois da janela: deve ter penalidade (atraso)
+        penalty_after = window.get_penalty(650)
         assert penalty_after > 0
 
 

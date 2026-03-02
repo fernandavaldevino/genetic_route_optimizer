@@ -67,12 +67,13 @@ VEHICLE_COLORS = {
 # Parâmetros do AG
 N_POINTS = 20
 NUM_VEHICLES = 2
-POPULATION_SIZE = 150  # Aumentado de 100 para 150 para mais diversidade
+POPULATION_SIZE = 150       # Aumentado de 100 para 150 para mais diversidade
 MUTATION_PROBABILITY = 0.5  # Ajustado de 0.6 para 0.5 (equilíbrio entre exploração e convergência)
+VEHICLE_SPEED = 60.0        # Velocidade dos veículos em km/h
 
 
 def draw_depot(screen, depot_location, radius=15):
-    """Desenha o ponto de depósito (origem/destino)"""
+    """ Desenha o ponto de depósito (origem/destino) """
     pygame.draw.circle(screen, BLACK, depot_location, radius)
     pygame.draw.circle(screen, YELLOW, depot_location, radius - 3)
     pygame.draw.circle(screen, BLACK, depot_location, radius, 3)
@@ -84,7 +85,7 @@ def draw_depot(screen, depot_location, radius=15):
 
 
 def draw_service_points(screen, service_points, radius):
-    """Desenha pontos de atendimento com cores baseadas na prioridade"""
+    """ Desenha pontos de atendimento com cores baseadas na prioridade """
     for point in service_points:
         color = PRIORITY_COLORS.get(point.priority, GRAY)
         pygame.draw.circle(screen, color, point.location, radius)
@@ -126,7 +127,7 @@ def draw_arrow(screen, color, start, end, width=3, arrow_size=12, node_radius=12
     # Margem extra para evitar sobreposição (2 pixels além do raio)
     margin = 2
     
-    # Ajustar pontos para parar ANTES da borda dos círculos
+    # Ajustar pontos para parar antes da borda dos círculos
     # Start: avançar pelo raio + margem
     adjusted_start = (
         start[0] + dx_norm * (node_radius + margin),
@@ -165,7 +166,7 @@ def draw_arrow(screen, color, start, end, width=3, arrow_size=12, node_radius=12
 
 
 def draw_vehicle_route(screen, route, vehicle_id, depot_location, draw_priority_colors=False, draw_light_gray=False):
-    """Desenha a rota de um veículo específico COM SETAS"""
+    """ Desenha a rota de um veículo específico com setas """
     if not route:
         return
     
@@ -215,7 +216,7 @@ def draw_vehicle_route(screen, route, vehicle_id, depot_location, draw_priority_
 
 
 def draw_info_panel(screen, generation, best_solution):
-    """Desenha painel de informações no lado esquerdo"""
+    """ Desenha painel de informações no lado esquerdo """
     pygame.draw.rect(screen, LIGHT_GRAY, (0, 0, INFO_PANEL_WIDTH, HEIGHT))
     pygame.draw.line(screen, BLACK, (INFO_PANEL_WIDTH, 0), (INFO_PANEL_WIDTH, HEIGHT), 2)
     
@@ -290,7 +291,7 @@ def draw_info_panel(screen, generation, best_solution):
     
     y_start += 70
     
-    # Seção Prioridades (formato anterior com nomes completos)
+    # Seção Prioridades
     legend_title = font_subtitle.render("Prioridades:", True, BLACK)
     screen.blit(legend_title, (x_start, y_start))
     y_start += line_height + 3
@@ -340,7 +341,7 @@ def draw_info_panel(screen, generation, best_solution):
     
     y_start += 8
     
-    # Ordem de Atendimento em 2 colunas (V1 e V2) - TODOS OS PONTOS
+    # Ordem de Atendimento em 2 colunas (V1 e V2)
     order_title = font_subtitle.render("Ordem de Atendimento:", True, BLACK)
     screen.blit(order_title, (x_start, y_start))
     y_start += line_height + 3
@@ -368,7 +369,7 @@ def draw_info_panel(screen, generation, best_solution):
         screen.blit(v_title, (x_pos, y_pos))
         y_pos += 14
         
-        # Mostrar TODOS os pontos (sem colapsar)
+        # Mostrar todos os pontos
         for i in range(len(vehicle.route)):
             point = vehicle.route[i]
             arrival = vehicle.arrival_times[i] if i < len(vehicle.arrival_times) else 0
@@ -387,7 +388,7 @@ def draw_info_panel(screen, generation, best_solution):
                 ServicePriority.POSTPARTUM_CARE
             ]
             
-            # Destacar em vermelho se for prioritário E passou de 12h (>= 720)
+            # Destacar em vermelho se for prioritário E se passou de 12h (>= 720)
             time_color = RED if (is_priority and time_of_day >= 720) else BLACK
             
             text = f"{i+1}.P{point.id}-{abbr}"
@@ -402,7 +403,7 @@ def draw_info_panel(screen, generation, best_solution):
 
 
 def draw_simple_plot(screen, x_data, y_data, best_fitness=None):
-    """Desenha gráfico de evolução do fitness COM ESPAÇO ACIMA DO EIXO X"""
+    """ Desenha gráfico de evolução do fitness """
     if len(x_data) < 2:
         return
     
@@ -420,7 +421,7 @@ def draw_simple_plot(screen, x_data, y_data, best_fitness=None):
     pygame.draw.rect(screen, WHITE, (PLOT_X_START, PLOT_Y_START, PLOT_WIDTH, PLOT_HEIGHT))
     pygame.draw.rect(screen, BLACK, (plot_x, plot_y, plot_w, plot_h), 2)
     
-    # Normalizar dados COM MARGEM MAIOR (15% abaixo para garantir espaço visível)
+    # Normalizar dados
     min_y = min(y_data)
     max_y = max(y_data)
     range_y = max_y - min_y if max_y != min_y else 1
@@ -434,7 +435,7 @@ def draw_simple_plot(screen, x_data, y_data, best_fitness=None):
     
     max_x = len(x_data) - 1
     
-    # Desenhar linha do gráfico (com espaço visível acima do eixo X)
+    # Desenhar linha do gráfico
     points = []
     for i, (x, y) in enumerate(zip(x_data, y_data)):
         px = plot_x + int((i / max_x) * plot_w)
@@ -480,7 +481,7 @@ def draw_simple_plot(screen, x_data, y_data, best_fitness=None):
 
 
 def draw_best_solution(screen, best_solution, best_fitness):
-    """Desenha a melhor solução abaixo do gráfico com FONTE MAIOR - 2 VETORES SEPARADOS"""
+    """ Desenha a melhor solução abaixo do gráfico """
     font_title = pygame.font.Font(None, 18)
     font_solution = pygame.font.Font(None, 14)  # Reduzido de 16 para 14 para caber melhor
     
@@ -497,7 +498,7 @@ def draw_best_solution(screen, best_solution, best_fitness):
     screen.blit(text_fitness, (x_start, y_below))
     y_below += 16
     
-    # Desenhar 2 VETORES SEPARADOS (um para cada veículo)
+    # Desenhar 2 vetores (um para cada veículo)
     for vehicle in best_solution.vehicles:
         vehicle_color = VEHICLE_COLORS.get(vehicle.vehicle_id, BLACK)
         
@@ -533,7 +534,7 @@ def draw_best_solution(screen, best_solution, best_fitness):
 
 
 def draw_final_solution_frame(screen, best_solution, best_fitness, generation, depot_location, service_points):
-    """Desenha frame final similar ao de 1 veículo, mas para 2 veículos"""
+    """ Desenha frame final para 2 veículos """
     screen.fill(WHITE)
     
     # Fontes
@@ -608,18 +609,18 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
     screen.blit(text_fitness, (left_x, y_pos))
     y_pos += 35
     
-    # Calcular dias e horário da ÚLTIMA ENTREGA de medicamento (20º ponto, excluindo depósito e retorno)
+    # Calcular dias e horário da última entrega (excluindo depósito)
     max_day = 1
     last_arrival_global = 0
     passed_18h = False  # Flag para verificar se passou das 18h
     
-    # Coletar TODOS os arrival_times de TODOS os veículos
+    # Coletar todos os arrival_times de todos os veículos
     all_arrivals = []
     for vehicle in best_solution.vehicles:
         if vehicle.arrival_times and len(vehicle.arrival_times) > 0:
             all_arrivals.extend(vehicle.arrival_times)
     
-    # Ordenar e pegar o ÚLTIMO (20º medicamento entregue)
+    # Ordenar e pegar o último horário (20º medicamento entregue)
     if all_arrivals:
         all_arrivals.sort()
         last_arrival_global = all_arrivals[-1]  # Último medicamento entregue
@@ -643,11 +644,11 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
     screen.blit(rendered_part1, (x_pos, y_pos))
     x_pos += rendered_part1.get_width()
     
-    # Dias colorido (VERMELHO se passou das 18h)
+    # Dias colorido (vermelho se passou das 18h)
     if passed_18h:
-        # Se passou das 18h, mostrar em VERMELHO independente do dia
+        # Se passou das 18h, mostrar em vermelho independente do dia
         days_text = f"{max_day} dia{'s' if max_day > 1 else ''}, às {last_time_str}."
-        days_color = (200, 0, 0)  # VERMELHO
+        days_color = (200, 0, 0)  # vermelho
     elif max_day == 1:
         days_text = f"1 dia, às {last_time_str}."
         days_color = (0, 150, 0)
@@ -677,7 +678,7 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
         ServicePriority.REGULAR: "REG"
     }
     
-    # Duas colunas - SEPARADAS POR VEÍCULO
+    # Duas colunas (2V)
     col1_x = left_x + 10
     col2_x = left_x + 300
     y_col_start = y_pos
@@ -730,8 +731,8 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
             else:
                 vehicle2_deliveries.append(("D", "DEP", return_arrival, return_day, False, 2))
     
-    # Desenhar coluna 1 (Veículo 1) COM DESTAQUE VERMELHO para prioritários após 12h
-    # Mostrar TODOS os itens (incluindo retorno)
+    # Desenhar coluna 1 (Veículo 1) com destaque vermelho para prioritários após 12h
+    # Mostrar todos os itens (incluindo retorno)
     for idx, (point_id, abbr, arrival, day, is_saida, v_id) in enumerate(vehicle1_deliveries):
         time_of_day = arrival % 1440
         hours = int(time_of_day // 60)
@@ -740,7 +741,7 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
         x_pos_col = col1_x
         y_item = y_col_start + (idx * 20)
         
-        # Verificar se é medicamento prioritário que passou de 12h OU se passou das 18h
+        # Verificar se é medicamento prioritário que passou de 12h ou se passou das 18h
         is_priority_med = abbr in ["EME", "VIO", "MED", "POS"]
         passed_18h = (time_of_day >= 1080 and not is_saida)  # 18h = 1080 min
         use_red = ((is_priority_med and time_of_day >= 720 and not is_saida) or passed_18h)
@@ -764,7 +765,7 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
         screen.blit(rendered_rest, (x_pos_col + x_offset, y_item))
     
     # Desenhar coluna 2 (Veículo 2)
-    # Mostrar TODOS os itens (incluindo retorno)
+    # Mostrar todos os itens (incluindo retorno)
     for idx, (point_id, abbr, arrival, day, is_saida, v_id) in enumerate(vehicle2_deliveries):
         time_of_day = arrival % 1440
         hours = int(time_of_day // 60)
@@ -773,7 +774,7 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
         x_pos_col = col2_x
         y_item = y_col_start + (idx * 20)
         
-        # Verificar se é medicamento prioritário que passou de 12h OU se passou das 18h
+        # Verificar se é medicamento prioritário que passou de 12h ou se passou das 18h
         is_priority_med = abbr in ["EME", "VIO", "MED", "POS"]
         passed_18h = (time_of_day >= 1080 and not is_saida)  # 18h = 1080 min
         use_red = ((is_priority_med and time_of_day >= 720 and not is_saida) or passed_18h)
@@ -800,7 +801,7 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
     exit_text = font_tiny.render("Pressione Q ou ESC para sair  |  Pressione R para reiniciar", True, GRAY)
     screen.blit(exit_text, (left_x, HEIGHT - 50))
     
-    # LADO DIREITO: Visualização da rota (miniatura)
+    # Lado direito: Visualização da rota (miniatura)
     # Área para desenhar a rota
     map_x_start = 600
     map_y_start = 100
@@ -901,7 +902,7 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
 
 
 def create_depot_and_service_points(n_points):
-    """Cria depósito e pontos de atendimento aleatórios"""
+    """ Cria depósito e pontos de atendimento aleatórios """
     depot_x = MAP_X_START + 50
     depot_y = HEIGHT // 2
     depot_location = (depot_x, depot_y)
@@ -986,7 +987,7 @@ def main(max_generations=10):
                     best_fitness_history = []
                     generation = 0
         
-        # Critério de parada: 200 gerações
+        # Critério de parada: número de gerações parametrizado
         if generation >= MAX_GENERATIONS and not finished:
             # Imprimir no console (apenas uma vez)
             print(f"\n{'='*60}")
@@ -1067,40 +1068,39 @@ def main(max_generations=10):
         
         draw_best_solution(screen, best_solution, best_fitness)
         
-        # ORDEM DE DESENHO (rotas primeiro, pontos depois cobrem as linhas):
-        # 1. Segunda melhor solução (linhas cinza claro finas) - SEMPRE durante otimização
+        # Ordem de desenho (rotas primeiro, pontos depois cobrem as linhas):
+        # 1. Segunda melhor solução (linhas cinza claro finas) - Sempre durante otimização
         # Só desaparece na tela final (quando finished=True)
         if len(population) > 1 and not finished:
             second_best = population[1]
             for vehicle in second_best.vehicles:
                 draw_vehicle_route(screen, vehicle.route, vehicle.vehicle_id, depot_location, draw_light_gray=True)
         
-        # 2. Camada de prioridade: linhas finas coloridas COM SETAS
+        # 2. Camada de prioridade: linhas finas coloridas com setas
         for vehicle in best_solution.vehicles:
             draw_vehicle_route(screen, vehicle.route, vehicle.vehicle_id, depot_location, draw_priority_colors=True)
         
-        # 3. Camada de veículo: linhas grossas verde/ciano COM SETAS
+        # 3. Camada de veículo: linhas grossas verde/ciano com setas
         for vehicle in best_solution.vehicles:
             draw_vehicle_route(screen, vehicle.route, vehicle.vehicle_id, depot_location, draw_priority_colors=False)
         
         # 4. Pontos de atendimento (cobrem as linhas que entram nos círculos)
         draw_service_points(screen, service_points, NODE_RADIUS)
         
-        # 5. Depósito por último (destaque)
+        # 5. Depósito por último
         draw_depot(screen, depot_location)
         
-        # Imprimir apenas a cada 20 gerações (para não poluir o console)
-        if generation % 20 == 0:
-            print(f"Geração {generation}: Fitness = {best_fitness:.2f}")
-            for vehicle in best_solution.vehicles:
-                hours = int(vehicle.total_time // 60)
-                minutes = int(vehicle.total_time % 60)
-                distance_km = vehicle.total_distance * 0.1
-                print(f"  Veículo {vehicle.vehicle_id}: {len(vehicle.route)} pontos, "
-                      f"Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
-        
-        # Criar nova população com ELITISMO FORTE
-        elite_size = 10  # Aumentado de 5 para 10 para preservar mais boas soluções
+        # Imprimir os dados da melhor solução a cada geração para monitoramento
+        print(f"Geração {generation}: Fitness = {best_fitness:.2f}")
+        for vehicle in best_solution.vehicles:
+            hours = int(vehicle.total_time // 60)
+            minutes = int(vehicle.total_time % 60)
+            distance_km = vehicle.total_distance * 0.1
+            print(f"  Veículo {vehicle.vehicle_id}: {len(vehicle.route)} pontos, "
+                    f"Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
+    
+        # Criar nova população com Elitismo forte e Torneio adaptativo
+        elite_size = 10  # 10 para preservar mais soluções boas
         new_population = population[:elite_size]
         
         while len(new_population) < POPULATION_SIZE:

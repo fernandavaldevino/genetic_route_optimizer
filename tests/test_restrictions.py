@@ -58,20 +58,21 @@ class TestIntegrationTimeWindows:
         window = TimeWindow(480, 600)  # 8h às 10h
         
         test_cases = [
-            (450, False, "antes da janela"),
-            (500, True, "dentro da janela"),
-            (650, False, "depois da janela"),
+            (450, False, "antes da janela", 0.0),  # Chegar cedo: sem penalidade (pode esperar)
+            (500, True, "dentro da janela", 0.0),
+            (650, False, "depois da janela", None),  # Atraso: deve ter penalidade
         ]
         
-        for arrival_time, expected_valid, description in test_cases:
+        for arrival_time, expected_valid, description, expected_penalty in test_cases:
             is_valid = window.is_valid_time(arrival_time)
             penalty = window.get_penalty(arrival_time)
             
             assert is_valid == expected_valid, f"Falhou para {description}"
             
-            if expected_valid:
-                assert penalty == 0.0, f"Penalidade deveria ser 0 para {description}"
+            if expected_penalty is not None:
+                assert penalty == expected_penalty, f"Penalidade deveria ser {expected_penalty} para {description}"
             else:
+                # Atraso: deve ter penalidade > 0
                 assert penalty > 0, f"Penalidade deveria ser > 0 para {description}"
 
 
