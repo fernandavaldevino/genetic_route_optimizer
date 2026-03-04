@@ -732,11 +732,17 @@ def display_results_multi_vehicle(best_solution, best_fitness):
         ServicePriority.REGULAR: "#808080"               # Cinza
     }
     
+    # Cores dos vetores dos veículos
+    VEHICLE_COLORS = {
+        1: "#009600",  # Verde escuro
+        2: "#00C8C8"   # Ciano
+    }
+    
     for vehicle in best_solution.vehicles:
-        st.markdown(f"**Veículo {vehicle.vehicle_id}:**")
+        vehicle_color = VEHICLE_COLORS.get(vehicle.vehicle_id, "#FFFFFF")
         
         # Criar HTML com IDs coloridos por prioridade
-        html_parts = ["<div style='font-family: monospace; font-size: 16px; padding: 10px; background-color: #0e1117; border-radius: 5px;'>[ "]
+        html_parts = [f"<div style='font-family: monospace; font-size: 16px; padding: 10px; background-color: #0e1117; border-radius: 5px;'><span style='color: {vehicle_color}; font-weight: bold;'>V{vehicle.vehicle_id}</span> <span style='color: rgb(250, 250, 250);'>= [ "]
         
         for i, point in enumerate(vehicle.route):
             color = PRIORITY_COLORS_HTML.get(point.priority, "#000000")
@@ -745,9 +751,56 @@ def display_results_multi_vehicle(best_solution, best_fitness):
             if i < len(vehicle.route) - 1:
                 html_parts.append(", ")
         
-        html_parts.append(" ]</div>")
+        html_parts.append(" ]</span></div>")
         
         st.markdown("".join(html_parts), unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Representação I = [[V1], [V2]]
+    st.markdown("**Representação da Solução:**")
+    
+    # Mapeamento de cores HTML por prioridade
+    PRIORITY_COLORS_HTML = {
+        ServicePriority.EMERGENCY_OBSTETRIC: "#FF0000",  # Vermelho
+        ServicePriority.DOMESTIC_VIOLENCE: "#FFA500",    # Laranja
+        ServicePriority.HORMONAL_MEDICATION: "#0000FF",  # Azul
+        ServicePriority.POSTPARTUM_CARE: "#800080",      # Roxo
+        ServicePriority.REGULAR: "#808080"               # Cinza
+    }
+    
+    # Cores dos vetores dos veículos
+    VEHICLE_COLORS = {
+        1: "#009600",  # Verde escuro
+        2: "#00C8C8"   # Ciano
+    }
+    
+    # Construir vetores V1 e V2 com cores por prioridade
+    def build_colored_vector(vehicle):
+        parts = ["[ "]
+        for i, point in enumerate(vehicle.route):
+            color = PRIORITY_COLORS_HTML.get(point.priority, "#000000")
+            parts.append(f"<span style='color: {color}; font-weight: bold;'>{point.id}</span>")
+            if i < len(vehicle.route) - 1:
+                parts.append(", ")
+        parts.append(" ]")
+        return "".join(parts)
+    
+    v1_html = build_colored_vector(best_solution.vehicles[0])
+    v2_html = build_colored_vector(best_solution.vehicles[1])
+    
+    solution_html = f"""
+    <div style='font-family: monospace; font-size: 16px; padding: 15px; background-color: #0e1117; border-radius: 5px; border: 1px solid rgb(49, 51, 63);'>
+        <span style='color: rgb(250, 250, 250); font-weight: bold;'>I</span>
+        <span style='color: rgb(250, 250, 250);'>= [ </span>
+        {v1_html}
+        <span style='color: rgb(250, 250, 250);'> , </span>
+        {v2_html}
+        <span style='color: rgb(250, 250, 250);'> ]</span>
+    </div>
+    """
+    
+    st.markdown(solution_html, unsafe_allow_html=True)
 
 
 def main():
@@ -845,6 +898,88 @@ def main():
             st.divider()
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("<p style='font-size: 1.2rem; margin-bottom: 20px;'>Clique no botão abaixo para iniciar o processo de otimização de rotas.</p>", unsafe_allow_html=True)
+            
+            # Estilo customizado para o botão Encerrar (mesmo estilo do primary, mas com fundo preto)
+            st.markdown("""
+            <style>
+            div.stButton > button[kind="secondary"] {
+                background-color: #0e1117 !important;
+                border: 1px solid rgb(49, 51, 63) !important;
+                border-radius: 0.5rem !important;
+                color: rgb(250, 250, 250) !important;
+                font-weight: 400 !important;
+                padding: 0.25rem 0.75rem !important;
+                transition: all 0.2s ease !important;
+            }
+            div.stButton > button[kind="secondary"]:hover {
+                border-color: rgb(255, 75, 75) !important;
+                color: rgb(255, 75, 75) !important;
+            }
+            div.stButton > button[kind="secondary"]:active {
+                background-color: #000000 !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Botões alinhados horizontalmente: Iniciar à esquerda, espaço no meio, Encerrar à direita
+            col_start, col_empty, col_close = st.columns([1, 2, 1])
+            
+            with col_start:
+                start_button = st.button("▶️ Iniciar otimização", type="primary", key="start_optimization_btn")
+            
+            with col_close:
+                close_button = st.button("❌ Encerrar", type="secondary", key="close_initial_btn")
+            
+            # Processar ação do botão Encerrar
+            if close_button:
+                # Limpar arquivos temporários
+                temp_dir = '/tmp'
+                for filename in ['service_points.pkl', 'progress.pkl', 'pygame_final.png', 'depot_location.pkl']:
+                    filepath = os.path.join(temp_dir, filename)
+                    if os.path.exists(filepath):
+                        try:
+                            os.remove(filepath)
+                        except:
+                            pass
+                
+                # Executar make clean em background
+                import subprocess
+                import threading
+                
+                def run_clean():
+                    try:
+                        # Executar make clean no diretório raiz do projeto
+                        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+                        result = subprocess.run(['make', 'clean'],
+                                              check=False,
+                                              cwd=project_root,
+                                              capture_output=True,
+                                              text=True)
+                        print(f"Make clean executado: {result.returncode}")
+                        if result.stdout:
+                            print(f"Output: {result.stdout}")
+                        if result.stderr:
+                            print(f"Errors: {result.stderr}")
+                    except Exception as e:
+                        print(f"Erro ao executar make clean: {e}")
+                    # Encerrar o servidor após limpeza
+                    import signal
+                    time.sleep(1)
+                    os.kill(os.getpid(), signal.SIGTERM)
+                
+                # Mensagem de encerramento
+                st.markdown("### 👋 Aplicação Encerrada")
+                st.markdown("✅ Limpeza concluída!")
+                st.markdown("Você pode fechar esta aba do navegador.")
+                st.info("O servidor será encerrado em alguns segundos...")
+                
+                # Executar limpeza e encerramento em thread separada
+                cleanup_thread = threading.Thread(target=run_clean)
+                cleanup_thread.daemon = True
+                cleanup_thread.start()
+                
+                # Parar execução do Streamlit
+                st.stop()
     
     # Preencher sidebar com informações (agora que num_vehicles está definido)
     with sidebar_placeholder.container():
@@ -903,7 +1038,10 @@ def main():
         """)
     
     if not st.session_state.optimization_done:
-        if st.button("▶️ Iniciar otimização", type="primary") or auto_start:
+        # Verificar se o botão foi clicado (se não estiver em auto_start)
+        should_start = auto_start or (not auto_start and 'start_button' in locals() and start_button)
+        
+        if should_start:
             # Limpar flag de auto_start
             if 'auto_start' in st.session_state:
                 del st.session_state['auto_start']
