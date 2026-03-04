@@ -572,20 +572,32 @@ def display_results(best_route, best_fitness, arrival_times):
         ServicePriority.REGULAR: "#808080"               # Cinza
     }
     
-    # Criar HTML com IDs coloridos por prioridade
+    # Criar HTML com IDs coloridos por prioridade - apenas vetor I
     route_without_depot = [p for p in best_route if p.id != 0]
-    html_parts = ["<div style='font-family: monospace; font-size: 16px; padding: 10px; background-color: #0e1117; border-radius: 5px;'>[ "]
     
-    for i, point in enumerate(route_without_depot):
-        color = PRIORITY_COLORS_HTML.get(point.priority, "#000000")
-        html_parts.append(f"<span style='color: {color}; font-weight: bold;'>{point.id}</span>")
-        
-        if i < len(route_without_depot) - 1:
-            html_parts.append(", ")
+    # Construir vetor com cores por prioridade
+    def build_colored_vector(route):
+        parts = ["[ "]
+        for i, point in enumerate(route):
+            color = PRIORITY_COLORS_HTML.get(point.priority, "#000000")
+            parts.append(f"<span style='color: {color}; font-weight: bold;'>{point.id}</span>")
+            if i < len(route) - 1:
+                parts.append(", ")
+        parts.append(" ]")
+        return "".join(parts)
     
-    html_parts.append(" ]</div>")
+    v_html = build_colored_vector(route_without_depot)
     
-    st.markdown("".join(html_parts), unsafe_allow_html=True)
+    solution_html = f"""
+    <div style='font-family: monospace; font-size: 16px; padding: 15px; background-color: #0e1117; border-radius: 5px; border: 1px solid rgb(49, 51, 63);'>
+        <span style='color: rgb(250, 250, 250); font-weight: bold;'>I</span>
+        <span style='color: rgb(250, 250, 250);'>= [ </span>
+        {v_html}
+        <span style='color: rgb(250, 250, 250);'> ]</span>
+    </div>
+    """
+    
+    st.markdown(solution_html, unsafe_allow_html=True)
 
 def display_results_multi_vehicle(best_solution, best_fitness):
     """Exibe os resultados da otimização com múltiplos veículos"""
