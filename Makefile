@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help setup install run streamlit test test-specific test-cov test-html clean
+.PHONY: help setup install run streamlit test test-specific test-cov test-html test-llm test-llm-basic test-llm-integration clean
 
 # Target padrão
 help:
@@ -32,6 +32,11 @@ help:
 	@echo "  $(YELLOW)make test-specific$(NC)   - Executa teste específico (ex: FILE=test_service_points.py)"
 	@echo "  $(YELLOW)make test-cov$(NC)        - Mostra cobertura de código"
 	@echo "  $(YELLOW)make test-html$(NC)       - Executa testes e gera relatório HTML"
+	@echo ""
+	@echo "$(YELLOW)Testes LLM:$(NC)"
+	@echo "  $(YELLOW)make test-openai$(NC)        - Executa todos os testes LLM (básicos + integração)"
+	@echo "  $(YELLOW)make test-openai-basic$(NC)  - Executa apenas testes básicos (sem gastar tokens)"
+	@echo "  $(YELLOW)make test-openai-integration$(NC) - Executa testes de integração (gasta tokens)"
 	@echo ""
 	@echo "$(YELLOW)Utilitários:$(NC)"
 	@echo "  $(YELLOW)make clean$(NC)           - Remove ambiente virtual e cache"
@@ -141,6 +146,54 @@ test-html:
 	@echo ""
 	@echo "$(GREEN)✓ Relatório HTML gerado em: htmlcov/index.html$(NC)"
 	@echo "$(YELLOW)Abra o arquivo no navegador para visualizar a cobertura detalhada.$(NC)"
+
+# Executa todos os testes LLM (básicos + integração)
+test-openai:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Executando todos os testes LLM...$(NC)"
+	@echo "$(RED)⚠️  ATENÇÃO: Estes testes consomem tokens da sua conta OpenAI!$(NC)"
+	@echo "$(YELLOW)Certifique-se de que OPENAI_API_KEY está configurada no .env$(NC)"
+	@echo ""
+	@read -p "Deseja continuar? (s/N): " confirm; \
+	if [ "$$confirm" = "s" ] || [ "$$confirm" = "S" ]; then \
+		$(VENV_NAME)/bin/pytest tests/test_llm/ -v; \
+	else \
+		echo "$(YELLOW)Testes cancelados.$(NC)"; \
+	fi
+
+# Executa apenas testes básicos LLM (sem gastar tokens)
+test-openai-basic:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Executando testes básicos LLM (sem integração)...$(NC)"
+	@echo "$(GREEN)✓ Estes testes NÃO consomem tokens da API$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/pytest tests/test_llm/ -m "not integration" -v
+
+# Executa apenas testes de integração LLM (gasta tokens)
+test-openai-integration:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Executando testes de integração LLM...$(NC)"
+	@echo "$(RED)⚠️  ATENÇÃO: Estes testes consomem tokens da sua conta OpenAI!$(NC)"
+	@echo "$(YELLOW)Certifique-se de que OPENAI_API_KEY está configurada no .env$(NC)"
+	@echo ""
+	@read -p "Deseja continuar? (s/N): " confirm; \
+	if [ "$$confirm" = "s" ] || [ "$$confirm" = "S" ]; then \
+		$(VENV_NAME)/bin/pytest tests/test_llm/ -m integration -v; \
+	else \
+		echo "$(YELLOW)Testes cancelados.$(NC)"; \
+	fi
 
 # Executa tudo de uma vez
 app: setup streamlit
