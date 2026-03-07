@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help setup install run streamlit test test-specific test-cov test-html test-llm test-llm-basic test-llm-integration clean
+.PHONY: help setup install run streamlit test test-specific test-cov test-html test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration clean
 
 # Target padrão
 help:
@@ -33,10 +33,18 @@ help:
 	@echo "  $(YELLOW)make test-cov$(NC)        - Mostra cobertura de código"
 	@echo "  $(YELLOW)make test-html$(NC)       - Executa testes e gera relatório HTML"
 	@echo ""
-	@echo "$(YELLOW)Testes LLM:$(NC)"
-	@echo "  $(YELLOW)make test-openai$(NC)        - Executa todos os testes LLM (básicos + integração)"
-	@echo "  $(YELLOW)make test-openai-basic$(NC)  - Executa apenas testes básicos (sem gastar tokens)"
-	@echo "  $(YELLOW)make test-openai-integration$(NC) - Executa testes de integração (gasta tokens)"
+	@echo "$(YELLOW)Testes LLM - OpenAI:$(NC)"
+	@echo "  $(YELLOW)make test-openai$(NC)              - Todos os testes OpenAI (básicos + integração)"
+	@echo "  $(YELLOW)make test-openai-basic$(NC)        - Testes básicos OpenAI (sem gastar tokens)"
+	@echo "  $(YELLOW)make test-openai-integration$(NC)  - Testes de integração OpenAI (gasta tokens)"
+	@echo ""
+	@echo "$(YELLOW)Testes LLM - Ollama:$(NC)"
+	@echo "  $(YELLOW)make test-ollama$(NC)              - Todos os testes Ollama (básicos + integração)"
+	@echo "  $(YELLOW)make test-ollama-basic$(NC)        - Testes básicos Ollama (sem conexão)"
+	@echo "  $(YELLOW)make test-ollama-integration$(NC)  - Testes de integração Ollama (requer Ollama rodando)"
+	@echo ""
+	@echo "$(YELLOW)Testes LLM - Integração Completa:$(NC)"
+	@echo "  $(YELLOW)make test-llm-integration$(NC)     - Testes de integração completos (usa provedor do .env)"
 	@echo ""
 	@echo "$(YELLOW)Utilitários:$(NC)"
 	@echo "  $(YELLOW)make clean$(NC)           - Remove ambiente virtual e cache"
@@ -57,6 +65,32 @@ setup:
 	@echo "$(GREEN)Instalando/Atualizando dependências...$(NC)"
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt
+	@echo ""
+	@echo "$(GREEN)Verificando Ollama...$(NC)"
+	@if command -v ollama >/dev/null 2>&1; then \
+		echo "$(GREEN)✓ Ollama instalado$(NC)"; \
+		if pgrep -x ollama >/dev/null 2>&1; then \
+			echo "$(GREEN)✓ Ollama já está rodando$(NC)"; \
+		else \
+			echo "$(YELLOW)Iniciando Ollama em background...$(NC)"; \
+			nohup ollama serve > /dev/null 2>&1 & \
+			sleep 2; \
+			echo "$(GREEN)✓ Ollama iniciado$(NC)"; \
+		fi; \
+		if ollama list | grep -q llama2; then \
+			echo "$(GREEN)✓ Modelo llama2 já instalado$(NC)"; \
+		else \
+			echo "$(YELLOW)Baixando modelo llama2 (pode demorar alguns minutos)...$(NC)"; \
+			ollama pull llama2; \
+			echo "$(GREEN)✓ Modelo llama2 instalado$(NC)"; \
+		fi; \
+	else \
+		echo "$(YELLOW)⚠️  Ollama não instalado$(NC)"; \
+		echo "$(YELLOW)Para usar LLMs locais, instale o Ollama:$(NC)"; \
+		echo "$(YELLOW)  macOS: brew install ollama$(NC)"; \
+		echo "$(YELLOW)  Linux: curl -fsSL https://ollama.ai/install.sh | sh$(NC)"; \
+	fi
+	@echo ""
 	@echo "$(GREEN)✓ Setup concluído com sucesso!$(NC)"
 
 # Alias para setup (compatibilidade)
@@ -191,6 +225,74 @@ test-openai-integration:
 	@read -p "Deseja continuar? (s/N): " confirm; \
 	if [ "$$confirm" = "s" ] || [ "$$confirm" = "S" ]; then \
 		$(VENV_NAME)/bin/pytest tests/test_llm/ -m integration -v; \
+	else \
+		echo "$(YELLOW)Testes cancelados.$(NC)"; \
+	fi
+
+# Executa todos os testes Ollama (básicos + integração)
+test-ollama:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Executando todos os testes Ollama...$(NC)"
+	@echo "$(RED)⚠️  ATENÇÃO: Certifique-se de que o Ollama está rodando!$(NC)"
+	@echo "$(YELLOW)Execute 'ollama serve' em outro terminal antes de continuar$(NC)"
+	@echo ""
+	@read -p "Ollama está rodando? (s/N): " confirm; \
+	if [ "$$confirm" = "s" ] || [ "$$confirm" = "S" ]; then \
+		$(VENV_NAME)/bin/pytest tests/test_llm/test_ollama_provider.py -v; \
+	else \
+		echo "$(YELLOW)Testes cancelados.$(NC)"; \
+		echo "$(YELLOW)Inicie o Ollama com: ollama serve$(NC)"; \
+	fi
+
+# Executa apenas testes básicos Ollama (sem conexão)
+test-ollama-basic:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Executando testes básicos Ollama (sem integração)...$(NC)"
+	@echo "$(GREEN)✓ Estes testes NÃO requerem Ollama rodando$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/pytest tests/test_llm/test_ollama_provider.py -m "not integration" -v
+
+# Executa apenas testes de integração Ollama (requer Ollama rodando)
+test-ollama-integration:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Executando testes de integração Ollama...$(NC)"
+	@echo "$(RED)⚠️  ATENÇÃO: Certifique-se de que o Ollama está rodando!$(NC)"
+	@echo "$(YELLOW)Execute 'ollama serve' em outro terminal antes de continuar$(NC)"
+	@echo ""
+	@read -p "Ollama está rodando? (s/N): " confirm; \
+	if [ "$$confirm" = "s" ] || [ "$$confirm" = "S" ]; then \
+		$(VENV_NAME)/bin/pytest tests/test_llm/test_ollama_provider.py -m integration -v; \
+	else \
+		echo "$(YELLOW)Testes cancelados.$(NC)"; \
+		echo "$(YELLOW)Inicie o Ollama com: ollama serve$(NC)"; \
+	fi
+
+# Executa testes de integração completa (usa provedor configurado no .env)
+test-llm-integration:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Executando testes de integração completa LLM...$(NC)"
+	@echo "$(YELLOW)Estes testes usam o provedor configurado no .env$(NC)"
+	@echo "$(YELLOW)Certifique-se de que o provedor está configurado e disponível$(NC)"
+	@echo ""
+	@read -p "Deseja continuar? (s/N): " confirm; \
+	if [ "$$confirm" = "s" ] || [ "$$confirm" = "S" ]; then \
+		$(VENV_NAME)/bin/pytest tests/test_llm/test_llm_integration.py -m integration -v; \
 	else \
 		echo "$(YELLOW)Testes cancelados.$(NC)"; \
 	fi

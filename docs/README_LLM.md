@@ -106,16 +106,16 @@ answer = generator.answer_question(
 
 ## ⚙️ Configuração
 
-### 1. Configurar API Key
+O sistema suporta dois provedores de LLM:
+
+1. **OpenAI** - Modelos em nuvem (GPT-3.5, GPT-4)
+2. **Ollama** - Modelos locais (Llama2, Mistral, CodeLlama)
+
+### Opção 1: OpenAI (Nuvem)
+
+#### 1.1. Configurar API Key
 
 Edite o arquivo `.env` na raiz do projeto:
-
-```bash
-# Renomear .env.example para .env
-cp .env.example .env
-```
-
-Adicione sua chave da OpenAI:
 
 ```env
 LLM_PROVIDER=openai
@@ -124,13 +124,96 @@ OPENAI_MODEL=gpt-3.5-turbo
 OPENAI_TEMPERATURE=0.7
 ```
 
-### 2. Modelos Disponíveis
+#### 1.2. Modelos Disponíveis
 
 - `gpt-3.5-turbo` (recomendado para custo-benefício)
 - `gpt-4` (maior qualidade, maior custo)
 - `gpt-4-turbo` (equilíbrio entre qualidade e velocidade)
 
-### 3. Parâmetros de Temperatura
+#### 1.3. Obter API Key
+
+1. Acesse [OpenAI Platform](https://platform.openai.com)
+2. Crie uma conta ou faça login
+3. Vá em "API Keys"
+4. Clique em "Create new secret key"
+5. Copie a chave e adicione no `.env`
+
+### Opção 2: Ollama (Local)
+
+#### 2.1. Instalar Ollama
+
+**macOS:**
+```bash
+brew install ollama
+```
+
+**Linux:**
+```bash
+curl -fsSL https://ollama.ai/install.sh | sh
+```
+
+**Windows:**
+Baixe o instalador em: https://ollama.ai/download
+
+#### 2.2. Iniciar Serviço
+
+```bash
+ollama serve
+```
+
+O Ollama iniciará na porta padrão `11434`.
+
+#### 2.3. Baixar Modelo
+
+```bash
+# Modelo Llama 2 (padrão, ~3.8GB)
+ollama pull llama2
+
+# Modelo Mistral (~4.1GB)
+ollama pull mistral
+
+# Modelo CodeLlama para código (~3.8GB)
+ollama pull codellama
+
+# Modelo menor para testes (~1.9GB)
+ollama pull llama2:7b
+```
+
+Para listar modelos disponíveis:
+```bash
+ollama list
+```
+
+#### 2.4. Configurar no .env
+
+```env
+LLM_PROVIDER=ollama
+OLLAMA_MODEL=llama2
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+#### 2.5. Vantagens do Ollama
+
+✅ **Gratuito** - Sem custos de API
+✅ **Privacidade** - Dados não saem da sua máquina
+✅ **Offline** - Funciona sem internet
+✅ **Sem limites** - Sem rate limiting
+
+❌ **Desvantagens:**
+- Requer hardware adequado (mínimo 8GB RAM)
+- Modelos menores podem ter qualidade inferior
+- Primeira execução é mais lenta
+
+#### 2.6. Comparação de Modelos Ollama
+
+| Modelo | Tamanho | Uso Recomendado | Velocidade |
+|--------|---------|-----------------|------------|
+| llama2 | ~3.8GB | Uso geral | Média |
+| mistral | ~4.1GB | Tarefas complexas | Média |
+| codellama | ~3.8GB | Geração de código | Média |
+| llama2:7b | ~1.9GB | Testes rápidos | Rápida |
+
+### Parâmetros de Temperatura
 
 - `0.0` - Mais determinístico e consistente
 - `0.7` - Balanceado (padrão)
@@ -227,23 +310,86 @@ O sistema é especializado em atendimentos de saúde da mulher, com conhecimento
 
 ## 🧪 Testes
 
-Execute os testes da integração LLM:
+### Testes OpenAI
 
 ```bash
-# Testar provedor OpenAI
-pytest tests/test_llm/test_openai_provider.py -v
+# Testar provedor OpenAI (básico, sem API)
+pytest tests/test_llm/test_openai_provider.py::TestOpenAIProviderBasic -v
 
-# Testar todos os módulos LLM
-pytest tests/test_llm/ -v
+# Testar conexão OpenAI (requer API key)
+pytest tests/test_llm/test_openai_provider.py -m integration -v
+
+# Todos os testes OpenAI
+pytest tests/test_llm/test_openai_provider.py -v
+```
+
+### Testes Ollama
+
+**IMPORTANTE:** Certifique-se de que o Ollama está rodando antes de executar testes de integração!
+
+```bash
+# Testar provedor Ollama (básico, sem conexão)
+pytest tests/test_llm/test_ollama_provider.py::TestOllamaProviderBasic -v
+
+# Testar conexão Ollama (requer Ollama rodando)
+pytest tests/test_llm/test_ollama_provider.py -m integration -v
+
+# Todos os testes Ollama
+pytest tests/test_llm/test_ollama_provider.py -v
+
+# Pular testes de integração
+pytest tests/test_llm/test_ollama_provider.py -m "not integration" -v
+```
+
+### Teste Manual Rápido
+
+**OpenAI:**
+```python
+from src.llm.providers.openai_provider import OpenAIProvider
+
+provider = OpenAIProvider(
+    api_key="sua-chave",
+    model="gpt-3.5-turbo"
+)
+
+if provider.validate_connection():
+    print("✅ Conexão com OpenAI OK!")
+    response = provider.generate_text("Diga olá em português")
+    print(f"Resposta: {response}")
+```
+
+**Ollama:**
+```python
+from src.llm.providers.ollama_provider import OllamaProvider
+
+provider = OllamaProvider(
+    model="llama2",
+    base_url="http://localhost:11434"
+)
+
+if provider.validate_connection():
+    print("✅ Conexão com Ollama OK!")
+    response = provider.generate_text("Diga olá em português")
+    print(f"Resposta: {response}")
 ```
 
 ## 💡 Dicas de Uso
 
+### OpenAI
 1. **Custos**: Use `gpt-3.5-turbo` para desenvolvimento e testes
 2. **Qualidade**: Use `gpt-4` para produção quando precisar de máxima qualidade
-3. **Temperatura**: Mantenha em 0.7 para equilíbrio entre consistência e criatividade
-4. **Histórico**: Limpe o histórico de Q&A periodicamente para manter contexto relevante
-5. **Prompts**: Customize os prompts para seu caso de uso específico
+3. **Monitoramento**: Acompanhe uso em https://platform.openai.com/usage
+
+### Ollama
+1. **Primeira execução**: Modelos levam tempo para carregar na memória
+2. **Performance**: Use GPU se disponível (detectada automaticamente)
+3. **Modelos**: Comece com `llama2:7b` para testes rápidos
+4. **Cache**: Modelos ficam em cache após primeiro uso
+
+### Geral
+1. **Temperatura**: Mantenha em 0.7 para equilíbrio entre consistência e criatividade
+2. **Histórico**: Limpe o histórico de Q&A periodicamente para manter contexto relevante
+3. **Prompts**: Customize os prompts para seu caso de uso específico
 
 ## 🔒 Segurança
 
