@@ -35,6 +35,7 @@ from src.core.genetic_algorithm import (
     calculate_route_time_and_distance
 )
 from src.core.service_points import create_service_point, ServicePriority
+from src.llm.utils.streamlit_integration import LLMIntegration
 
 # Configuração da página
 st.set_page_config(
@@ -1265,6 +1266,259 @@ def main():
                 st.session_state.best_fitness,
                 st.session_state.arrival_times
             )
+        
+        st.divider()
+        
+        # ===== SEÇÃO LLM: GERAÇÃO DE CONTEÚDO INTELIGENTE =====
+        st.markdown("### 🤖 Assistente Inteligente com IA")
+        st.markdown("Gere documentos e obtenha informações sobre a rota otimizada usando Inteligência Artificial.")
+        
+        # Inicializar LLM Integration
+        if 'llm_integration' not in st.session_state:
+            st.session_state.llm_integration = LLMIntegration()
+            st.session_state.llm_initialized = st.session_state.llm_integration.initialize()
+        
+        # Verificar se LLM está disponível
+        if st.session_state.llm_initialized:
+            # Tabs para diferentes funcionalidades
+            tab1, tab2, tab3 = st.tabs(["📋 Manual de Instruções", "🗺️ Roteiro Detalhado", "💬 Perguntas & Respostas"])
+            
+            # Preparar dados da rota
+            if st.session_state.get('is_multi_vehicle', False):
+                # Multi-veículo
+                from src.llm.utils.streamlit_integration import prepare_route_data_multi_vehicle
+                vehicles_data = prepare_route_data_multi_vehicle(st.session_state.best_solution)
+                route = st.session_state.best_solution.vehicles[0].route  # Para Q&A usar primeiro veículo
+                _, _, arrival_times = calculate_route_time_and_distance(route)
+                total_distance = sum(v.total_distance for v in st.session_state.best_solution.vehicles) * 0.1
+                total_time = sum(v.total_time for v in st.session_state.best_solution.vehicles)
+            else:
+                # Veículo único
+                route = st.session_state.best_route
+                arrival_times = st.session_state.arrival_times
+                total_distance, total_time, _ = calculate_route_time_and_distance(route)
+                total_distance = total_distance * 0.1
+                vehicles_data = None
+            
+            # TAB 1: Manual de Instruções
+            with tab1:
+                st.markdown("#### 📖 Manual de Instruções e Checklist")
+                st.markdown("Baixe o manual completo com instruções detalhadas e o checklist pré-itinerário em PDF.")
+                
+                col1, col2, col3 = st.columns(3)
+                
+                # Botão Manual de Instruções
+                with col1:
+                    try:
+                        from src.llm.utils.pdf_generator import generate_manual_pdf
+                        
+                        if st.button("📝 Gerar Manual de Instruções", key="gen_manual_btn", type="secondary", use_container_width=True):
+                            with st.spinner("Gerando manual de instruções e preparando download..."):
+                                manual = st.session_state.llm_integration.generate_manual(
+                                    route=route,
+                                    arrival_times=arrival_times,
+                                    total_distance=total_distance,
+                                    total_time=total_time,
+                                    is_multi_vehicle=st.session_state.get('is_multi_vehicle', False),
+                                    vehicles_data=vehicles_data
+                                )
+                                pdf_bytes = generate_manual_pdf(manual)
+                                st.session_state.manual_pdf_ready = pdf_bytes
+                        
+                        # Mostrar botão de download se o PDF foi gerado
+                        if 'manual_pdf_ready' in st.session_state:
+                            st.download_button(
+                                label="💾 Download Manual PDF",
+                                data=st.session_state.manual_pdf_ready,
+                                file_name="manual_instrucoes.pdf",
+                                mime="application/pdf",
+                                type="primary",
+                                use_container_width=True,
+                                key="download_manual_final"
+                            )
+                    except ImportError:
+                        st.button("📥 Baixar Manual de Instruções", key="gen_manual_fallback", type="secondary", use_container_width=True, disabled=True)
+                        st.warning("⚠️ Biblioteca fpdf2 não instalada")
+                
+                # Botão Checklist
+                with col2:
+                    try:
+                        from src.llm.utils.pdf_generator import generate_checklist_pdf
+                        
+                        if st.button("📝 Gerar Checklist Pré-Itinerário", key="gen_checklist_btn", type="secondary", use_container_width=True):
+                            with st.spinner("Gerando checklist e preparando download..."):
+                                checklist = st.session_state.llm_integration.generate_checklist(route)
+                                pdf_bytes = generate_checklist_pdf(checklist)
+                                st.session_state.checklist_pdf_ready = pdf_bytes
+                        
+                        # Mostrar botão de download se o PDF foi gerado
+                        if 'checklist_pdf_ready' in st.session_state:
+                            st.download_button(
+                                label="💾 Download Checklist PDF",
+                                data=st.session_state.checklist_pdf_ready,
+                                file_name="checklist_pre_itinerario.pdf",
+                                mime="application/pdf",
+                                type="primary",
+                                use_container_width=True,
+                                key="download_checklist_final"
+                            )
+                    except ImportError:
+                        st.button("📥 Baixar Checklist Pré-Itinerário", key="gen_checklist_fallback", type="secondary", use_container_width=True, disabled=True)
+                        st.warning("⚠️ Biblioteca fpdf2 não instalada")
+                
+                # Coluna 3 vazia
+                with col3:
+                    pass
+            
+            # TAB 2: Roteiro Detalhado
+            with tab2:
+                st.markdown("#### 🗺️ Roteiro Detalhado e Resumo de Prioridades")
+                st.markdown("Baixe o roteiro passo a passo e o resumo de prioridades em PDF.")
+                
+                col1, col2, col3 = st.columns(3)
+                
+                # Botão Roteiro
+                with col1:
+                    try:
+                        from src.llm.utils.pdf_generator import generate_itinerary_pdf
+                        
+                        if st.button("📝 Gerar Roteiro Detalhado", key="gen_itinerary_btn", type="secondary", use_container_width=True):
+                            with st.spinner("Gerando roteiro detalhado e preparando download..."):
+                                itinerary = st.session_state.llm_integration.generate_itinerary(
+                                    route=route,
+                                    arrival_times=arrival_times,
+                                    total_distance=total_distance,
+                                    total_time=total_time
+                                )
+                                pdf_bytes = generate_itinerary_pdf(itinerary)
+                                st.session_state.itinerary_pdf_ready = pdf_bytes
+                        
+                        # Mostrar botão de download se o PDF foi gerado
+                        if 'itinerary_pdf_ready' in st.session_state:
+                            st.download_button(
+                                label="💾 Download Roteiro PDF",
+                                data=st.session_state.itinerary_pdf_ready,
+                                file_name="roteiro_detalhado.pdf",
+                                mime="application/pdf",
+                                type="primary",
+                                use_container_width=True,
+                                key="download_itinerary_final"
+                            )
+                    except ImportError:
+                        st.button("📥 Baixar Roteiro Detalhado", key="gen_itinerary_fallback", type="secondary", use_container_width=True, disabled=True)
+                        st.warning("⚠️ Biblioteca fpdf2 não instalada")
+                
+                # Botão Prioridades
+                with col2:
+                    try:
+                        from src.llm.utils.pdf_generator import generate_itinerary_pdf
+                        
+                        if st.button("📝 Gerar Resumo de Prioridades", key="gen_priorities_btn", type="secondary", use_container_width=True):
+                            with st.spinner("Analisando prioridades e preparando download..."):
+                                priorities = st.session_state.llm_integration.generate_priority_summary(route)
+                                pdf_bytes = generate_itinerary_pdf(priorities, title="Resumo de Prioridades")
+                                st.session_state.priorities_pdf_ready = pdf_bytes
+                        
+                        # Mostrar botão de download se o PDF foi gerado
+                        if 'priorities_pdf_ready' in st.session_state:
+                            st.download_button(
+                                label="💾 Download Prioridades PDF",
+                                data=st.session_state.priorities_pdf_ready,
+                                file_name="resumo_prioridades.pdf",
+                                mime="application/pdf",
+                                type="primary",
+                                use_container_width=True,
+                                key="download_priorities_final"
+                            )
+                    except ImportError:
+                        st.button("📥 Baixar Resumo de Prioridades", key="gen_priorities_fallback", type="secondary", use_container_width=True, disabled=True)
+                        st.warning("⚠️ Biblioteca fpdf2 não instalada")
+                
+                # Coluna 3 vazia
+                with col3:
+                    pass
+            
+            # TAB 3: Perguntas & Respostas
+            with tab3:
+                st.markdown("#### 💬 Faça Perguntas sobre a Rota")
+                st.markdown("Pergunte qualquer coisa sobre a rota otimizada em linguagem natural.")
+                
+                # Sugestões de perguntas
+                suggestions = st.session_state.llm_integration.get_suggested_questions(route)
+                if suggestions:
+                    st.markdown("**💡 Sugestões de perguntas:**")
+                    cols = st.columns(2)
+                    for idx, suggestion in enumerate(suggestions):
+                        col = cols[idx % 2]
+                        with col:
+                            if st.button(f"❓ {suggestion}", key=f"suggest_{idx}", use_container_width=True):
+                                st.session_state.current_question = suggestion
+                                st.rerun()
+                
+                # Campo de pergunta
+                st.markdown("---")
+                question = st.text_input(
+                    "Digite sua pergunta:",
+                    value=st.session_state.get('current_question', ''),
+                    placeholder="Ex: Qual o próximo atendimento prioritário?",
+                    key="question_input"
+                )
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("🔍 Perguntar", key="ask_question", type="secondary", use_container_width=True):
+                        if question:
+                            with st.spinner("Processando pergunta..."):
+                                answer = st.session_state.llm_integration.answer_question(
+                                    question=question,
+                                    route=route,
+                                    arrival_times=arrival_times,
+                                    total_distance=total_distance,
+                                    total_time=total_time
+                                )
+                                # Adicionar ao histórico
+                                if 'qa_history' not in st.session_state:
+                                    st.session_state.qa_history = []
+                                st.session_state.qa_history.append({
+                                    'question': question,
+                                    'answer': answer
+                                })
+                                st.session_state.current_question = ''
+                        else:
+                            st.warning("Por favor, digite uma pergunta.")
+                
+                with col2:
+                    if st.button("🗑️ Limpar", key="clear_history", type="secondary", use_container_width=True):
+                        st.session_state.llm_integration.clear_conversation_history()
+                        if 'qa_history' in st.session_state:
+                            st.session_state.qa_history = []
+                        st.success("Histórico limpo!")
+                
+                # Coluna 3 vazia
+                with col3:
+                    pass
+                
+                # Exibir histórico de perguntas e respostas
+                if 'qa_history' in st.session_state and st.session_state.qa_history:
+                    st.markdown("---")
+                    st.markdown("##### 📜 Histórico de Conversação:")
+                    for idx, qa in enumerate(reversed(st.session_state.qa_history)):
+                        with st.expander(f"❓ {qa['question']}", expanded=(idx == 0)):
+                            st.markdown("**Resposta:**")
+                            st.write(qa['answer'])
+        
+        else:
+            # LLM não disponível
+            st.warning("⚠️ Assistente de IA não disponível")
+            st.info("""
+            Para habilitar o Assistente de IA, configure sua chave API no arquivo `.env`:
+            
+            1. Renomeie o arquivo `.env.example` para `.env`
+            2. Adicione sua chave da OpenAI em `OPENAI_API_KEY`
+            3. Reinicie a aplicação
+            
+            Ou execute: `cp .env.example .env` e edite o arquivo `.env`
+            """)
         
         st.divider()
         

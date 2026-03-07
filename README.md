@@ -8,7 +8,7 @@
 [![Tests](https://img.shields.io/badge/Tests-95%20passed-success.svg)](tests/)
 [![License](https://img.shields.io/badge/License-Educational-yellow.svg)](LICENSE)
 
-**[Documentação Técnica](docs/README_RESTRICOES.md)** | **[Interface Streamlit](docs/README_STREAMLIT.md)** | **[Testes](docs/README_TESTS.md)**
+**[Documentação Técnica](docs/README_RESTRICOES.md)** | **[Interface Streamlit](docs/README_STREAMLIT.md)** | **[Integração LLM](docs/README_LLM.md)** | **[Testes](docs/README_TESTS.md)**
 
 ---
 
@@ -75,6 +75,7 @@ O sistema resolve o problema de **Roteamento de Veículos com Janelas de Tempo (
 - 📈 **Gráficos de Evolução**: Acompanhamento visual do progresso do algoritmo
 - 🔄 **Pausas Noturnas**: Respeito ao horário comercial (8h-18h)
 - 📸 **Captura de Screenshots**: Registro visual dos resultados finais
+- 🤖 **Assistente Inteligente com IA**: Geração automática de manuais, roteiros e Q&A usando LLMs
 
 ---
 
@@ -557,6 +558,56 @@ python3 app/main_2v.py   # 2 veículos
 
 ---
 
+## 🤖 Assistente Inteligente com IA
+
+O sistema inclui um **Assistente Inteligente** baseado em LLMs (Large Language Models) que gera automaticamente documentação e responde perguntas sobre as rotas otimizadas.
+
+### Funcionalidades
+
+#### 1. 📋 Manual de Instruções
+Gera manual profissional para equipe de transporte com:
+- Instruções detalhadas para cada parada
+- Protocolos específicos por tipo de atendimento
+- Alertas de prioridades e janelas de tempo
+- Checklist pré-operação
+
+#### 2. 🗺️ Roteiro Detalhado
+Cria roteiro passo a passo para motoristas com:
+- Sequência de paradas com horários
+- Distâncias e tempos de viagem
+- Observações importantes
+- Resumo de prioridades
+
+#### 3. 💬 Perguntas & Respostas
+Sistema de Q&A em linguagem natural:
+- Perguntas sobre a rota otimizada
+- Sugestões inteligentes de perguntas
+- Histórico de conversação
+- Respostas contextualizadas
+
+### Como Usar
+
+1. **Configure a API Key** no arquivo `.env`:
+   ```bash
+   cp .env.example .env
+   # Edite .env e adicione: OPENAI_API_KEY=sk-proj-sua-chave
+   ```
+
+2. **Execute a otimização** no Streamlit
+
+3. **Acesse a aba "🤖 Assistente Inteligente"** após os resultados
+
+### Exemplos de Perguntas
+
+- "Qual é o próximo atendimento prioritário?"
+- "Quantas paradas de emergência temos hoje?"
+- "Como devo transportar os medicamentos hormonais?"
+- "Quais pontos têm janelas de tempo restritas?"
+
+Para documentação completa sobre esta funcionalidade, consulte: **[docs/README_LLM.md](docs/README_LLM.md)**
+
+---
+
 ## 🧪 Testes
 
 O projeto possui **111 testes automatizados** com cobertura de ~75% do código.
@@ -653,6 +704,7 @@ Para mais detalhes, consulte: [`docs/README_TESTS.md`](docs/README_TESTS.md)
 ### Documentação Técnica
 - **[Restrições e Implementação](docs/README_RESTRICOES.md)** - Detalhes técnicos das restrições implementadas
 - **[Interface Streamlit](docs/README_STREAMLIT.md)** - Guia completo da interface web
+- **[Integração com LLMs](docs/README_LLM.md)** - Assistente Inteligente com IA (manuais, roteiros e Q&A)
 - **[Testes Automatizados](docs/README_TESTS.md)** - Documentação dos 95 testes
 
 ### Documentação Acadêmica
