@@ -17,10 +17,59 @@ class MockLLMProvider:
         self.temperature = 0.7
     
     def generate_text(self, prompt, max_tokens=None, system_message=None):
-        return "Mock manual de instruções com preparação, instruções e contatos de emergência."
+        # Detecta tipo de conteúdo pelo system_message ou prompt
+        # Verifica se é geração de manual (verifica system_message E prompt)
+        if (system_message and 'manual' in system_message.lower()) or \
+           (prompt and 'manual de instruções' in prompt.lower()):
+            # Retorna manual mock com seções obrigatórias
+            return """# MANUAL DE INSTRUÇÕES PARA EQUIPE DE TRANSPORTE
+
+## PREPARAÇÃO E CHECKLIST
+- Verificar veículo abastecido e em boas condições
+- Conferir documentação necessária
+- Preparar materiais e equipamentos de segurança
+- Verificar caixa térmica e controle de temperatura
+
+## INSTRUÇÕES E PROCEDIMENTOS
+1. Seguir a ordem de paradas conforme roteiro
+2. Verificar protocolos especiais para cada tipo de atendimento
+3. Manter controle de temperatura quando necessário
+4. Registrar horários de chegada e saída
+
+## CONTATOS DE EMERGÊNCIA
+- Central de Operações: (11) 1234-5678
+- Suporte Técnico: (11) 8765-4321
+- Emergências Médicas: 192
+"""
+        # Verifica se é geração de roteiro
+        elif (prompt and 'roteiro' in prompt.lower()) or \
+             (prompt and 'sequência' in prompt.lower()):
+            # Retorna roteiro mock com menções de paradas
+            return """# ROTEIRO DE VISITAS
+
+## Sequência de Atendimentos
+
+Parada 1: Ponto de Atendimento Emergencial
+- Horário previsto: 08:00
+- Tipo: Atendimento de emergência
+- Observações: Prioridade alta
+
+Parada 2: Ponto de Medicação
+- Horário previsto: 09:00
+- Tipo: Entrega de medicamentos
+- Observações: Controle de temperatura necessário
+
+Parada 3: Ponto Pós-Parto
+- Horário previsto: 10:00
+- Tipo: Atendimento pós-parto
+- Observações: Cuidados especiais
+"""
+        else:
+            # Resposta genérica para outros casos
+            return "Mock manual de instruções com preparação, instruções e contatos de emergência."
     
     def generate_chat_response(self, messages, max_tokens=None):
-        return "Mock resposta de chat."
+        return "Mock resposta de chat com informações sobre a rota e atendimentos."
     
     def validate_connection(self):
         return True
