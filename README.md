@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
 [![Pygame](https://img.shields.io/badge/Pygame-2.5.0+-green.svg)](https://www.pygame.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28.0+-red.svg)](https://streamlit.io/)
-[![Tests](https://img.shields.io/badge/Tests-95%20passed-success.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-140%20passed-success.svg)](tests/)
 [![License](https://img.shields.io/badge/License-Educational-yellow.svg)](LICENSE)
 
 **[Documentação Técnica](docs/README_RESTRICOES.md)** | **[Interface Streamlit](docs/README_STREAMLIT.md)** | **[Integração LLM](docs/README_LLM.md)** | **[Testes](docs/README_TESTS.md)**
@@ -43,7 +43,7 @@
 
 ## 🎯 Sobre o Projeto
 
-Este projeto implementa um **sistema completo de otimização de rotas** para atendimentos em saúde da mulher, utilizando **Algoritmo Genético** com múltiplas restrições e prioridades hierárquicas. O sistema foi desenvolvido como parte do projeto acadêmico da **Fase 2 da Pós-Tech FIAP (IA para Devs)**.
+Este projeto implementa um **sistema completo de otimização de rotas** para atendimentos em saúde da mulher, utilizando **Algoritmo Genético** com múltiplas restrições e prioridades hierárquicas. O sistema foi desenvolvido como parte do projeto acadêmico da **Fase 2 da Pós-Tech FIAP (IA para Devs)**, entregue em Março/2026.
 
 ### Objetivos
 
@@ -76,6 +76,9 @@ O sistema resolve o problema de **Roteamento de Veículos com Janelas de Tempo (
 - 🔄 **Pausas Noturnas**: Respeito ao horário comercial (8h-18h)
 - 📸 **Captura de Screenshots**: Registro visual dos resultados finais
 - 🤖 **Assistente Inteligente com IA**: Geração automática de manuais, roteiros e Q&A usando LLMs
+- 🌐 **Suporte Multi-Provedor LLM**: OpenAI (nuvem) e Ollama (local)
+- 📄 **Exportação em PDF**: Manuais, roteiros e checklists em formato profissional
+- 📦 **Documentos Multi-Veículo**: Geração automática de PDFs em ZIP para múltiplos veículos
 
 ---
 
@@ -95,9 +98,10 @@ O sistema resolve o problema de **Roteamento de Veículos com Janelas de Tempo (
 - **Streamlit 1.28+** - Dashboard web interativo
 
 ### LLM Integration
-- **OpenAI 1.12+** - Integração com modelos GPT
-- **Ollama 0.1+** - Suporte para modelos locais
+- **OpenAI 1.12+** - Integração com modelos GPT (nuvem)
+- **Ollama 0.1+** - Suporte para modelos locais (Llama2, Mistral, CodeLlama)
 - **Python-dotenv 1.0+** - Gerenciamento de variáveis de ambiente
+- **FPDF2 2.7+** - Geração de documentos PDF profissionais
 
 ### Testes
 - **Pytest 7.4+** - Framework de testes
@@ -356,6 +360,7 @@ genetic_route_optimizer/
 │
 ├── src/                             # Código fonte
 │   ├── __init__.py
+│   ├── constants.py                 # Constantes do sistema
 │   ├── core/                        # Lógica principal
 │   │   ├── __init__.py
 │   │   ├── service_points.py       # Pontos de atendimento e restrições
@@ -366,10 +371,28 @@ genetic_route_optimizer/
 │   │   ├── providers/               # Provedores de LLM
 │   │   │   ├── __init__.py
 │   │   │   ├── base.py             # Interface base
-│   │   │   └── openai_provider.py  # Provedor OpenAI
+│   │   │   ├── factory.py          # Factory para criar provedores
+│   │   │   ├── openai_provider.py  # Provedor OpenAI (nuvem)
+│   │   │   └── ollama_provider.py  # Provedor Ollama (local)
 │   │   ├── generators/              # Geradores de conteúdo
+│   │   │   ├── __init__.py
+│   │   │   ├── manual_generator.py      # Gerador de manuais
+│   │   │   ├── itinerary_generator.py   # Gerador de roteiros
+│   │   │   ├── qa_generator.py          # Gerador de Q&A
+│   │   │   ├── qa_system.py             # Sistema de perguntas
+│   │   │   └── route_generator.py       # Gerador de rotas
 │   │   ├── prompts/                 # Templates de prompts
+│   │   │   ├── __init__.py
+│   │   │   ├── manual_templates.py      # Templates de manuais
+│   │   │   ├── qa_templates.py          # Templates de Q&A
+│   │   │   ├── route_prompts.py         # Prompts de rotas
+│   │   │   └── route_templates.py       # Templates de rotas
 │   │   └── utils/                   # Utilitários LLM
+│   │       ├── __init__.py
+│   │       ├── formatters.py            # Formatadores de dados
+│   │       ├── pdf_generator.py         # Gerador de PDFs
+│   │       ├── streamlit_integration.py # Integração Streamlit
+│   │       └── validators.py            # Validadores
 │   ├── visualization/               # Interface gráfica
 │   │   ├── __init__.py
 │   │   ├── pygame_viewer.py        # Visualização 1 veículo
@@ -390,7 +413,12 @@ genetic_route_optimizer/
 │   ├── test_restrictions.py        # Testes de restrições (legado)
 │   └── test_llm/                    # Testes de provedores LLM
 │       ├── __init__.py
-│       └── test_openai_provider.py # Testes do provedor OpenAI
+│       ├── test_openai_provider.py      # Testes do provedor OpenAI
+│       ├── test_ollama_provider.py      # Testes do provedor Ollama
+│       ├── test_providers.py            # Testes de provedores base
+│       ├── test_generators.py           # Testes de geradores
+│       ├── test_llm_integration.py      # Testes de integração LLM
+│       └── llm_integration_example.py   # Exemplo de uso
 │
 └── docs/                            # Documentação
     ├── README_RESTRICOES.md        # Detalhes técnicos das restrições
@@ -405,12 +433,15 @@ genetic_route_optimizer/
 |-------|-----------|
 | [`app/`](app/) | Aplicações principais (`main.py` para 1 veículo, `main_2v.py` para 2 veículos) |
 | [`src/core/`](src/core/) | Lógica principal do algoritmo genético e pontos de serviço |
-| [`src/llm/`](src/llm/) | Integração com LLM (OpenAI, Ollama) e provedores |
+| [`src/llm/`](src/llm/) | Integração com LLM (OpenAI, Ollama) - provedores, geradores, prompts e utils |
+| [`src/llm/providers/`](src/llm/providers/) | Provedores LLM: OpenAI (nuvem), Ollama (local) e Factory Pattern |
+| [`src/llm/generators/`](src/llm/generators/) | Geradores de conteúdo: manuais, roteiros, Q&A |
+| [`src/llm/utils/`](src/llm/utils/) | Utilitários: formatadores, gerador de PDF, validadores |
 | [`src/visualization/`](src/visualization/) | Interfaces gráficas Pygame |
 | [`streamlit/`](streamlit/) | Dashboard web interativo |
 | [`tests/`](tests/) | Testes automatizados (111 testes, ~75% cobertura) |
-| [`tests/test_llm/`](tests/test_llm/) | Testes de provedores LLM (16 testes) |
-| [`docs/`](docs/) | Documentação técnica e acadêmica (4 documentos) |
+| [`tests/test_llm/`](tests/test_llm/) | Testes de provedores LLM (OpenAI, Ollama, integração) |
+| [`docs/`](docs/) | Documentação técnica e acadêmica (5 documentos) |
 
 ---
 
@@ -562,6 +593,20 @@ python3 app/main_2v.py   # 2 veículos
 
 O sistema inclui um **Assistente Inteligente** baseado em LLMs (Large Language Models) que gera automaticamente documentação e responde perguntas sobre as rotas otimizadas.
 
+### Provedores Suportados
+
+#### 1. 🌐 OpenAI (Nuvem)
+- **Modelos**: GPT-3.5-turbo, GPT-4, GPT-4-turbo
+- **Vantagens**: Alta qualidade, rápido, sem setup local
+- **Desvantagens**: Pago (por token), requer internet, dados enviados para OpenAI
+- **Configuração**: Requer API Key da OpenAI
+
+#### 2. 🏠 Ollama (Local)
+- **Modelos**: Llama2, Mistral, CodeLlama, Neural-Chat
+- **Vantagens**: Gratuito, privado (dados locais), offline, sem limites
+- **Desvantagens**: Requer hardware (8GB+ RAM), modelos menores, setup inicial
+- **Configuração**: Requer instalação do Ollama e download de modelos
+
 ### Funcionalidades
 
 #### 1. 📋 Manual de Instruções
@@ -570,6 +615,7 @@ Gera manual profissional para equipe de transporte com:
 - Protocolos específicos por tipo de atendimento
 - Alertas de prioridades e janelas de tempo
 - Checklist pré-operação
+- **Exportação em PDF** com formatação profissional
 
 #### 2. 🗺️ Roteiro Detalhado
 Cria roteiro passo a passo para motoristas com:
@@ -577,6 +623,7 @@ Cria roteiro passo a passo para motoristas com:
 - Distâncias e tempos de viagem
 - Observações importantes
 - Resumo de prioridades
+- **Exportação em PDF** com formatação profissional
 
 #### 3. 💬 Perguntas & Respostas
 Sistema de Q&A em linguagem natural:
@@ -585,24 +632,81 @@ Sistema de Q&A em linguagem natural:
 - Histórico de conversação
 - Respostas contextualizadas
 
+#### 4. 📦 Suporte Multi-Veículo
+Para rotas com 2 veículos:
+- Gera documentos separados para cada veículo
+- **Download em ZIP** com todos os PDFs
+- Manuais, roteiros e resumos de prioridades individualizados
+
 ### Como Usar
+
+#### Opção 1: OpenAI (Nuvem)
 
 1. **Configure a API Key** no arquivo `.env`:
    ```bash
    cp .env.example .env
-   # Edite .env e adicione: OPENAI_API_KEY=sk-proj-sua-chave
+   # Edite .env e adicione:
+   # LLM_PROVIDER=openai
+   # OPENAI_API_KEY=sk-proj-sua-chave-aqui
+   # OPENAI_MODEL=gpt-3.5-turbo
    ```
 
-2. **Execute a otimização** no Streamlit
+2. **Obtenha sua API Key**:
+   - Acesse: https://platform.openai.com/api-keys
+   - Crie uma conta ou faça login
+   - Clique em "Create new secret key"
+   - Copie a chave e adicione no `.env`
 
-3. **Acesse a aba "🤖 Assistente Inteligente"** após os resultados
+#### Opção 2: Ollama (Local)
+
+1. **Instale o Ollama**:
+   ```bash
+   # macOS
+   brew install ollama
+   
+   # Linux
+   curl -fsSL https://ollama.ai/install.sh | sh
+   
+   # Windows: baixe em https://ollama.ai/download
+   ```
+
+2. **Baixe um modelo**:
+   ```bash
+   ollama pull llama2
+   ```
+
+3. **Configure no `.env`**:
+   ```bash
+   cp .env.example .env
+   # Edite .env e adicione:
+   # LLM_PROVIDER=ollama
+   # OLLAMA_MODEL=llama2
+   # OLLAMA_BASE_URL=http://localhost:11434
+   ```
+
+4. **Inicie o Ollama** (se não estiver rodando):
+   ```bash
+   ollama serve
+   ```
+
+#### Usando o Assistente
+
+1. **Execute a otimização** no Streamlit
+2. **Acesse a aba "🤖 Assistente Inteligente"** após os resultados
+3. **Gere documentos** ou faça perguntas sobre a rota
 
 ### Exemplos de Perguntas
 
-- "Qual é o próximo atendimento prioritário?"
 - "Quantas paradas de emergência temos hoje?"
 - "Como devo transportar os medicamentos hormonais?"
 - "Quais pontos têm janelas de tempo restritas?"
+- "Qual é a distância total da rota?"
+- "Em que horário termina a rota?"
+
+### Exportação de Documentos
+
+- **1 Veículo**: Botões de download individual para cada documento (PDF)
+- **2 Veículos**: Botão de download em ZIP com documentos de ambos os veículos
 
 Para documentação completa sobre esta funcionalidade, consulte: **[docs/README_LLM.md](docs/README_LLM.md)**
 
@@ -610,7 +714,7 @@ Para documentação completa sobre esta funcionalidade, consulte: **[docs/README
 
 ## 🧪 Testes
 
-O projeto possui **111 testes automatizados** com cobertura de ~75% do código.
+O projeto possui **140 testes automatizados** com cobertura de ~75% do código.
 
 ### Executar Todos os Testes
 
@@ -640,24 +744,54 @@ pytest tests/test_service_points.py::TestPriorityOrdering::test_sort_by_priority
 
 ### Testes LLM (Provedores de IA)
 
-O projeto inclui testes para integração com provedores LLM (OpenAI):
+O projeto inclui testes para integração com provedores LLM (OpenAI e Ollama):
+
+#### Testes OpenAI
 
 ```bash
-# Executar todos os testes LLM (pede confirmação - consome tokens)
-make test-llm
+# Executar todos os testes OpenAI (pede confirmação - consome tokens)
+make test-openai
 
 # Executar apenas testes básicos (NÃO consome tokens)
-make test-llm-basic
+make test-openai-basic
 
 # Executar apenas testes de integração (consome tokens)
+make test-openai-integration
+```
+
+**Tipos de Testes OpenAI:**
+- **Básicos**: Inicialização, configuração, parâmetros - NÃO consome tokens
+- **Integração**: Conexão real com API, geração de texto - Consome tokens da OpenAI
+
+⚠️ **ATENÇÃO:** Testes de integração OpenAI consomem tokens da sua conta. Use `make test-openai-basic` para testes sem custo.
+
+#### Testes Ollama
+
+```bash
+# Executar todos os testes Ollama (pede confirmação - requer Ollama rodando)
+make test-ollama
+
+# Executar apenas testes básicos (NÃO requer Ollama)
+make test-ollama-basic
+
+# Executar apenas testes de integração (requer Ollama rodando)
+make test-ollama-integration
+```
+
+**Tipos de Testes Ollama:**
+- **Básicos**: Inicialização, configuração, parâmetros - NÃO requer Ollama rodando
+- **Integração**: Conexão real com Ollama, geração de texto - Requer Ollama rodando
+
+⚠️ **ATENÇÃO:** Testes de integração Ollama requerem que o Ollama esteja rodando (`ollama serve`).
+
+#### Testes de Integração Completa
+
+```bash
+# Testes de integração usando provedor configurado no .env
 make test-llm-integration
 ```
 
-**Tipos de Testes LLM:**
-- **Básicos** (9 testes): Inicialização, configuração, parâmetros - NÃO consome tokens
-- **Integração** (7 testes): Conexão real com API, geração de texto - Consome tokens da OpenAI
-
-⚠️ **ATENÇÃO:** Testes de integração LLM consomem tokens da sua conta OpenAI. Use `make test-llm-basic` para testes sem custo.
+Usa o provedor configurado em `LLM_PROVIDER` no arquivo `.env` (openai ou ollama).
 
 ### Cobertura de Código
 
@@ -672,11 +806,11 @@ make test-html
 
 ### Estatísticas de Testes
 
-- **Total**: 111 testes
+- **Total**: 140 testes
 - **Unitários**: 64 testes
 - **Interface**: 13 testes
 - **Integração**: 18 testes
-- **LLM**: 16 testes (9 básicos + 7 integração)
+- **LLM**: 45 testes (OpenAI, Ollama, geradores, integração completa)
 
 ### Cobertura de Código
 
@@ -774,8 +908,8 @@ pytest tests/ -v --tb=short
 - **Fórmula**: `distância_km = distância_unidades × 0.1`
 
 #### Tempo de Viagem
-- **Velocidade padrão**: 40 km/h
-- **Fórmula**: `tempo_minutos = (distância_km / 40) × 60`
+- **Velocidade padrão**: 60 km/h
+- **Fórmula**: `tempo_minutos = (distância_km / 60) × 60`
 
 ### Resultados Típicos
 
@@ -793,6 +927,9 @@ Para 20 pontos de atendimento:
 - [x] Interface web com Streamlit ✅
 - [x] Suporte para múltiplos veículos ✅
 - [x] Testes automatizados completos ✅
+- [x] Integração com LLMs (OpenAI e Ollama) ✅
+- [x] Geração de PDFs profissionais ✅
+- [x] Suporte multi-veículo para documentos ✅
 - [ ] Exportação de rotas para CSV/JSON
 - [ ] Análise estatística de múltiplas execuções
 - [ ] Integração com APIs de mapas reais (Google Maps, OpenStreetMap)
@@ -800,6 +937,9 @@ Para 20 pontos de atendimento:
 - [ ] Histórico de execuções no Streamlit
 - [ ] Suporte para mais de 2 veículos
 - [ ] Interface de configuração de parâmetros
+- [ ] Suporte para mais provedores LLM (Anthropic Claude, Google Gemini)
+- [ ] Tradução multilíngue de documentos
+- [ ] Integração com WhatsApp/Telegram para notificações
 
 ---
 
@@ -810,7 +950,7 @@ Desenvolvido como projeto acadêmico da **Pós-Tech FIAP - Fase 2 - IA para Devs
 **Fernanda Valdevino**
 - Projeto: Sistema de Otimização de Rotas com Algoritmo Genético
 - Instituição: FIAP - Pós-Graduação IA para Devs
-- Fase: 2
+- Fase: 2 (Março/2026)
 
 🐙 [@fernandavaldevino](https://github.com/fernandavaldevino)
 
@@ -828,6 +968,8 @@ Este projeto é desenvolvido para fins educacionais como parte do programa de P�
 - **Comunidade Python** - Pelas excelentes bibliotecas open-source
 - **Pygame Community** - Pela biblioteca de visualização
 - **Streamlit Team** - Pelo framework web intuitivo
+- **OpenAI** - Pelos modelos GPT e API acessível
+- **Ollama Team** - Por democratizar o acesso a LLMs locais
 
 ---
 
