@@ -2,13 +2,7 @@
 Templates de prompts para sistema de perguntas e respostas
 """
 
-QA_SYSTEM_MESSAGE = """
-Você é um assistente inteligente especializado em rotas de atendimento de saúde da mulher.
-Você tem acesso às informações da rota otimizada e pode responder perguntas sobre ela
-em linguagem natural.
-
-Seja preciso, objetivo e útil. Se não souber a resposta, diga claramente.
-"""
+from src.constants import QA_SYSTEM_MESSAGE, COMMON_QUESTIONS
 
 QA_CONTEXT_TEMPLATE = """
 ## CONTEXTO DA ROTA ATUAL:
@@ -31,15 +25,6 @@ Se a pergunta for sobre:
 
 Formate a resposta de maneira clara e acionável.
 """
-
-COMMON_QUESTIONS = {
-    "proximo_atendimento": "Qual é o próximo atendimento prioritário?",
-    "emergencias": "Quantas paradas de emergência temos hoje?",
-    "tempo_total": "Quanto tempo vai levar a rota completa?",
-    "medicamentos": "Quais paradas envolvem entrega de medicamentos?",
-    "pos_parto": "Quantos atendimentos pós-parto temos?",
-    "violencia": "Há casos de violência doméstica na rota?",
-}
 
 def format_route_context(route_data: dict) -> str:
     """

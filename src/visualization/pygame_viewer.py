@@ -17,50 +17,17 @@ from src.core.genetic_algorithm import (
     calculate_route_time_and_distance
 )
 from src.core.service_points import create_service_point, ServicePriority
-
-# Constantes
-WIDTH, HEIGHT = 1400, 800
-NODE_RADIUS = 12  # raios dos círculos dos pontos de atendimento
-FPS = 10
-
-# Áreas da tela
-INFO_PANEL_WIDTH = 350
-MAP_X_START = INFO_PANEL_WIDTH + 20
-MAP_WIDTH = WIDTH - MAP_X_START - 20
-MAP_HEIGHT = HEIGHT - 20
-
-PLOT_X_START = 10
-PLOT_Y_START = 500  # Posição do gráfico
-PLOT_WIDTH = INFO_PANEL_WIDTH - 20
-PLOT_HEIGHT = 180  # Altura do gráfico
-
-# Cores
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-BLUE = (0, 0, 255)
-GREEN = (0, 255, 0)
-ORANGE = (255, 165, 0)
-PURPLE = (128, 0, 128)
-YELLOW = (255, 255, 0)
-GRAY = (128, 128, 128)
-LIGHT_GRAY = (220, 220, 220)
-
-# Cores por prioridade
-PRIORITY_COLORS = {
-    ServicePriority.EMERGENCY_OBSTETRIC: RED,
-    ServicePriority.DOMESTIC_VIOLENCE: ORANGE,
-    ServicePriority.HORMONAL_MEDICATION: BLUE,
-    ServicePriority.POSTPARTUM_CARE: PURPLE,
-    ServicePriority.REGULAR: GRAY
-}
-
-# Parâmetros do AG
-N_POINTS = 20               # Número total de pontos de atendimento
-POPULATION_SIZE = 100
-MUTATION_PROBABILITY = 0.3
-MAX_GENERATIONS = 100       # Critério de parada
-VEHICLE_SPEED = 60.0        # Velocidade do veículo em km/h
+from src.constants import (
+    WIDTH, HEIGHT, NODE_RADIUS, FPS,
+    INFO_PANEL_WIDTH, MAP_X_START, MAP_WIDTH, MAP_HEIGHT,
+    PLOT_X_START, PLOT_Y_START, PLOT_WIDTH, PLOT_HEIGHT,
+    WHITE, BLACK, RED, BLUE, GREEN, ORANGE, PURPLE, YELLOW, GRAY, LIGHT_GRAY,
+    PRIORITY_COLORS,
+    N_POINTS, POPULATION_SIZE, MUTATION_PROBABILITY, MAX_GENERATIONS, VEHICLE_SPEED,
+    MAP_COORD_MIN_X, MAP_COORD_MAX_X, MAP_COORD_MIN_Y, MAP_COORD_MAX_Y,
+    GUARANTEED_SERVICE_TYPES, VIOLENCE_TIME_WINDOW, POSTPARTUM_TIME_WINDOW,
+    PRIORITY_ABBREVIATIONS, MINUTES_PER_DAY, WORK_START_TIME, WORK_END_TIME
+)
 
 def draw_service_points(screen, service_points, radius, start_points_by_day=None):
     """
@@ -142,10 +109,10 @@ def calculate_days_message(arrival_times):
     if arrival_times and len(arrival_times) > 0:
         # Calcular o dia da última entrega - arrival_time (antes do retorno ao depósito)
         last_service_arrival = arrival_times[-1]
-        max_day = int(last_service_arrival // 1440) + 1
+        max_day = int(last_service_arrival // MINUTES_PER_DAY) + 1
         
         # Calcular horário da última entrega
-        time_of_day = last_service_arrival % 1440
+        time_of_day = last_service_arrival % MINUTES_PER_DAY
         hours = int(time_of_day // 60)
         minutes = int(time_of_day % 60)
         time_str = f"{hours:02d}:{minutes:02d}"
@@ -260,14 +227,8 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
     screen.blit(order_title, (x_start, y_start))
     y_start += line_height + 5
     
-    # Definir abreviações de prioridade
-    priority_abbr = {
-        ServicePriority.EMERGENCY_OBSTETRIC: "EME",
-        ServicePriority.DOMESTIC_VIOLENCE: "VIO",
-        ServicePriority.HORMONAL_MEDICATION: "MED",
-        ServicePriority.POSTPARTUM_CARE: "POS",
-        ServicePriority.REGULAR: "REG"
-    }
+    # Usar abreviações de prioridade das constantes
+    priority_abbr = PRIORITY_ABBREVIATIONS
     
     # Calcular retorno ao depósito
     depot = best_route[0]
@@ -277,10 +238,10 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
     return_arrival = arrival_times[-1] + last_point.service_duration + return_travel_time
     
     # Verificar se retorno passa das 18h
-    return_time_of_day = return_arrival % 1440
-    if return_time_of_day >= 1080:  # 18h
-        return_day = int(return_arrival // 1440)
-        return_arrival = (return_day + 1) * 1440 + 480  # Próximo dia às 8h
+    return_time_of_day = return_arrival % MINUTES_PER_DAY
+    if return_time_of_day >= WORK_END_TIME:  # 18h
+        return_day = int(return_arrival // MINUTES_PER_DAY)
+        return_arrival = (return_day + 1) * MINUTES_PER_DAY + WORK_START_TIME  # Próximo dia às 8h
     
     # Configuração das colunas
     col1_x = x_start + 5
@@ -306,8 +267,8 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
             arrival = return_arrival
         
         # Calcular dia e hora do dia
-        day = int(arrival // 1440) + 1  # Dia 1, 2, 3, etc.
-        time_of_day = arrival % 1440
+        day = int(arrival // MINUTES_PER_DAY) + 1  # Dia 1, 2, 3, etc.
+        time_of_day = arrival % MINUTES_PER_DAY
         hours = int(time_of_day // 60)
         minutes = int(time_of_day % 60)
         
@@ -553,7 +514,7 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
     max_day = 1
     if arrival_times and len(arrival_times) > 0:
         last_arrival = arrival_times[-1]
-        max_day = int(last_arrival // 1440) + 1
+        max_day = int(last_arrival // MINUTES_PER_DAY) + 1
     
     # Lado esquerdo - Informações textuais
     left_x = 50
@@ -638,7 +599,7 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
     # Calcular horário da última entrega
     if arrival_times and len(arrival_times) > 0:
         last_service_arrival = arrival_times[-1]  # Última entrega antes do retorno
-        time_of_day = last_service_arrival % 1440
+        time_of_day = last_service_arrival % MINUTES_PER_DAY
         hours = int(time_of_day // 60)
         minutes = int(time_of_day % 60)
         time_str = f"{hours:02d}:{minutes:02d}"
@@ -667,14 +628,8 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
     screen.blit(order_title, (left_x, y_pos))
     y_pos += 30
     
-    # Definir abreviações de prioridade
-    priority_abbr = {
-        ServicePriority.EMERGENCY_OBSTETRIC: "EME",
-        ServicePriority.DOMESTIC_VIOLENCE: "VIO",
-        ServicePriority.HORMONAL_MEDICATION: "MED",
-        ServicePriority.POSTPARTUM_CARE: "POS",
-        ServicePriority.REGULAR: "REG"
-    }
+    # Usar abreviações de prioridade das constantes
+    priority_abbr = PRIORITY_ABBREVIATIONS
     
     # Mostrar ordem de atendimento em 2 colunas
     col1_x = left_x + 10
@@ -691,10 +646,10 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
     return_arrival = arrival_times[-1] + last_point.service_duration + return_travel_time
     
     # Verificar se retorno passa das 18h
-    return_time_of_day = return_arrival % 1440
-    if return_time_of_day >= 1080:  # 18h
-        return_day = int(return_arrival // 1440)
-        return_arrival = (return_day + 1) * 1440 + 480  # Próximo dia às 8h
+    return_time_of_day = return_arrival % MINUTES_PER_DAY
+    if return_time_of_day >= WORK_END_TIME:  # 18h
+        return_day = int(return_arrival // MINUTES_PER_DAY)
+        return_arrival = (return_day + 1) * MINUTES_PER_DAY + WORK_START_TIME  # Próximo dia às 8h
     
     # Número total de itens (rota + retorno)
     total_items = len(best_route) + 1
@@ -710,8 +665,8 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
             arrival = return_arrival
         
         # Calcular dia e hora
-        day = int(arrival // 1440) + 1
-        time_of_day = arrival % 1440
+        day = int(arrival // MINUTES_PER_DAY) + 1
+        time_of_day = arrival % MINUTES_PER_DAY
         hours = int(time_of_day // 60)
         minutes = int(time_of_day % 60)
         
@@ -826,7 +781,7 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
         # Cor baseada na prioridade do ponto de destino
         dest_point = best_route[i + 1]
         dest_arrival = arrival_times[i + 1]
-        dest_day = int(dest_arrival // 1440) + 1
+        dest_day = int(dest_arrival // MINUTES_PER_DAY) + 1
         
         # Verificar se é medicamento prioritário no Dia 2+
         is_priority_med = dest_point.priority in [
@@ -879,42 +834,35 @@ def create_random_service_points(n_points):
     
     # Criar DEPÓSITO (ponto D/0) - ponto de partida em amarelo
     depot_location = (
-        random.randint(MAP_X_START + NODE_RADIUS + 20, WIDTH - NODE_RADIUS - 20),
-        random.randint(NODE_RADIUS + 20, HEIGHT - NODE_RADIUS - 20)
+        random.randint(MAP_COORD_MIN_X, MAP_COORD_MAX_X),
+        random.randint(MAP_COORD_MIN_Y, MAP_COORD_MAX_Y)
     )
     depot = create_service_point(0, depot_location, 'regular', None)
     depot.service_duration = 0.0  # Depósito não tem tempo de serviço
     service_points.append(depot)
     
     # Garantir 2 atendimentos de cada tipo prioritário
-    types_guaranteed = [
-        'emergency', 'emergency',   # 2 emergências
-        'violence', 'violence',     # 2 violência doméstica
-        'medication', 'medication', # 2 medicamentos
-        'postpartum', 'postpartum'  # 2 pós-parto
-    ]
-    
-    for i, service_type in enumerate(types_guaranteed):
+    for i, service_type in enumerate(GUARANTEED_SERVICE_TYPES):
         location = (
-            random.randint(MAP_X_START + NODE_RADIUS + 20, WIDTH - NODE_RADIUS - 20),
-            random.randint(NODE_RADIUS + 20, HEIGHT - NODE_RADIUS - 20)
+            random.randint(MAP_COORD_MIN_X, MAP_COORD_MAX_X),
+            random.randint(MAP_COORD_MIN_Y, MAP_COORD_MAX_Y)
         )
         
         # Definir janelas de tempo específicas (4h para 1 veículo)
         time_window = None
         if service_type == 'violence':
-            time_window = (480, 720)  # 8h às 12h (4h)
+            time_window = VIOLENCE_TIME_WINDOW
         elif service_type == 'postpartum':
-            time_window = (540, 780)  # 9h às 13h (4h)
+            time_window = POSTPARTUM_TIME_WINDOW
         
         point = create_service_point(i + 1, location, service_type, time_window)
         service_points.append(point)
     
     # Adicionar apenas pontos REGULARES no restante para garantir que as prioridades sejam sempre respeitadas
-    for i in range(len(types_guaranteed), n_points):
+    for i in range(len(GUARANTEED_SERVICE_TYPES), n_points):
         location = (
-            random.randint(MAP_X_START + NODE_RADIUS + 20, WIDTH - NODE_RADIUS - 20),
-            random.randint(NODE_RADIUS + 20, HEIGHT - NODE_RADIUS - 20)
+            random.randint(MAP_COORD_MIN_X, MAP_COORD_MAX_X),
+            random.randint(MAP_COORD_MIN_Y, MAP_COORD_MAX_Y)
         )
         
         service_type = 'regular'  # Apenas regulares
@@ -992,8 +940,8 @@ def main():
         # Limpar tela
         screen.fill(WHITE)
         
-        # Calcular fitness (1 veículo: deadline = fim do Dia 1 = 1440 min)
-        fitness_values = [calculate_constrained_fitness(route, speed=VEHICLE_SPEED, priority_deadline=1440.0) for route in population]
+        # Calcular fitness (1 veículo: deadline = fim do Dia 1)
+        fitness_values = [calculate_constrained_fitness(route, speed=VEHICLE_SPEED, priority_deadline=MINUTES_PER_DAY) for route in population]
         
         # Ordenar população
         population, fitness_values = sort_population_by_fitness(population, fitness_values)
@@ -1040,7 +988,7 @@ def main():
             start_points_by_day[current_day] = best_route[0].id
             
             for i in range(1, len(best_route)):
-                day = int(arrival_times[i] // 1440) + 1
+                day = int(arrival_times[i] // MINUTES_PER_DAY) + 1
                 if day > current_day:
                     start_points_by_day[day] = best_route[i].id
                     current_day = day

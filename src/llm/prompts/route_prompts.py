@@ -347,7 +347,7 @@ CORRETO:
 ✅ Simplesmente NÃO incluir a linha "Observações importantes" quando não houver observações
 
 Exemplo CORRETO (parada sem observações especiais):
-```
+
 PARADA 9: Ponto 13
 - Horário de chegada previsto: 16:26 do Dia 1
 - Tipo de atendimento: Atendimento Regular
@@ -357,10 +357,9 @@ PARADA 9: Ponto 13
 - Tempo de viagem: 1h43 minutos à velocidade média de 60.0 km/h
 
 PONTOS DE ATENÇÃO:
-```
 
 Exemplo INCORRETO (NÃO FAÇA ISSO):
-```
+
 PARADA 9: Ponto 13
 - Horário de chegada previsto: 16:26 do Dia 1
 - Tipo de atendimento: Atendimento Regular
@@ -369,7 +368,6 @@ PARADA 9: Ponto 13
 - Distância até o próximo ponto: 103.5 km
 - Tempo de viagem: 1h43 minutos à velocidade média de 60.0 km/h
 - Observações importantes: N/A    ← NUNCA FAÇA ISSO!
-```
 
 REGRAS CRÍTICAS - LEIA COM ATENÇÃO:
 1. VOCÊ DEVE LISTAR EXATAMENTE {total_points} PARADAS
