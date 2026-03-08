@@ -18,58 +18,23 @@ from src.core.multi_vehicle import (
     MultiVehicleSolution
 )
 from src.core.service_points import create_service_point, ServicePriority, calculate_distance
-
-# Constantes
-WIDTH, HEIGHT = 1400, 800
-NODE_RADIUS = 12
-FPS = 10
-
-# Áreas da tela
-INFO_PANEL_WIDTH = 350
-MAP_X_START = INFO_PANEL_WIDTH + 20
-MAP_WIDTH = WIDTH - MAP_X_START - 20
-MAP_HEIGHT = HEIGHT - 20
-
-PLOT_X_START = 10
-PLOT_Y_START = 500  # Movido mais para baixo
-PLOT_WIDTH = INFO_PANEL_WIDTH - 20
-PLOT_HEIGHT = 150  # Reduzido para dar espaço
-
-# Cores
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-BLUE = (0, 0, 255)
-GREEN = (0, 255, 0)
-ORANGE = (255, 165, 0)
-PURPLE = (128, 0, 128)
-YELLOW = (255, 255, 0)
-GRAY = (128, 128, 128)
-LIGHT_GRAY = (220, 220, 220)
-DARK_GREEN = (0, 150, 0)
-CYAN = (0, 200, 200)
-
-# Cores por prioridade
-PRIORITY_COLORS = {
-    ServicePriority.EMERGENCY_OBSTETRIC: RED,
-    ServicePriority.DOMESTIC_VIOLENCE: ORANGE,
-    ServicePriority.HORMONAL_MEDICATION: BLUE,
-    ServicePriority.POSTPARTUM_CARE: PURPLE,
-    ServicePriority.REGULAR: GRAY
-}
-
-# Cores por veículo
-VEHICLE_COLORS = {
-    1: DARK_GREEN,  # Veículo 1: Verde escuro
-    2: CYAN         # Veículo 2: Ciano
-}
-
-# Parâmetros do AG
-N_POINTS = 20
-NUM_VEHICLES = 2
-POPULATION_SIZE = 150       # Aumentado de 100 para 150 para mais diversidade
-MUTATION_PROBABILITY = 0.5  # Ajustado de 0.6 para 0.5 (equilíbrio entre exploração e convergência)
-VEHICLE_SPEED = 60.0        # Velocidade dos veículos em km/h
+from src.constants import (
+    WIDTH, HEIGHT, NODE_RADIUS, FPS,
+    INFO_PANEL_WIDTH, MAP_X_START, MAP_WIDTH, MAP_HEIGHT,
+    PLOT_X_START, PLOT_Y_START, PLOT_WIDTH, PLOT_HEIGHT_2V as PLOT_HEIGHT,
+    WHITE, BLACK, RED, BLUE, GREEN, ORANGE, PURPLE, YELLOW, GRAY, LIGHT_GRAY,
+    DARK_GREEN, CYAN,
+    PRIORITY_COLORS, VEHICLE_COLORS,
+    N_POINTS, NUM_VEHICLES, POPULATION_SIZE_2V as POPULATION_SIZE,
+    MUTATION_PROBABILITY_2V as MUTATION_PROBABILITY, VEHICLE_SPEED,
+    MAP_COORD_MIN_X_2V, MAP_COORD_MAX_X_2V, MAP_COORD_MIN_Y, MAP_COORD_MAX_Y,
+    GUARANTEED_SERVICE_TYPES, VIOLENCE_TIME_WINDOW_2V, POSTPARTUM_TIME_WINDOW_2V,
+    PRIORITY_ABBREVIATIONS, MIN_DEPOT_DISTANCE,
+    WORK_END_TIME, WORK_START_TIME, MINUTES_PER_DAY,
+    ELITE_SIZE_2V, TOURNAMENT_SIZE_EARLY, TOURNAMENT_SIZE_MID, TOURNAMENT_SIZE_LATE,
+    TOURNAMENT_EARLY_THRESHOLD, TOURNAMENT_MID_THRESHOLD,
+    PRIORITY_DEADLINE_2V, TEMP_DIR, PROGRESS_FILE, SCREENSHOT_FILE
+)
 
 
 def draw_depot(screen, depot_location, radius=15):
@@ -346,13 +311,7 @@ def draw_info_panel(screen, generation, best_solution):
     screen.blit(order_title, (x_start, y_start))
     y_start += line_height + 3
     
-    priority_abbr = {
-        ServicePriority.EMERGENCY_OBSTETRIC: "EME",
-        ServicePriority.DOMESTIC_VIOLENCE: "VIO",
-        ServicePriority.HORMONAL_MEDICATION: "MED",
-        ServicePriority.POSTPARTUM_CARE: "POS",
-        ServicePriority.REGULAR: "REG"
-    }
+    priority_abbr = PRIORITY_ABBREVIATIONS
     
     # Duas colunas para os veículos
     col1_x = x_start + 5
@@ -670,13 +629,7 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
     screen.blit(order_title, (left_x, y_pos))
     y_pos += 30
     
-    priority_abbr = {
-        ServicePriority.EMERGENCY_OBSTETRIC: "EME",
-        ServicePriority.DOMESTIC_VIOLENCE: "VIO",
-        ServicePriority.HORMONAL_MEDICATION: "MED",
-        ServicePriority.POSTPARTUM_CARE: "POS",
-        ServicePriority.REGULAR: "REG"
-    }
+    priority_abbr = PRIORITY_ABBREVIATIONS
     
     # Duas colunas (2V)
     col1_x = left_x + 10
@@ -914,38 +867,31 @@ def create_depot_and_service_points(n_points):
     
     service_points = []
     
-    types_guaranteed = [
-        'emergency', 'emergency',
-        'violence', 'violence',
-        'medication', 'medication',
-        'postpartum', 'postpartum'
-    ]
-    
-    for i, service_type in enumerate(types_guaranteed):
+    for i, service_type in enumerate(GUARANTEED_SERVICE_TYPES):
         while True:
             location = (
-                random.randint(MAP_X_START + NODE_RADIUS + 80, WIDTH - NODE_RADIUS - 20),
-                random.randint(NODE_RADIUS + 20, HEIGHT - NODE_RADIUS - 20)
+                random.randint(MAP_COORD_MIN_X_2V, MAP_COORD_MAX_X_2V),
+                random.randint(MAP_COORD_MIN_Y, MAP_COORD_MAX_Y)
             )
-            if calculate_distance(depot_location, location) > 100:
+            if calculate_distance(depot_location, location) > MIN_DEPOT_DISTANCE:
                 break
         
         time_window = None
         if service_type == 'violence':
-            time_window = (480, 600)
+            time_window = VIOLENCE_TIME_WINDOW_2V
         elif service_type == 'postpartum':
-            time_window = (540, 660)
+            time_window = POSTPARTUM_TIME_WINDOW_2V
         
         point = create_service_point(i + 1, location, service_type, time_window)
         service_points.append(point)
     
-    for i in range(len(types_guaranteed), n_points):
+    for i in range(len(GUARANTEED_SERVICE_TYPES), n_points):
         while True:
             location = (
-                random.randint(MAP_X_START + NODE_RADIUS + 80, WIDTH - NODE_RADIUS - 20),
-                random.randint(NODE_RADIUS + 20, HEIGHT - NODE_RADIUS - 20)
+                random.randint(MAP_COORD_MIN_X_2V, MAP_COORD_MAX_X_2V),
+                random.randint(MAP_COORD_MIN_Y, MAP_COORD_MAX_Y)
             )
-            if calculate_distance(depot_location, location) > 100:
+            if calculate_distance(depot_location, location) > MIN_DEPOT_DISTANCE:
                 break
         
         point = create_service_point(i + 1, location, 'regular', None)
@@ -957,6 +903,7 @@ def create_depot_and_service_points(n_points):
 def main(max_generations=10):
     import pickle
     import time
+    import os
     
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -973,9 +920,8 @@ def main(max_generations=10):
     screenshot_saved = False  # Flag para salvar screenshot apenas uma vez
     
     # Arquivos para comunicação com Streamlit
-    temp_dir = '/tmp'
-    progress_file = f'{temp_dir}/progress.pkl'
-    screenshot_file = f'{temp_dir}/pygame_final.png'
+    progress_file = os.path.join(TEMP_DIR, PROGRESS_FILE)
+    screenshot_file = os.path.join(TEMP_DIR, SCREENSHOT_FILE)
     
     running = True
     while running:
@@ -1105,17 +1051,16 @@ def main(max_generations=10):
                     f"Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
     
         # Criar nova população com Elitismo forte e Torneio adaptativo
-        elite_size = 10  # 10 para preservar mais soluções boas
-        new_population = population[:elite_size]
+        new_population = population[:ELITE_SIZE_2V]
         
         while len(new_population) < POPULATION_SIZE:
             # Torneio adaptativo: maior no início, menor no final
-            if generation < MAX_GENERATIONS * 0.3:
-                tournament_size = 7  # Início: pressão seletiva alta
-            elif generation < MAX_GENERATIONS * 0.7:
-                tournament_size = 5  # Meio: pressão moderada
+            if generation < MAX_GENERATIONS * TOURNAMENT_EARLY_THRESHOLD:
+                tournament_size = TOURNAMENT_SIZE_EARLY  # Início: pressão seletiva alta
+            elif generation < MAX_GENERATIONS * TOURNAMENT_MID_THRESHOLD:
+                tournament_size = TOURNAMENT_SIZE_MID  # Meio: pressão moderada
             else:
-                tournament_size = 3  # Final: mais diversidade
+                tournament_size = TOURNAMENT_SIZE_LATE  # Final: mais diversidade
             
             tournament = random.sample(population, min(tournament_size, len(population)))
             tournament = sort_multi_vehicle_population(tournament)

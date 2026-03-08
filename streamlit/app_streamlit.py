@@ -36,6 +36,15 @@ from src.core.genetic_algorithm import (
 )
 from src.core.service_points import create_service_point, ServicePriority
 from src.llm.utils.streamlit_integration import LLMIntegration
+from src.constants import (
+    N_POINTS, POPULATION_SIZE, MUTATION_PROBABILITY,
+    PRIORITY_COLORS_HEX as PRIORITY_COLORS,
+    PRIORITY_COLORS_STREAMLIT, PRIORITY_ABBREVIATIONS, PRIORITY_NAMES,
+    COORD_MIN_X, COORD_MAX_X, COORD_MIN_Y, COORD_MAX_Y,
+    GUARANTEED_SERVICE_TYPES, VIOLENCE_TIME_WINDOW, POSTPARTUM_TIME_WINDOW,
+    VEHICLE_COLORS_HEX, MINUTES_PER_DAY, DISTANCE_TO_KM_FACTOR, SPEED_KM_PER_MIN,
+    TEMP_DIR, SERVICE_POINTS_FILE, PROGRESS_FILE, SCREENSHOT_FILE, DEPOT_FILE
+)
 
 # Configuração da página
 st.set_page_config(
@@ -45,59 +54,37 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Parâmetros do AG
-N_POINTS = 20
-POPULATION_SIZE = 100
-MUTATION_PROBABILITY = 0.5
-# MAX_GENERATIONS será definido dinamicamente pelo usuário
-
-# Cores por prioridade (em formato hex para Streamlit)
-PRIORITY_COLORS = {
-    ServicePriority.EMERGENCY_OBSTETRIC: "#FF0000",
-    ServicePriority.DOMESTIC_VIOLENCE: "#FFA500",
-    ServicePriority.HORMONAL_MEDICATION: "#0000FF",
-    ServicePriority.POSTPARTUM_CARE: "#800080",
-    ServicePriority.REGULAR: "#808080"
-}
-
 def create_random_service_points(n_points):
     """Cria pontos de atendimento aleatórios com diferentes tipos"""
     service_points = []
     
     depot_location = (
-        random.randint(470, 1300),
-        random.randint(100, 700)
+        random.randint(COORD_MIN_X, COORD_MAX_X),
+        random.randint(COORD_MIN_Y, COORD_MAX_Y)
     )
     depot = create_service_point(0, depot_location, 'regular', None)
     depot.service_duration = 0.0
     service_points.append(depot)
     
-    types_guaranteed = [
-        'emergency', 'emergency',
-        'violence', 'violence',
-        'medication', 'medication',
-        'postpartum', 'postpartum'
-    ]
-    
-    for i, service_type in enumerate(types_guaranteed):
+    for i, service_type in enumerate(GUARANTEED_SERVICE_TYPES):
         location = (
-            random.randint(470, 1300),
-            random.randint(100, 700)
+            random.randint(COORD_MIN_X, COORD_MAX_X),
+            random.randint(COORD_MIN_Y, COORD_MAX_Y)
         )
         
         time_window = None
         if service_type == 'violence':
-            time_window = (480, 600)
+            time_window = VIOLENCE_TIME_WINDOW
         elif service_type == 'postpartum':
-            time_window = (540, 660)
+            time_window = POSTPARTUM_TIME_WINDOW
         
         point = create_service_point(i + 1, location, service_type, time_window)
         service_points.append(point)
     
-    for i in range(len(types_guaranteed), n_points):
+    for i in range(len(GUARANTEED_SERVICE_TYPES), n_points):
         location = (
-            random.randint(470, 1300),
-            random.randint(100, 700)
+            random.randint(COORD_MIN_X, COORD_MAX_X),
+            random.randint(COORD_MIN_Y, COORD_MAX_Y)
         )
         point = create_service_point(i + 1, location, 'regular', None)
         service_points.append(point)
@@ -112,7 +99,7 @@ def format_time(minutes):
 
 def get_day_from_minutes(minutes):
     """Retorna o dia a partir dos minutos"""
-    return int(minutes // 1440) + 1
+    return int(minutes // MINUTES_PER_DAY) + 1
 
 def run_pygame_2_vehicles(service_points_file, progress_file, screenshot_file, depot_location, max_generations):
     """Executa visualização com 2 veículos - chama main_2v.py integrado"""
@@ -500,21 +487,8 @@ def display_results(best_route, best_fitness, arrival_times):
     # Ordem de Prioridades para Atendimento
     st.subheader("🎯 Ordem de Prioridades para Atendimento")
     
-    priority_abbr = {
-        ServicePriority.EMERGENCY_OBSTETRIC: "EME",
-        ServicePriority.DOMESTIC_VIOLENCE: "VIO",
-        ServicePriority.HORMONAL_MEDICATION: "MED",
-        ServicePriority.POSTPARTUM_CARE: "POS",
-        ServicePriority.REGULAR: "REG"
-    }
-    
-    priority_names = {
-        ServicePriority.EMERGENCY_OBSTETRIC: "Emergência Obstétrica",
-        ServicePriority.DOMESTIC_VIOLENCE: "Violência Doméstica",
-        ServicePriority.HORMONAL_MEDICATION: "Medicamento Hormonal",
-        ServicePriority.POSTPARTUM_CARE: "Pós-Parto",
-        ServicePriority.REGULAR: "Regular"
-    }
+    priority_abbr = PRIORITY_ABBREVIATIONS
+    priority_names = PRIORITY_NAMES
     
     # Agrupar IDs por prioridade
     priority_ids = {
@@ -667,21 +641,8 @@ def display_results_multi_vehicle(best_solution, best_fitness):
     # Ordem de Prioridades para Atendimento
     st.subheader("🎯 Ordem de Prioridades para Atendimento")
     
-    priority_abbr = {
-        ServicePriority.EMERGENCY_OBSTETRIC: "EME",
-        ServicePriority.DOMESTIC_VIOLENCE: "VIO",
-        ServicePriority.HORMONAL_MEDICATION: "MED",
-        ServicePriority.POSTPARTUM_CARE: "POS",
-        ServicePriority.REGULAR: "REG"
-    }
-    
-    priority_names = {
-        ServicePriority.EMERGENCY_OBSTETRIC: "Emergência Obstétrica",
-        ServicePriority.DOMESTIC_VIOLENCE: "Violência Doméstica",
-        ServicePriority.HORMONAL_MEDICATION: "Medicamento Hormonal",
-        ServicePriority.POSTPARTUM_CARE: "Pós-Parto",
-        ServicePriority.REGULAR: "Regular"
-    }
+    priority_abbr = PRIORITY_ABBREVIATIONS
+    priority_names = PRIORITY_NAMES
     
     # Agrupar IDs por prioridade
     priority_ids = {
@@ -1064,11 +1025,10 @@ def main():
             MAX_GENERATIONS = st.session_state.max_generations
             
             # Arquivos temporários
-            temp_dir = '/tmp'
-            service_points_file = os.path.join(temp_dir, 'service_points.pkl')
-            progress_file = os.path.join(temp_dir, 'progress.pkl')
-            screenshot_file = os.path.join(temp_dir, 'pygame_final.png')
-            depot_file = os.path.join(temp_dir, 'depot_location.pkl')
+            service_points_file = os.path.join(TEMP_DIR, SERVICE_POINTS_FILE)
+            progress_file = os.path.join(TEMP_DIR, PROGRESS_FILE)
+            screenshot_file = os.path.join(TEMP_DIR, SCREENSHOT_FILE)
+            depot_file = os.path.join(TEMP_DIR, DEPOT_FILE)
             
             # Limpar arquivos antigos
             for filepath in [progress_file, screenshot_file, depot_file]:
@@ -1096,31 +1056,31 @@ def main():
                 
                 for i, service_type in enumerate(types_guaranteed):
                     location = (
-                        random.randint(470, 1300),
-                        random.randint(100, 700)
+                        random.randint(COORD_MIN_X, COORD_MAX_X),
+                        random.randint(COORD_MIN_Y, COORD_MAX_Y)
                     )
                     
                     time_window = None
                     if service_type == 'violence':
-                        time_window = (480, 600)
+                        time_window = VIOLENCE_TIME_WINDOW
                     elif service_type == 'postpartum':
-                        time_window = (540, 660)
+                        time_window = POSTPARTUM_TIME_WINDOW
                     
                     point = create_service_point(i + 1, location, service_type, time_window)
                     service_points.append(point)
                 
                 for i in range(len(types_guaranteed), N_POINTS):
                     location = (
-                        random.randint(470, 1300),
-                        random.randint(100, 700)
+                        random.randint(COORD_MIN_X, COORD_MAX_X),
+                        random.randint(COORD_MIN_Y, COORD_MAX_Y)
                     )
                     point = create_service_point(i + 1, location, 'regular', None)
                     service_points.append(point)
                 
                 # Criar depósito separado
                 depot_location = (
-                    random.randint(470, 1300),
-                    random.randint(100, 700)
+                    random.randint(COORD_MIN_X, COORD_MAX_X),
+                    random.randint(COORD_MIN_Y, COORD_MAX_Y)
                 )
                 
                 with open(service_points_file, 'wb') as f:
