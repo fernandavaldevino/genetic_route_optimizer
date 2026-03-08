@@ -2,11 +2,7 @@
 Templates de prompts para geração de roteiros detalhados
 """
 
-ROUTE_SYSTEM_MESSAGE = """
-Você é um assistente especializado em criar roteiros de visitas claros e práticos
-para equipes de saúde. Transforme sequências numéricas de pontos em roteiros
-legíveis e úteis para o dia a dia da equipe.
-"""
+from src.constants import ROUTE_SYSTEM_MESSAGE
 
 ROUTE_GENERATION_TEMPLATE = """
 Transforme a sequência de pontos abaixo em um ROTEIRO DETALHADO DE VISITAS

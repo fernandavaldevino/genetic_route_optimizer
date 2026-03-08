@@ -2,14 +2,7 @@
 Templates de prompts para geração de manuais de instruções
 """
 
-MANUAL_SYSTEM_MESSAGE = """
-Você é um especialista em saúde da mulher e logística de atendimento médico.
-Sua função é criar manuais práticos e sensíveis para equipes de transporte
-que realizam atendimentos domiciliares relacionados à saúde da mulher.
-
-Seja claro, empático e prático. Considere as particularidades de cada tipo
-de atendimento e forneça instruções específicas e acionáveis.
-"""
+from src.constants import MANUAL_SYSTEM_MESSAGE
 
 MANUAL_GENERATION_TEMPLATE = """
 Com base na rota otimizada abaixo, gere um MANUAL DE INSTRUÇÕES PRÁTICO

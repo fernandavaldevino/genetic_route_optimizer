@@ -88,7 +88,7 @@ class QAGenerator:
         num_stops = len([p for p in route if p.id != 0])
         
         suggestions = [
-            "Qual é o próximo atendimento prioritário?",
+            "Qual o horário de chegada no último ponto?",
             f"Quantas paradas temos no total?",
             "Qual é o tempo total estimado da rota?"
         ]

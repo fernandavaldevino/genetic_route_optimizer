@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help setup install run streamlit test test-specific test-cov test-html test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration clean
+.PHONY: help setup install run streamlit test test-specific test-cov test-html all-tests test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration clean
 
 # Target padrão
 help:
@@ -28,7 +28,8 @@ help:
 	@echo "  $(YELLOW)make streamlit$(NC)       - Executa interface web (Streamlit)"
 	@echo ""
 	@echo "$(YELLOW)Testes:$(NC)"
-	@echo "  $(YELLOW)make test$(NC)            - Executa todos os testes (console)"
+	@echo "  $(YELLOW)make test$(NC)            - Executa testes (pergunta se inclui testes pagos)"
+	@echo "  $(YELLOW)make all-tests$(NC)       - Executa TODOS os testes (incluindo testes pagos sem perguntar)"
 	@echo "  $(YELLOW)make test-specific$(NC)   - Executa teste específico (ex: FILE=test_service_points.py)"
 	@echo "  $(YELLOW)make test-cov$(NC)        - Mostra cobertura de código"
 	@echo "  $(YELLOW)make test-html$(NC)       - Executa testes e gera relatório HTML"
@@ -119,16 +120,36 @@ streamlit:
 	@echo ""
 	$(VENV_NAME)/bin/streamlit run streamlit/app_streamlit.py
 
-# Executa todos os testes com pytest
+# Executa testes com opção de incluir testes de integração
 test:
 	@if [ ! -d "$(VENV_NAME)" ]; then \
 		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
 		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
 		exit 1; \
 	fi
-	@echo "$(GREEN)Executando todos os testes...$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  EXECUÇÃO DE TESTES$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
 	@echo ""
-	$(VENV_NAME)/bin/pytest tests/ -v
+	@echo "$(RED)⚠️  ATENÇÃO: Testes marcados como 'integration' consomem tokens da API OpenAI!$(NC)"
+	@echo "$(YELLOW)   Esses testes fazem chamadas reais às APIs de LLM.$(NC)"
+	@echo ""
+	@read -p "Deseja executar os testes que gastam tokens? (s/N): " confirm; \
+	echo ""; \
+	if [ "$$confirm" = "s" ] || [ "$$confirm" = "S" ]; then \
+		echo "$(GREEN)Executando TODOS os testes (incluindo testes de integração)...$(NC)"; \
+		echo "$(YELLOW)Certifique-se de que OPENAI_API_KEY está configurada no .env$(NC)"; \
+		echo ""; \
+		$(VENV_NAME)/bin/pytest tests/ -v; \
+	else \
+		echo "$(GREEN)Executando testes EXCETO os de integração (sem gastar tokens)...$(NC)"; \
+		echo ""; \
+		$(VENV_NAME)/bin/pytest tests/ -v -m "not integration"; \
+	fi
+	@echo ""
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  ✓ TESTES CONCLUÍDOS!$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
 
 # Executa teste específico
 test-specific:
@@ -180,6 +201,27 @@ test-html:
 	@echo ""
 	@echo "$(GREEN)✓ Relatório HTML gerado em: htmlcov/index.html$(NC)"
 	@echo "$(YELLOW)Abra o arquivo no navegador para visualizar a cobertura detalhada.$(NC)"
+
+# Executa TODOS os testes do projeto (incluindo testes de integração que gastam tokens)
+all-tests:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  EXECUÇÃO COMPLETA DE TESTES$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Este comando executará TODOS os 140 testes do projeto.$(NC)"
+	@echo "$(RED)⚠️  ATENÇÃO: Inclui 24 testes de integração que consomem tokens da API OpenAI!$(NC)"
+	@echo "$(YELLOW)Certifique-se de que OPENAI_API_KEY está configurada no .env$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/pytest tests/ -v
+	@echo ""
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  ✓ TODOS OS TESTES CONCLUÍDOS!$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
 
 # Executa todos os testes LLM (básicos + integração)
 test-openai:
