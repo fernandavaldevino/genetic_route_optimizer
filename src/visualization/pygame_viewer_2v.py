@@ -721,9 +721,14 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
     from src.core.service_points import calculate_travel_time
     
     for vehicle in best_solution.vehicles:
-        if vehicle.arrival_times and len(vehicle.arrival_times) > 0:
+        if vehicle.arrival_times and len(vehicle.arrival_times) > 0 and vehicle.route:
             last_arrival = vehicle.arrival_times[-1]
-            return_arrival = last_arrival + 30  # Estimativa
+            last_point = vehicle.route[-1]
+            
+            # Calcular tempo real de retorno ao depósito
+            return_travel_time = calculate_travel_time(last_point.location, depot_location, VEHICLE_SPEED)
+            service_time = last_point.service_duration
+            return_arrival = last_arrival + service_time + return_travel_time
             return_day = int(return_arrival // 1440) + 1
             
             if vehicle.vehicle_id == 1:

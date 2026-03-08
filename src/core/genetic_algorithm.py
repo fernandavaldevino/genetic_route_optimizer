@@ -82,6 +82,24 @@ def calculate_route_time_and_distance(route: List[ServicePoint],
                 current_day = int(current_time // 1440)
                 current_time = (current_day + 1) * 1440 + work_start
     
+    # Adicionar retorno ao depósito (ponto 0)
+    if len(route) > 1:
+        depot = route[0]
+        last_point = route[-1]
+        
+        # Calcular distância e tempo de retorno ao depósito
+        return_distance = calculate_distance(last_point.location, depot.location)
+        total_distance += return_distance
+        return_travel_time = calculate_travel_time(last_point.location, depot.location, speed)
+        current_time += return_travel_time
+        
+        # Verificar se o retorno termina após 18h
+        time_after_return = current_time % 1440
+        if time_after_return >= work_end:
+            # Retorno terminou após 18h, pausar até 8h do dia seguinte
+            current_day = int(current_time // 1440)
+            current_time = (current_day + 1) * 1440 + work_start
+    
     total_time = current_time - start_time
     return total_distance, total_time, arrival_times
 

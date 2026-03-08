@@ -8,7 +8,7 @@
 [![Tests](https://img.shields.io/badge/Tests-95%20passed-success.svg)](tests/)
 [![License](https://img.shields.io/badge/License-Educational-yellow.svg)](LICENSE)
 
-**[Documentação Técnica](docs/README_RESTRICOES.md)** | **[Interface Streamlit](docs/README_STREAMLIT.md)** | **[Testes](docs/README_TESTS.md)**
+**[Documentação Técnica](docs/README_RESTRICOES.md)** | **[Interface Streamlit](docs/README_STREAMLIT.md)** | **[Integração LLM](docs/README_LLM.md)** | **[Testes](docs/README_TESTS.md)**
 
 ---
 
@@ -75,6 +75,7 @@ O sistema resolve o problema de **Roteamento de Veículos com Janelas de Tempo (
 - 📈 **Gráficos de Evolução**: Acompanhamento visual do progresso do algoritmo
 - 🔄 **Pausas Noturnas**: Respeito ao horário comercial (8h-18h)
 - 📸 **Captura de Screenshots**: Registro visual dos resultados finais
+- 🤖 **Assistente Inteligente com IA**: Geração automática de manuais, roteiros e Q&A usando LLMs
 
 ---
 
@@ -92,6 +93,11 @@ O sistema resolve o problema de **Roteamento de Veículos com Janelas de Tempo (
 
 ### Web & Interface
 - **Streamlit 1.28+** - Dashboard web interativo
+
+### LLM Integration
+- **OpenAI 1.12+** - Integração com modelos GPT
+- **Ollama 0.1+** - Suporte para modelos locais
+- **Python-dotenv 1.0+** - Gerenciamento de variáveis de ambiente
 
 ### Testes
 - **Pytest 7.4+** - Framework de testes
@@ -210,7 +216,37 @@ pip3 install --upgrade pip
 pip3 install -r requirements.txt
 ```
 
-### 4. Verifique a Instalação
+### 4. Configure as Variáveis de Ambiente (Opcional - para LLM)
+
+Se você pretende usar funcionalidades de LLM (Large Language Models):
+
+```bash
+# Copie o arquivo de exemplo
+cp .env.example .env
+
+# Edite o arquivo .env e adicione sua API Key da OpenAI
+# OPENAI_API_KEY=sk-proj-sua-chave-aqui
+```
+
+**Como obter sua API Key da OpenAI:**
+1. Acesse: https://platform.openai.com/api-keys
+2. Faça login na sua conta OpenAI
+3. Clique em **"Create new secret key"**
+4. Copie a chave que começa com `sk-proj-...` ou `sk-...`
+5. Cole no arquivo `.env` (sem aspas ou texto adicional)
+
+**Formato correto no `.env`:**
+```env
+OPENAI_API_KEY=sk-proj-abc123...
+OPENAI_MODEL=gpt-3.5-turbo
+```
+
+⚠️ **IMPORTANTE:**
+- Cole apenas a chave, sem aspas ou texto adicional
+- ❌ Errado: `OPENAI_API_KEY="My API Key: sk-proj-..."`
+- ✅ Correto: `OPENAI_API_KEY=sk-proj-...`
+
+### 5. Verifique a Instalação
 
 ```bash
 python3 -c "import pygame, streamlit, numpy, pandas; print('✓ Instalação bem-sucedida!')"
@@ -312,6 +348,7 @@ genetic_route_optimizer/
 ├── Makefile                         # Comandos automatizados
 ├── pytest.ini                       # Configuração do pytest
 ├── .gitignore                       # Arquivos ignorados pelo Git
+├── .env.example                     # Template de configuração (copie para .env)
 │
 ├── app/                             # Aplicações principais
 │   ├── main.py                      # Pygame 1 veículo (standalone)
@@ -324,6 +361,15 @@ genetic_route_optimizer/
 │   │   ├── service_points.py       # Pontos de atendimento e restrições
 │   │   ├── genetic_algorithm.py    # Algoritmo genético (1 veículo)
 │   │   └── multi_vehicle.py        # Algoritmo genético (2 veículos)
+│   ├── llm/                         # Integração com LLM
+│   │   ├── __init__.py
+│   │   ├── providers/               # Provedores de LLM
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py             # Interface base
+│   │   │   └── openai_provider.py  # Provedor OpenAI
+│   │   ├── generators/              # Geradores de conteúdo
+│   │   ├── prompts/                 # Templates de prompts
+│   │   └── utils/                   # Utilitários LLM
 │   ├── visualization/               # Interface gráfica
 │   │   ├── __init__.py
 │   │   ├── pygame_viewer.py        # Visualização 1 veículo
@@ -341,7 +387,10 @@ genetic_route_optimizer/
 │   ├── test_genetic_algorithm.py   # Testes do algoritmo genético
 │   ├── test_streamlit_utils.py     # Testes de utilitários Streamlit
 │   ├── test_integration.py         # Testes de integração
-│   └── test_restrictions.py        # Testes de restrições (legado)
+│   ├── test_restrictions.py        # Testes de restrições (legado)
+│   └── test_llm/                    # Testes de provedores LLM
+│       ├── __init__.py
+│       └── test_openai_provider.py # Testes do provedor OpenAI
 │
 └── docs/                            # Documentação
     ├── README_RESTRICOES.md        # Detalhes técnicos das restrições
@@ -356,9 +405,11 @@ genetic_route_optimizer/
 |-------|-----------|
 | [`app/`](app/) | Aplicações principais (`main.py` para 1 veículo, `main_2v.py` para 2 veículos) |
 | [`src/core/`](src/core/) | Lógica principal do algoritmo genético e pontos de serviço |
+| [`src/llm/`](src/llm/) | Integração com LLM (OpenAI, Ollama) e provedores |
 | [`src/visualization/`](src/visualization/) | Interfaces gráficas Pygame |
 | [`streamlit/`](streamlit/) | Dashboard web interativo |
-| [`tests/`](tests/) | Testes automatizados (95 testes, ~75% cobertura) |
+| [`tests/`](tests/) | Testes automatizados (111 testes, ~75% cobertura) |
+| [`tests/test_llm/`](tests/test_llm/) | Testes de provedores LLM (16 testes) |
 | [`docs/`](docs/) | Documentação técnica e acadêmica (4 documentos) |
 
 ---
@@ -507,9 +558,59 @@ python3 app/main_2v.py   # 2 veículos
 
 ---
 
+## 🤖 Assistente Inteligente com IA
+
+O sistema inclui um **Assistente Inteligente** baseado em LLMs (Large Language Models) que gera automaticamente documentação e responde perguntas sobre as rotas otimizadas.
+
+### Funcionalidades
+
+#### 1. 📋 Manual de Instruções
+Gera manual profissional para equipe de transporte com:
+- Instruções detalhadas para cada parada
+- Protocolos específicos por tipo de atendimento
+- Alertas de prioridades e janelas de tempo
+- Checklist pré-operação
+
+#### 2. 🗺️ Roteiro Detalhado
+Cria roteiro passo a passo para motoristas com:
+- Sequência de paradas com horários
+- Distâncias e tempos de viagem
+- Observações importantes
+- Resumo de prioridades
+
+#### 3. 💬 Perguntas & Respostas
+Sistema de Q&A em linguagem natural:
+- Perguntas sobre a rota otimizada
+- Sugestões inteligentes de perguntas
+- Histórico de conversação
+- Respostas contextualizadas
+
+### Como Usar
+
+1. **Configure a API Key** no arquivo `.env`:
+   ```bash
+   cp .env.example .env
+   # Edite .env e adicione: OPENAI_API_KEY=sk-proj-sua-chave
+   ```
+
+2. **Execute a otimização** no Streamlit
+
+3. **Acesse a aba "🤖 Assistente Inteligente"** após os resultados
+
+### Exemplos de Perguntas
+
+- "Qual é o próximo atendimento prioritário?"
+- "Quantas paradas de emergência temos hoje?"
+- "Como devo transportar os medicamentos hormonais?"
+- "Quais pontos têm janelas de tempo restritas?"
+
+Para documentação completa sobre esta funcionalidade, consulte: **[docs/README_LLM.md](docs/README_LLM.md)**
+
+---
+
 ## 🧪 Testes
 
-O projeto possui **95 testes automatizados** com cobertura de ~75% do código.
+O projeto possui **111 testes automatizados** com cobertura de ~75% do código.
 
 ### Executar Todos os Testes
 
@@ -537,6 +638,27 @@ pytest tests/test_integration.py -v
 pytest tests/test_service_points.py::TestPriorityOrdering::test_sort_by_priority_correct_order -v
 ```
 
+### Testes LLM (Provedores de IA)
+
+O projeto inclui testes para integração com provedores LLM (OpenAI):
+
+```bash
+# Executar todos os testes LLM (pede confirmação - consome tokens)
+make test-llm
+
+# Executar apenas testes básicos (NÃO consome tokens)
+make test-llm-basic
+
+# Executar apenas testes de integração (consome tokens)
+make test-llm-integration
+```
+
+**Tipos de Testes LLM:**
+- **Básicos** (9 testes): Inicialização, configuração, parâmetros - NÃO consome tokens
+- **Integração** (7 testes): Conexão real com API, geração de texto - Consome tokens da OpenAI
+
+⚠️ **ATENÇÃO:** Testes de integração LLM consomem tokens da sua conta OpenAI. Use `make test-llm-basic` para testes sem custo.
+
 ### Cobertura de Código
 
 ```bash
@@ -550,10 +672,11 @@ make test-html
 
 ### Estatísticas de Testes
 
-- **Total**: 95 testes
+- **Total**: 111 testes
 - **Unitários**: 64 testes
 - **Interface**: 13 testes
 - **Integração**: 18 testes
+- **LLM**: 16 testes (9 básicos + 7 integração)
 
 ### Cobertura de Código
 
@@ -562,6 +685,7 @@ make test-html
 | [`src/core/service_points.py`](src/core/service_points.py) | ~80% | Pontos de atendimento, prioridades e restrições |
 | [`src/core/genetic_algorithm.py`](src/core/genetic_algorithm.py) | ~75% | Algoritmo genético (1 veículo) |
 | [`src/core/multi_vehicle.py`](src/core/multi_vehicle.py) | ~70% | Algoritmo genético (2 veículos) |
+| [`src/llm/providers/openai_provider.py`](src/llm/providers/openai_provider.py) | ~90% | Provedor OpenAI para LLM |
 | [`src/visualization/pygame_viewer.py`](src/visualization/pygame_viewer.py) | ~40% | Interface gráfica Pygame |
 | [`streamlit/app_streamlit.py`](streamlit/app_streamlit.py) | ~50% | Interface web Streamlit |
 
@@ -580,6 +704,7 @@ Para mais detalhes, consulte: [`docs/README_TESTS.md`](docs/README_TESTS.md)
 ### Documentação Técnica
 - **[Restrições e Implementação](docs/README_RESTRICOES.md)** - Detalhes técnicos das restrições implementadas
 - **[Interface Streamlit](docs/README_STREAMLIT.md)** - Guia completo da interface web
+- **[Integração com LLMs](docs/README_LLM.md)** - Assistente Inteligente com IA (manuais, roteiros e Q&A)
 - **[Testes Automatizados](docs/README_TESTS.md)** - Documentação dos 95 testes
 
 ### Documentação Acadêmica
