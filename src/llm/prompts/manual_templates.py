@@ -24,56 +24,66 @@ para a equipe de transporte. O manual deve ser usado durante o percurso.
 ## INSTRUÇÕES PARA O MANUAL:
 
 1. **Título e Introdução**
-   - Título claro do manual
-   - Breve introdução sobre a missão do dia
-   - Número total de paradas e tipos de atendimento
+	- Título claro do manual
+	- Breve introdução sobre a missão do dia
+	
+	**IMPORTANTE**: Na introdução/missão do dia, NÃO mencione:
+	  - Quantidade de paradas/pontos
+	  - Quilometragem total
+	  - Horário de término
+	  - Distâncias específicas
+	  
+	  Foque apenas em: objetivo geral, tipos de atendimento (sem quantidades), e importância do trabalho.
 
 2. **Preparação Antes de Sair**
-   - Checklist de materiais necessários para cada tipo de atendimento
-   - Equipamentos de proteção individual (EPIs)
-   - Documentação necessária
+	- Checklist de materiais necessários para cada tipo de atendimento
+	- Equipamentos de proteção individual (EPIs)
+	- Documentação necessária
 
 3. **Instruções Específicas por Tipo de Atendimento**
-   Para cada tipo presente na rota, forneça:
-   
-   **EMERGÊNCIA OBSTÉTRICA (se houver):**
-   - Protocolo de abordagem
-   - Sinais de alerta a observar
-   - Procedimentos de emergência
-   - Contatos de suporte
-   
-   **VIOLÊNCIA DOMÉSTICA (se houver):**
-   - Abordagem sensível e empática
-   - Protocolo de segurança
-   - Como identificar situações de risco
-   - Rede de apoio e encaminhamentos
-   
-   **MEDICAMENTOS HORMONAIS (se houver):**
-   - Cuidados com temperatura
-   - Instruções de armazenamento
-   - Orientações para a paciente
-   - Verificação de validade
-   
-   **ATENDIMENTO PÓS-PARTO (se houver):**
-   - Avaliação de sinais vitais
-   - Orientações sobre amamentação
-   - Sinais de alerta pós-parto
-   - Suporte emocional
-   
-   **ATENDIMENTO REGULAR (se houver):**
-   - Procedimentos padrão
-   - Documentação necessária
+	Para cada tipo presente na rota, forneça:
+	
+	**EMERGÊNCIA OBSTÉTRICA (se houver):**
+	- Protocolo de abordagem
+	- Sinais de alerta a observar
+	- Procedimentos de emergência
+	- Contatos de suporte
+	
+	**VIOLÊNCIA DOMÉSTICA (se houver):**
+	- Abordagem sensível e empática
+	- Protocolo de segurança
+	- Como identificar situações de risco
+	- Rede de apoio e encaminhamentos
+	
+	**MEDICAMENTOS HORMONAIS (se houver):**
+	- Cuidados com temperatura
+	- Instruções de armazenamento
+	- Orientações para a paciente
+	- Verificação de validade
+	
+	**ATENDIMENTO PÓS-PARTO (se houver):**
+	- Avaliação de sinais vitais
+	- Orientações sobre amamentação
+	- Sinais de alerta pós-parto
+	- Suporte emocional
+	
+	**ATENDIMENTO REGULAR (se houver):**
+	- Procedimentos padrão
+	- Documentação necessária
 
 4. **Considerações Importantes**
-   - Respeito à privacidade e confidencialidade
-   - Comunicação empática
-   - Registro adequado de informações
-   - Procedimentos em caso de intercorrências
+	- Respeito à privacidade e confidencialidade
+	- Comunicação empática
+	- Registro adequado de informações
+	- Procedimentos em caso de intercorrências
 
 5. **Contatos de Emergência**
-   - Central de atendimento
-   - Supervisor responsável
-   - Serviços de emergência
+	- Central de atendimento
+	- Supervisor responsável
+	- Serviços de emergência
+
+**IMPORTANTE**: NÃO inclua seção de "Itinerário" NO CHECKLIST de pontos de atendimento.
+Essas informações serão adicionadas separadamente.
 
 Gere o manual de forma estruturada, clara e prática.
 Use linguagem acessível, mas profissional.

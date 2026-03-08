@@ -47,11 +47,12 @@ def route_to_dict(route: List[ServicePoint],
         route, start_time, speed
     )
     
-    # Conta tipos de serviço
+    # Conta tipos de serviço (excluindo depósito - ID 0)
     service_types = {}
     for point in route:
-        priority_name = point.priority.name
-        service_types[priority_name] = service_types.get(priority_name, 0) + 1
+        if point.id != 0:  # Não conta o depósito
+            priority_name = point.priority.name
+            service_types[priority_name] = service_types.get(priority_name, 0) + 1
     
     # Formata pontos
     points_data = []
@@ -95,7 +96,7 @@ def route_to_dict(route: List[ServicePoint],
     
     # Monta dicionário final
     route_dict = {
-        'total_stops': len(route),
+        'total_stops': len([p for p in route if p.id != 0]),  # Exclui depósito
         'total_distance': total_distance,
         'total_time': total_time,
         'total_time_formatted': format_duration(total_time),

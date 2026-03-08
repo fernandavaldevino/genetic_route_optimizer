@@ -211,3 +211,195 @@ def generate_itinerary_pdf(itinerary_text: str, title: str = "Roteiro Detalhado"
 def generate_checklist_pdf(checklist_text: str, title: str = "Checklist Pré-Itinerário") -> bytes:
     """Gera PDF do checklist (COM checkboxes)"""
     return markdown_to_pdf(checklist_text, "checklist.pdf", title, render_checkboxes=True)
+
+
+def generate_multi_vehicle_manuals_zip(vehicles_data: list, llm_integration) -> bytes:
+    """ Gera múltiplos PDFs de manuais (um por veículo) e retorna como arquivo ZIP """
+    import io
+    import zipfile
+    from src.llm.utils.formatters import route_to_dict, format_service_priority
+    from src.llm.prompts.manual_templates import format_route_for_manual, MANUAL_GENERATION_TEMPLATE, MANUAL_SYSTEM_MESSAGE
+    
+    # Criar buffer para o ZIP
+    zip_buffer = io.BytesIO()
+    
+    # Gerar manual base UMA ÚNICA VEZ (conteúdo genérico que serve para todos)
+    # Usar dados do primeiro veículo apenas como referência para gerar o conteúdo base
+    first_vehicle = vehicles_data[0]
+    route_dict = route_to_dict(first_vehicle.get('route', []), 480.0, 60.0)
+    route_dict['total_distance'] = route_dict['total_distance'] * 0.1
+    
+    route_info, service_types = format_route_for_manual(route_dict)
+    
+    # Gerar manual base usando LLM (conteúdo genérico)
+    prompt = MANUAL_GENERATION_TEMPLATE.format(
+        route_info=route_info,
+        service_types=service_types
+    )
+    
+    base_manual = llm_integration.provider.generate_text(
+        prompt=prompt,
+        system_message=MANUAL_SYSTEM_MESSAGE,
+        max_tokens=2000
+    )
+    
+    # Remover cabeçalho gerado pelo LLM se existir
+    if base_manual.startswith('#'):
+        lines = base_manual.split('\n')
+        base_manual = '\n'.join(lines[1:]).strip()
+    
+    # Remover seção "Missão do Dia:" gerada pela LLM (já temos no cabeçalho)
+    import re
+    # Remover desde "Missão do Dia:" até a próxima seção (que começa com ## ou título em negrito)
+    base_manual = re.sub(
+        r'Missão do Dia:.*?(?=\n\n[#*]|\n\n[A-Z][a-zç]+\s+[A-Z]|\Z)',
+        '',
+        base_manual,
+        flags=re.DOTALL | re.IGNORECASE
+    )
+    base_manual = base_manual.strip()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for i, vehicle_data in enumerate(vehicles_data, 1):
+            # Dados específicos deste veículo
+            route = vehicle_data.get('route', [])
+            total_distance = vehicle_data.get('total_distance', 0)
+            total_time = vehicle_data.get('total_time', 0)
+            
+            # Calcular informações específicas da rota DESTE veículo
+            num_stops = len([p for p in route if p.id != 0])
+            
+            # Formatar tempo estimado em horas e minutos
+            time_hours = int(total_time // 60)
+            time_minutes = int(total_time % 60)
+            time_formatted = f"{time_hours}h{time_minutes:02d}min"
+            
+            # Calcular horário de término (início 08:00 = 480 minutos)
+            start_time_minutes = 480  # 08:00
+            end_time_minutes = start_time_minutes + total_time
+            end_hours = int(end_time_minutes // 60) % 24
+            end_minutes = int(end_time_minutes % 60)
+            end_time_formatted = f"{end_hours:02d}:{end_minutes:02d}"
+            
+            # Contar tipos de atendimento DESTE veículo
+            from collections import Counter
+            service_counts = Counter()
+            for point in route:
+                if point.id != 0:
+                    priority_name = format_service_priority(point.priority)
+                    service_counts[priority_name] += 1
+            
+            # Montar cabeçalho personalizado para este veículo com SEUS dados específicos
+            header = f"""# MANUAL DE INSTRUÇÕES - VEÍCULO {i}
+
+# MANUAL DE INSTRUÇÕES PARA EQUIPE DE TRANSPORTE - SAÚDE DA MULHER
+
+Missão do Dia: Garantir atendimentos de qualidade e sensíveis às necessidades das pacientes ao longo da rota programada.
+
+Informações da Rota:
+
+- Total de Paradas: {num_stops}
+- Distância Total: {total_distance:.2f} km
+- Tempo Estimado: {time_formatted}
+- Horário de Início: 08:00
+- Horário Previsto de Término: {end_time_formatted}
+
+Tipos de Atendimento na Rota:
+"""
+            
+            # Adicionar tipos de atendimento DESTE veículo
+            for service_type, count in sorted(service_counts.items()):
+                header += f"- {service_type}: {count} parada(s)\n"
+            
+            header += "\n---\n\n"
+            
+            # Combinar cabeçalho personalizado (dados específicos) com manual base (conteúdo genérico)
+            manual_with_header = header + base_manual
+            
+            # Gerar PDF
+            pdf_bytes = generate_manual_pdf(manual_with_header, title=f"Manual Veículo {i}")
+            
+            # Adicionar ao ZIP
+            zip_file.writestr(f"manual_veiculo_{i}.pdf", pdf_bytes)
+    
+    zip_buffer.seek(0)
+    return zip_buffer.getvalue()
+
+
+def generate_multi_vehicle_itineraries_zip(vehicles_data: list, llm_integration) -> bytes:
+    """ Gera múltiplos PDFs de roteiros (um por veículo) e retorna como arquivo ZIP """
+    import io
+    import zipfile
+    from src.core.service_points import create_service_point
+    
+    # Criar buffer para o ZIP
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for i, vehicle_data in enumerate(vehicles_data, 1):
+            # Dados específicos deste veículo
+            route = vehicle_data.get('route', [])
+            arrival_times = vehicle_data.get('arrival_times', [])
+            total_distance = vehicle_data.get('total_distance', 0)
+            total_time = vehicle_data.get('total_time', 0)
+            
+            # IMPORTANTE: A rota não inclui o depósito, mas o prompt espera que o depósito esteja no índice 0
+            # Criar depósito fictício e adicionar no início da rota
+            depot = create_service_point(0, (0, 0), 'regular', None)
+            depot.service_duration = 0.0
+            route_with_depot = [depot] + route
+            
+            # Adicionar tempo 0 para o depósito no início dos arrival_times
+            arrival_times_with_depot = [0.0] + arrival_times
+            
+            # Gerar roteiro usando LLM
+            itinerary_text = llm_integration.itinerary_generator.generate_detailed_itinerary(
+                route=route_with_depot,
+                arrival_times=arrival_times_with_depot,
+                total_distance=total_distance,
+                total_time=total_time
+            )
+            
+            # Adicionar cabeçalho do veículo
+            itinerary_with_header = f"# ROTEIRO DETALHADO - VEÍCULO {i}\n\n{itinerary_text}"
+            
+            # Gerar PDF
+            pdf_bytes = generate_itinerary_pdf(itinerary_with_header, title=f"Roteiro Veículo {i}")
+            
+            # Adicionar ao ZIP
+            zip_file.writestr(f"roteiro_veiculo_{i}.pdf", pdf_bytes)
+    
+    zip_buffer.seek(0)
+    return zip_buffer.getvalue()
+
+
+def generate_multi_vehicle_priorities_zip(vehicles_data: list, llm_integration) -> bytes:
+    """ Gera múltiplos PDFs de resumo de prioridades (um por veículo) e retorna como arquivo ZIP """
+    import io
+    import zipfile
+    
+    # Criar buffer para o ZIP
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for i, vehicle_data in enumerate(vehicles_data, 1):
+            # Dados específicos deste veículo
+            route = vehicle_data.get('route', [])
+            
+            # Gerar resumo de prioridades usando LLM (sem emojis para PDF)
+            priorities_text = llm_integration.manual_generator.generate_priority_summary(
+                route=route,
+                include_emojis=False
+            )
+            
+            # Adicionar cabeçalho do veículo
+            priorities_with_header = f"# RESUMO DE PRIORIDADES - VEÍCULO {i}\n\n{priorities_text}"
+            
+            # Gerar PDF
+            pdf_bytes = generate_itinerary_pdf(priorities_with_header, title=f"Prioridades Veículo {i}")
+            
+            # Adicionar ao ZIP
+            zip_file.writestr(f"prioridades_veiculo_{i}.pdf", pdf_bytes)
+    
+    zip_buffer.seek(0)
+    return zip_buffer.getvalue()

@@ -162,7 +162,33 @@ def build_detailed_itinerary_prompt(route_data: Dict[str, Any]) -> str:
     """ Constrói prompt para geração de roteiro detalhado de visitas para o motorista """
     route = route_data.get('route', [])
     arrival_times = route_data.get('arrival_times', [])
+    total_distance = route_data.get('total_distance', 0)
+    total_time = route_data.get('total_time', 0)
     speed = route_data.get('speed', 60.0)  # Velocidade padrão 60 km/h
+    
+    # Calcular horário de chegada incluindo retorno ao depósito
+    start_time = 480  # 08:00
+    
+    # Calcular tempo de retorno ao depósito
+    if len(route) > 1 and len(arrival_times) > 0:
+        from src.core.service_points import calculate_distance, calculate_travel_time
+        last_point = route[-1]
+        depot = route[0]  # Depósito é sempre o primeiro ponto
+        
+        # Tempo de retorno = tempo de viagem + duração do atendimento do último ponto
+        return_travel_time = calculate_travel_time(last_point.location, depot.location, speed)
+        last_service_time = last_point.service_duration
+        
+        # Tempo total incluindo retorno
+        end_time_minutes = start_time + total_time + last_service_time + return_travel_time
+    else:
+        end_time_minutes = start_time + total_time
+    
+    end_day = int(end_time_minutes // 1440) + 1
+    end_time_of_day = end_time_minutes % 1440
+    end_hours = int(end_time_of_day // 60)
+    end_minutes = int(end_time_of_day % 60)
+    arrival_time_formatted = f"{end_hours:02d}:{end_minutes:02d} do Dia {end_day}"
     
     # Mapeamento de prioridades para português
     priority_names_pt = {
@@ -175,6 +201,8 @@ def build_detailed_itinerary_prompt(route_data: Dict[str, Any]) -> str:
     
     # Construir sequência detalhada
     sequence_info = []
+    parada_num = 0  # Contador sequencial de paradas
+    
     for i in range(len(route)):
         if i == 0:  # Depósito inicial
             sequence_info.append(f"INÍCIO: Depósito (Ponto 0) - Horário de saída: 08:00")
@@ -183,6 +211,8 @@ def build_detailed_itinerary_prompt(route_data: Dict[str, Any]) -> str:
         point = route[i]
         if point.id == 0:  # Retorno ao depósito
             continue
+        
+        parada_num += 1  # Incrementar contador de paradas
             
         arrival_time = arrival_times[i] if i < len(arrival_times) else 0
         # Calcular dia e horário
@@ -217,16 +247,34 @@ def build_detailed_itinerary_prompt(route_data: Dict[str, Any]) -> str:
             next_travel_time = next_distance / (speed / 60)  # Converter velocidade para km/min
             next_dest = "Retorno ao depósito"
         
+        # Formatar tempo de viagem do ponto anterior
+        travel_time_int = int(travel_time)
+        if travel_time_int >= 60:
+            travel_hours = travel_time_int // 60
+            travel_mins = travel_time_int % 60
+            travel_time_str = f"{travel_hours}h{travel_mins:02d} minutos" if travel_mins > 0 else f"{travel_hours}h"
+        else:
+            travel_time_str = f"{travel_time_int} minutos"
+        
+        # Formatar tempo de viagem até o próximo ponto
+        next_travel_time_int = int(next_travel_time)
+        if next_travel_time_int >= 60:
+            next_hours = next_travel_time_int // 60
+            next_mins = next_travel_time_int % 60
+            next_travel_time_str = f"{next_hours}h{next_mins:02d} minutos" if next_mins > 0 else f"{next_hours}h"
+        else:
+            next_travel_time_str = f"{next_travel_time_int} minutos"
+        
         sequence_info.append(f"""
-Parada {i}: Ponto {point.id}
+Parada {parada_num}: Ponto {point.id}
 - Chegada: {hours:02d}:{minutes:02d} do Dia {day}
 - Tipo: {priority_pt}
 - Distância do ponto anterior: {distance_from_prev:.1f} km
-- Tempo de viagem do ponto anterior: {int(travel_time)} minutos
+- Tempo de viagem do ponto anterior: {travel_time_str}
 - Tempo de atendimento: {int(point.service_duration)} minutos
 - Próximo destino: {next_dest}
 - Distância até o próximo ponto: {next_distance:.1f} km
-- Tempo de viagem até o próximo ponto: {int(next_travel_time)} minutos
+- Tempo de viagem até o próximo ponto: {next_travel_time_str}
 """)
     
     sequence_text = "\n".join(sequence_info)
@@ -244,6 +292,8 @@ Você é um assistente de logística especializado em saúde da mulher. Crie um 
 INFORMAÇÕES CRÍTICAS:
 - Total de pontos: {total_points}
 - IDs dos pontos: {ids_list}
+- Distância total da rota: {total_distance:.1f} km
+- Tempo total estimado: {int(total_time // 60)}h{int(total_time % 60):02d}
 - Você DEVE incluir TODOS os {total_points} pontos
 - NÃO resuma, NÃO agrupe, NÃO omita NENHUM ponto
 
@@ -253,61 +303,92 @@ SEQUÊNCIA DE PARADAS:
 INSTRUÇÕES PARA O ROTEIRO:
 1. Crie um cabeçalho "RESUMO DA JORNADA:" com:
    - Horário de saída: 08:00
-   - Horário estimado de chegada: HH:MM do Dia X (use o horário da última parada)
+   - Horário estimado de chegada: {arrival_time_formatted}
    - Total de pontos de atendimento: {total_points}
-   - Distância total: XX.X km
+   - Distância total: {total_distance:.1f} km
 
-2. Para CADA UMA DAS {total_points} PARADAS, forneça NA ORDEM:
+2. Para CADA UMA DAS {total_points} PARADAS, forneça NA ORDEM EXATA da sequência acima:
    - Número sequencial da parada (ex: "PARADA 1: Ponto 2")
    - Horário de chegada previsto: HH:MM do Dia X
-   - Tipo de atendimento: Nome em Português (em negrito APENAS se for prioritário)
+   - Tipo de atendimento: Nome em Português (em negrito se for prioritário)
    - Tempo estimado no local: XX minutos
    - Próximo destino: Ponto X (ou "Retorno ao depósito" se for a última parada)
    - Distância até o próximo ponto: X.X km (incluir distância real mesmo na última parada)
    - Tempo de viagem: XX minutos ou XhXX minutos à velocidade média de {speed} km/h (incluir tempo real mesmo na última parada)
-   - Observações importantes: (APENAS se houver janelas de tempo ou cuidados especiais)
+   
+   ATENÇÃO: NÃO inclua "Observações importantes" a menos que haja janelas de tempo ou cuidados especiais específicos para aquela parada
 
 3. Destaque visualmente as paradas prioritárias
 4. Inclua marcos de tempo importantes (pausas sugeridas, horários críticos)
 5. Adicione uma seção final com "PONTOS DE ATENÇÃO"
    - Na seção PONTOS DE ATENÇÃO, mencione TODAS as prioridades: Emergência Obstétrica, Violência Doméstica, Medicamento Hormonal e Pós-Parto
 
-FORMATO OBRIGATÓRIO para tipo de atendimento:
-- Tipo de atendimento: **Emergência Obstétrica**
-- Tipo de atendimento: **Violência Doméstica**
-- Tipo de atendimento: **Medicamento Hormonal**
-- Tipo de atendimento: **Pós-Parto**
-- Tipo de atendimento: Atendimento Regular
+FORMATO OBRIGATÓRIO para tipo de atendimento (PRIORIDADES EM NEGRITO):
+- Tipo de atendimento: **Emergência Obstétrica** (PRIORITÁRIO - em negrito)
+- Tipo de atendimento: **Violência Doméstica** (PRIORITÁRIO - em negrito)
+- Tipo de atendimento: **Medicamento Hormonal** (PRIORITÁRIO - em negrito)
+- Tipo de atendimento: **Pós-Parto** (PRIORITÁRIO - em negrito)
+- Tipo de atendimento: Atendimento Regular (NÃO prioritário - sem negrito)
 
 FORMATO OBRIGATÓRIO para tempo de viagem:
 - Se menos de 60 minutos: "Tempo de viagem: 35 minutos à velocidade média de {speed} km/h"
 - Se 60 minutos ou mais: "Tempo de viagem: 1h15 minutos à velocidade média de {speed} km/h"
 
-REGRA CRÍTICA SOBRE OBSERVAÇÕES:
-- Se NÃO houver janelas de tempo ou cuidados especiais, NÃO inclua a linha "Observações importantes"
-- NUNCA escreva "Observações importantes: N/A"
-- NUNCA escreva "Observações importantes: Nenhuma"
-- Simplesmente OMITA o item "Observações importantes" se não houver nada a observar
+REGRA CRÍTICA SOBRE OBSERVAÇÕES - LEIA COM ATENÇÃO:
+A linha "Observações importantes" deve ser COMPLETAMENTE OMITIDA se não houver observações específicas.
 
-Exemplo CORRETO (sem observações):
-- Tempo de viagem: 28 minutos à velocidade média de {speed} km/h
+PROIBIDO escrever:
+❌ "Observações importantes: N/A"
+❌ "Observações importantes: Nenhuma"
+❌ "Observações importantes: Não há"
+❌ Qualquer variação de "Observações importantes" seguida de indicação de ausência
 
-[próxima parada começa aqui, SEM linha de observações]
+CORRETO:
+✅ Simplesmente NÃO incluir a linha "Observações importantes" quando não houver observações
 
-Exemplo INCORRETO:
-- Tempo de viagem: 28 minutos à velocidade média de {speed} km/h
-- Observações importantes: N/A
+Exemplo CORRETO (parada sem observações especiais):
+```
+PARADA 9: Ponto 13
+- Horário de chegada previsto: 16:26 do Dia 1
+- Tipo de atendimento: Atendimento Regular
+- Tempo estimado no local: 15 minutos
+- Próximo destino: Retorno ao depósito
+- Distância até o próximo ponto: 103.5 km
+- Tempo de viagem: 1h43 minutos à velocidade média de 60.0 km/h
 
-IMPORTANTE:
-- Use "Total de pontos de atendimento" ao invés de "Total de paradas"
-- Coloque prioridades em **negrito** (Emergência, Violência, Medicamento, Pós-Parto)
-- NÃO coloque "Atendimento Regular" em negrito
-- NÃO coloque "Observações importantes" em negrito
-- "Distância até o próximo ponto" ANTES de "Tempo de viagem"
-- Tempo de viagem com velocidade média de {speed} km/h
-- Na ÚLTIMA parada, inclua distância e tempo de retorno ao depósito (não deixe 0.0 km ou 0 minutos)
-- Use formato de horário "HH:MM do Dia X"
-- Confirme que listou TODOS os IDs: {ids_list}
+PONTOS DE ATENÇÃO:
+```
+
+Exemplo INCORRETO (NÃO FAÇA ISSO):
+```
+PARADA 9: Ponto 13
+- Horário de chegada previsto: 16:26 do Dia 1
+- Tipo de atendimento: Atendimento Regular
+- Tempo estimado no local: 15 minutos
+- Próximo destino: Retorno ao depósito
+- Distância até o próximo ponto: 103.5 km
+- Tempo de viagem: 1h43 minutos à velocidade média de 60.0 km/h
+- Observações importantes: N/A    ← NUNCA FAÇA ISSO!
+```
+
+REGRAS CRÍTICAS - LEIA COM ATENÇÃO:
+1. VOCÊ DEVE LISTAR EXATAMENTE {total_points} PARADAS
+2. CADA PONTO DA LISTA DEVE APARECER: {ids_list}
+3. NÃO OMITA NENHUM PONTO, mesmo que seja "Atendimento Regular"
+4. NÃO AGRUPE pontos similares - liste cada um individualmente
+5. NÃO RESUMA - inclua TODAS as {total_points} paradas completas
+6. Use "Total de pontos de atendimento" ao invés de "Total de paradas"
+7. Coloque prioridades em **negrito**: **Emergência Obstétrica**, **Violência Doméstica**, **Medicamento Hormonal**, **Pós-Parto**
+8. NÃO coloque "Atendimento Regular" em negrito
+9. NÃO coloque "Observações importantes" em negrito
+10. "Distância até o próximo ponto" ANTES de "Tempo de viagem"
+11. Tempo de viagem com velocidade média de {speed} km/h
+12. Na ÚLTIMA parada, inclua distância e tempo de retorno ao depósito (não deixe 0.0 km ou 0 minutos)
+13. Use formato de horário "HH:MM do Dia X"
+
+VERIFICAÇÃO FINAL OBRIGATÓRIA:
+Antes de finalizar, conte quantas paradas você listou. Se não forem exatamente {total_points} paradas, você FALHOU.
+Verifique se TODOS estes IDs aparecem no roteiro: {ids_list}
 
 O roteiro deve ser fácil de seguir durante a condução, com informações claras e objetivas.
 """

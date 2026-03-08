@@ -1288,8 +1288,17 @@ def main():
                 # Multi-veículo
                 from src.llm.utils.streamlit_integration import prepare_route_data_multi_vehicle
                 vehicles_data = prepare_route_data_multi_vehicle(st.session_state.best_solution)
-                route = st.session_state.best_solution.vehicles[0].route  # Para Q&A usar primeiro veículo
-                _, _, arrival_times = calculate_route_time_and_distance(route)
+                
+                # Para Q&A: combinar todos os veículos em uma única rota
+                all_points = []
+                all_arrival_times = []
+                for vehicle in st.session_state.best_solution.vehicles:
+                    all_points.extend(vehicle.route)
+                    _, _, v_arrival_times = calculate_route_time_and_distance(vehicle.route)
+                    all_arrival_times.extend(v_arrival_times)
+                
+                route = all_points
+                arrival_times = all_arrival_times
                 total_distance = sum(v.total_distance for v in st.session_state.best_solution.vehicles) * 0.1
                 total_time = sum(v.total_time for v in st.session_state.best_solution.vehicles)
             else:
@@ -1310,23 +1319,44 @@ def main():
                 # Botão Manual de Instruções
                 with col1:
                     try:
-                        from src.llm.utils.pdf_generator import generate_manual_pdf
+                        from src.llm.utils.pdf_generator import generate_manual_pdf, generate_multi_vehicle_manuals_zip
                         
                         if st.button("📝 Gerar Manual de Instruções", key="gen_manual_btn", type="secondary", use_container_width=True):
                             with st.spinner("Gerando manual de instruções e preparando download..."):
-                                manual = st.session_state.llm_integration.generate_manual(
-                                    route=route,
-                                    arrival_times=arrival_times,
-                                    total_distance=total_distance,
-                                    total_time=total_time,
-                                    is_multi_vehicle=st.session_state.get('is_multi_vehicle', False),
-                                    vehicles_data=vehicles_data
-                                )
-                                pdf_bytes = generate_manual_pdf(manual)
-                                st.session_state.manual_pdf_ready = pdf_bytes
+                                # Verificar se é multi-veículo
+                                if st.session_state.get('is_multi_vehicle', False) and vehicles_data:
+                                    # Gerar ZIP com múltiplos PDFs (um por veículo)
+                                    zip_bytes = generate_multi_vehicle_manuals_zip(vehicles_data, st.session_state.llm_integration)
+                                    st.session_state.manual_zip_ready = zip_bytes
+                                    st.session_state.manual_pdf_ready = None  # Limpar PDF único
+                                else:
+                                    # Gerar PDF único
+                                    manual = st.session_state.llm_integration.generate_manual(
+                                        route=route,
+                                        arrival_times=arrival_times,
+                                        total_distance=total_distance,
+                                        total_time=total_time,
+                                        is_multi_vehicle=False,
+                                        vehicles_data=None
+                                    )
+                                    pdf_bytes = generate_manual_pdf(manual)
+                                    st.session_state.manual_pdf_ready = pdf_bytes
+                                    st.session_state.manual_zip_ready = None  # Limpar ZIP
                         
-                        # Mostrar botão de download se o PDF foi gerado
-                        if 'manual_pdf_ready' in st.session_state:
+                        # Mostrar botão de download apropriado
+                        if 'manual_zip_ready' in st.session_state and st.session_state.manual_zip_ready:
+                            # Download ZIP com múltiplos PDFs
+                            st.download_button(
+                                label="💾 Download Manuais (ZIP)",
+                                data=st.session_state.manual_zip_ready,
+                                file_name="manuais_veiculos.zip",
+                                mime="application/zip",
+                                type="primary",
+                                use_container_width=True,
+                                key="download_manual_zip"
+                            )
+                        elif 'manual_pdf_ready' in st.session_state and st.session_state.manual_pdf_ready:
+                            # Download PDF único
                             st.download_button(
                                 label="💾 Download Manual PDF",
                                 data=st.session_state.manual_pdf_ready,
@@ -1384,17 +1414,38 @@ def main():
                         
                         if st.button("📝 Gerar Roteiro Detalhado", key="gen_itinerary_btn", type="secondary", use_container_width=True):
                             with st.spinner("Gerando roteiro detalhado e preparando download..."):
-                                itinerary = st.session_state.llm_integration.generate_itinerary(
-                                    route=route,
-                                    arrival_times=arrival_times,
-                                    total_distance=total_distance,
-                                    total_time=total_time
-                                )
-                                pdf_bytes = generate_itinerary_pdf(itinerary)
-                                st.session_state.itinerary_pdf_ready = pdf_bytes
+                                # Verificar se é multi-veículo
+                                if st.session_state.get('is_multi_vehicle', False) and vehicles_data:
+                                    # Gerar ZIP com múltiplos PDFs (um por veículo)
+                                    zip_bytes = st.session_state.llm_integration.generate_multi_vehicle_itineraries_zip(vehicles_data)
+                                    st.session_state.itinerary_zip_ready = zip_bytes
+                                    st.session_state.itinerary_pdf_ready = None  # Limpar PDF único
+                                else:
+                                    # Gerar PDF único
+                                    itinerary = st.session_state.llm_integration.generate_itinerary(
+                                        route=route,
+                                        arrival_times=arrival_times,
+                                        total_distance=total_distance,
+                                        total_time=total_time
+                                    )
+                                    pdf_bytes = generate_itinerary_pdf(itinerary)
+                                    st.session_state.itinerary_pdf_ready = pdf_bytes
+                                    st.session_state.itinerary_zip_ready = None  # Limpar ZIP
                         
-                        # Mostrar botão de download se o PDF foi gerado
-                        if 'itinerary_pdf_ready' in st.session_state:
+                        # Mostrar botão de download apropriado
+                        if 'itinerary_zip_ready' in st.session_state and st.session_state.itinerary_zip_ready:
+                            # Download ZIP com múltiplos PDFs
+                            st.download_button(
+                                label="💾 Download Roteiros (ZIP)",
+                                data=st.session_state.itinerary_zip_ready,
+                                file_name="roteiros_veiculos.zip",
+                                mime="application/zip",
+                                type="primary",
+                                use_container_width=True,
+                                key="download_itinerary_zip"
+                            )
+                        elif 'itinerary_pdf_ready' in st.session_state and st.session_state.itinerary_pdf_ready:
+                            # Download PDF único
                             st.download_button(
                                 label="💾 Download Roteiro PDF",
                                 data=st.session_state.itinerary_pdf_ready,
@@ -1415,12 +1466,33 @@ def main():
                         
                         if st.button("📝 Gerar Resumo de Prioridades", key="gen_priorities_btn", type="secondary", use_container_width=True):
                             with st.spinner("Analisando prioridades e preparando download..."):
-                                priorities = st.session_state.llm_integration.generate_priority_summary(route)
-                                pdf_bytes = generate_itinerary_pdf(priorities, title="Resumo de Prioridades")
-                                st.session_state.priorities_pdf_ready = pdf_bytes
+                                # Verificar se é multi-veículo
+                                if st.session_state.get('is_multi_vehicle', False) and vehicles_data:
+                                    # Gerar ZIP com múltiplos PDFs (um por veículo)
+                                    zip_bytes = st.session_state.llm_integration.generate_multi_vehicle_priorities_zip(vehicles_data)
+                                    st.session_state.priorities_zip_ready = zip_bytes
+                                    st.session_state.priorities_pdf_ready = None  # Limpar PDF único
+                                else:
+                                    # Gerar PDF único
+                                    priorities = st.session_state.llm_integration.generate_priority_summary(route, include_emojis=False)
+                                    pdf_bytes = generate_itinerary_pdf(priorities, title="Resumo de Prioridades")
+                                    st.session_state.priorities_pdf_ready = pdf_bytes
+                                    st.session_state.priorities_zip_ready = None  # Limpar ZIP
                         
-                        # Mostrar botão de download se o PDF foi gerado
-                        if 'priorities_pdf_ready' in st.session_state:
+                        # Mostrar botão de download apropriado
+                        if 'priorities_zip_ready' in st.session_state and st.session_state.priorities_zip_ready:
+                            # Download ZIP com múltiplos PDFs
+                            st.download_button(
+                                label="💾 Download Prioridades (ZIP)",
+                                data=st.session_state.priorities_zip_ready,
+                                file_name="prioridades_veiculos.zip",
+                                mime="application/zip",
+                                type="primary",
+                                use_container_width=True,
+                                key="download_priorities_zip"
+                            )
+                        elif 'priorities_pdf_ready' in st.session_state and st.session_state.priorities_pdf_ready:
+                            # Download PDF único
                             st.download_button(
                                 label="💾 Download Prioridades PDF",
                                 data=st.session_state.priorities_pdf_ready,
@@ -1452,14 +1524,29 @@ def main():
                         col = cols[idx % 2]
                         with col:
                             if st.button(f"❓ {suggestion}", key=f"suggest_{idx}", use_container_width=True):
-                                st.session_state.current_question = suggestion
-                                st.rerun()
+                                # Processar pergunta diretamente ao clicar no botão
+                                with st.spinner("Processando pergunta..."):
+                                    answer = st.session_state.llm_integration.answer_question(
+                                        question=suggestion,
+                                        route=route,
+                                        arrival_times=arrival_times,
+                                        total_distance=total_distance,
+                                        total_time=total_time
+                                    )
+                                    # Adicionar ao histórico
+                                    if 'qa_history' not in st.session_state:
+                                        st.session_state.qa_history = []
+                                    st.session_state.qa_history.append({
+                                        'question': suggestion,
+                                        'answer': answer
+                                    })
+                                    st.rerun()
                 
                 # Campo de pergunta
                 st.markdown("---")
                 question = st.text_input(
                     "Digite sua pergunta:",
-                    value=st.session_state.get('current_question', ''),
+                    value='',
                     placeholder="Ex: Qual o próximo atendimento prioritário?",
                     key="question_input"
                 )
@@ -1483,7 +1570,7 @@ def main():
                                     'question': question,
                                     'answer': answer
                                 })
-                                st.session_state.current_question = ''
+                                st.rerun()
                         else:
                             st.warning("Por favor, digite uma pergunta.")
                 

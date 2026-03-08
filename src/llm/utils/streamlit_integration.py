@@ -191,13 +191,14 @@ class LLMIntegration:
             return []
     
     def generate_priority_summary(self,
-                                  route: List[ServicePoint]) -> str:
+                                  route: List[ServicePoint],
+                                  include_emojis: bool = True) -> str:
         """ Gera resumo de prioridades """
         if not self.is_initialized:
             return "LLM não inicializado. Verifique as configurações."
         
         try:
-            return self.manual_generator.generate_priority_summary(route)
+            return self.manual_generator.generate_priority_summary(route, include_emojis)
         except Exception as e:
             return f"Erro ao gerar resumo: {str(e)}"
     
@@ -211,6 +212,22 @@ class LLMIntegration:
             return self.manual_generator.generate_checklist(route)
         except Exception as e:
             return f"Erro ao gerar checklist: {str(e)}"
+    
+    def generate_multi_vehicle_itineraries_zip(self, vehicles_data: List[Dict[str, Any]]) -> bytes:
+        """ Gera múltiplos PDFs de roteiros (um por veículo) e retorna como arquivo ZIP """
+        if not self.is_initialized:
+            raise RuntimeError("LLM não inicializado. Verifique as configurações.")
+        
+        from src.llm.utils.pdf_generator import generate_multi_vehicle_itineraries_zip
+        return generate_multi_vehicle_itineraries_zip(vehicles_data, self)
+    
+    def generate_multi_vehicle_priorities_zip(self, vehicles_data: List[Dict[str, Any]]) -> bytes:
+        """ Gera múltiplos PDFs de resumo de prioridades (um por veículo) e retorna como arquivo ZIP """
+        if not self.is_initialized:
+            raise RuntimeError("LLM não inicializado. Verifique as configurações.")
+        
+        from src.llm.utils.pdf_generator import generate_multi_vehicle_priorities_zip
+        return generate_multi_vehicle_priorities_zip(vehicles_data, self)
     
     def clear_conversation_history(self):
         """ Limpa histórico de conversação do Q&A generator """
