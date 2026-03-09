@@ -8,7 +8,7 @@
 [![Tests](https://img.shields.io/badge/Tests-140%20passed-success.svg)](tests/)
 [![License](https://img.shields.io/badge/License-Educational-yellow.svg)](LICENSE)
 
-**[Documentação Técnica](docs/README_RESTRICOES.md)** | **[Interface Streamlit](docs/README_STREAMLIT.md)** | **[Integração LLM](docs/README_LLM.md)** | **[Testes](docs/README_TESTS.md)**
+**[Documentação Técnica](docs/README_RESTRICOES.md)** | **[Interface Streamlit](docs/README_STREAMLIT.md)** | **[Integração LLM](docs/README_LLM.md)** | **[WhatsApp Bot](docs/README_WHATSAPP_BOT.md)** | **[Testes](docs/README_TESTS.md)**
 
 ---
 
@@ -79,6 +79,7 @@ O sistema resolve o problema de **Roteamento de Veículos com Janelas de Tempo (
 - 🌐 **Suporte Multi-Provedor LLM**: OpenAI (nuvem) e Ollama (local)
 - 📄 **Exportação em PDF**: Manuais, roteiros e checklists em formato profissional
 - 📦 **Documentos Multi-Veículo**: Geração automática de PDFs em ZIP para múltiplos veículos
+- 📱 **WhatsApp Bot com QR Code**: Acesso rápido ao assistente de rota via WhatsApp para motoristas
 
 ---
 
@@ -839,6 +840,7 @@ Para mais detalhes, consulte: [`docs/README_TESTS.md`](docs/README_TESTS.md)
 - **[Restrições e Implementação](docs/README_RESTRICOES.md)** - Detalhes técnicos das restrições implementadas
 - **[Interface Streamlit](docs/README_STREAMLIT.md)** - Guia completo da interface web
 - **[Integração com LLMs](docs/README_LLM.md)** - Assistente Inteligente com IA (manuais, roteiros e Q&A)
+- **[WhatsApp Bot com QR Code](docs/README_WHATSAPP_BOT.md)** - Sistema de QR Code para acesso via WhatsApp
 - **[Testes Automatizados](docs/README_TESTS.md)** - Documentação dos 95 testes
 
 ### Documentação Acadêmica
@@ -930,6 +932,7 @@ Para 20 pontos de atendimento:
 - [x] Integração com LLMs (OpenAI e Ollama) ✅
 - [x] Geração de PDFs profissionais ✅
 - [x] Suporte multi-veículo para documentos ✅
+- [x] WhatsApp Bot com QR Code para motoristas ✅
 - [ ] Exportação de rotas para CSV/JSON
 - [ ] Análise estatística de múltiplas execuções
 - [ ] Integração com APIs de mapas reais (Google Maps, OpenStreetMap)
@@ -939,7 +942,8 @@ Para 20 pontos de atendimento:
 - [ ] Interface de configuração de parâmetros
 - [ ] Suporte para mais provedores LLM (Anthropic Claude, Google Gemini)
 - [ ] Tradução multilíngue de documentos
-- [ ] Integração com WhatsApp/Telegram para notificações
+- [ ] Integração completa com WhatsApp Business API
+- [ ] Notificações automáticas via WhatsApp/Telegram
 
 ---
 

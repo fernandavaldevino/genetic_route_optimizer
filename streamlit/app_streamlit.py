@@ -1297,7 +1297,7 @@ def main():
         # Verificar se LLM está disponível
         if st.session_state.llm_initialized:
             # Tabs para diferentes funcionalidades
-            tab1, tab2, tab3 = st.tabs(["📋 Manual de Instruções", "🗺️ Roteiro Detalhado", "💬 Perguntas & Respostas"])
+            tab1, tab2, tab3, tab4 = st.tabs(["📋 Manual de Instruções", "🗺️ Roteiro Detalhado", "📱 QR Code WhatsApp", "💬 Perguntas & Respostas"])
             
             # Preparar dados da rota
             if st.session_state.get('is_multi_vehicle', False):
@@ -1528,8 +1528,123 @@ def main():
                 with col3:
                     pass
             
-            # TAB 3: Perguntas & Respostas
+            # TAB 3: QR Code WhatsApp
             with tab3:
+                st.markdown("#### 📱 QR Code para WhatsApp Bot")
+                st.markdown("Escaneie o QR Code para acessar o assistente de rota via WhatsApp.")
+                
+                try:
+                    from src.utils.whatsapp_qrcode import WhatsAppQRCodeGenerator
+                    
+                    # Preparar dados da rota para o QR Code
+                    if st.session_state.get('is_multi_vehicle', False):
+                        # Multi-veículo: mostrar 2 QR Codes lado a lado
+                        st.markdown("##### 🚗 QR Codes por Veículo")
+                        
+                        cols = st.columns(len(st.session_state.best_solution.vehicles))
+                        
+                        for idx, (col, vehicle) in enumerate(zip(cols, st.session_state.best_solution.vehicles)):
+                            with col:
+                                route_data = {
+                                    'vehicle_id': vehicle.vehicle_id,
+                                    'total_points': len(vehicle.route),
+                                    'total_distance': vehicle.total_distance * 0.1,
+                                    'stops': [
+                                        {
+                                            'id': point.id,
+                                            'type': PRIORITY_ABBREVIATIONS.get(point.priority, 'N/A'),
+                                            'priority': point.priority,
+                                            'duration': point.service_duration,
+                                            'arrival_time': format_time(0),
+                                            'time_window': {
+                                                'start': format_time(point.time_window.start_time) if point.time_window else None,
+                                                'end': format_time(point.time_window.end_time) if point.time_window else None
+                                            } if point.time_window else None
+                                        }
+                                        for i, point in enumerate(vehicle.route)
+                                    ]
+                                }
+                                
+                                # Gerar QR Code (tamanho 200px para legibilidade)
+                                qr_generator = WhatsAppQRCodeGenerator()
+                                qr_image = qr_generator.generate_qrcode(route_data, size=200)
+                                
+                                st.markdown(f"**Veículo {vehicle.vehicle_id}**")
+                                st.image(qr_image, width=200)
+                                
+                                # Botão de download
+                                qr_image.seek(0)
+                                st.download_button(
+                                    label=f"💾 Download V{vehicle.vehicle_id}",
+                                    data=qr_image,
+                                    file_name=f"qrcode_veiculo_{vehicle.vehicle_id}.png",
+                                    mime="image/png",
+                                    type="secondary",
+                                    use_container_width=True,
+                                    key=f"download_qr_v{vehicle.vehicle_id}"
+                                )
+                    else:
+                        # Veículo único
+                        route = st.session_state.best_route
+                        arrival_times = st.session_state.arrival_times
+                        vehicle_speed = st.session_state.get('vehicle_speed', 60)
+                        total_distance, total_time, _ = calculate_route_time_and_distance(route, speed=vehicle_speed)
+                        
+                        route_data = {
+                            'vehicle_id': 1,
+                            'total_points': len([p for p in route if p.id != 0]),
+                            'total_distance': total_distance * 0.1,
+                            'stops': [
+                                {
+                                    'id': point.id,
+                                    'type': PRIORITY_ABBREVIATIONS.get(point.priority, 'N/A'),
+                                    'priority': point.priority,
+                                    'duration': point.service_duration,
+                                    'arrival_time': format_time(arrival_times[i]) if i < len(arrival_times) else 'N/A',
+                                    'time_window': {
+                                        'start': format_time(point.time_window.start_time) if point.time_window else None,
+                                        'end': format_time(point.time_window.end_time) if point.time_window else None
+                                    } if point.time_window else None
+                                }
+                                for i, point in enumerate(route) if point.id != 0
+                            ]
+                        }
+                        
+                        # Gerar QR Code (tamanho 200px para legibilidade)
+                        qr_generator = WhatsAppQRCodeGenerator()
+                        qr_image = qr_generator.generate_qrcode(route_data, size=200)
+                        
+                        col1, col2 = st.columns([1, 3])
+                        
+                        with col1:
+                            st.image(qr_image, width=200)
+                            
+                            # Botão de download
+                            qr_image.seek(0)
+                            st.download_button(
+                                label="💾 Download QR Code",
+                                data=qr_image,
+                                file_name="qrcode_whatsapp_bot.png",
+                                mime="image/png",
+                                type="secondary",
+                                use_container_width=True,
+                                key="download_qr_single"
+                            )
+                        
+                        with col2:
+                            st.write("")  # Espaço vazio
+                    
+                    # Instruções (aparecem uma vez só, após os QR Codes)
+                    st.markdown("---")
+                    qr_generator = WhatsAppQRCodeGenerator()
+                    st.markdown(qr_generator.get_bot_instructions())
+                
+                except ImportError as e:
+                    st.warning("⚠️ Módulo de QR Code não disponível")
+                    st.info("Execute: `pip install qrcode` para habilitar esta funcionalidade")
+            
+            # TAB 4: Perguntas & Respostas
+            with tab4:
                 st.markdown("#### 💬 Faça Perguntas sobre a Rota")
                 st.markdown("Pergunte qualquer coisa sobre a rota otimizada em linguagem natural.")
                 
