@@ -164,6 +164,14 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
     with open(service_points_file, 'rb') as f:
         service_points = pickle.load(f)
     
+    # Carregar velocidade
+    speed_file = os.path.join('/tmp', 'vehicle_speed.pkl')
+    if os.path.exists(speed_file):
+        with open(speed_file, 'rb') as f:
+            vehicle_speed = pickle.load(f)
+    else:
+        vehicle_speed = 60  # Valor padrão
+    
     # Prints informativos iniciais
     print("="*60)
     print("SISTEMA DE ROTEAMENTO COM 1 VEÍCULO")
@@ -223,7 +231,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
             print("="*60)
             
             # Calcular métricas finais
-            total_distance, total_time, _ = calculate_route_time_and_distance(best_route)
+            total_distance, total_time, _ = calculate_route_time_and_distance(best_route, speed=vehicle_speed)
             distance_km = total_distance * 0.1
             hours = int(total_time // 60)
             minutes = int(total_time % 60)
@@ -260,7 +268,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         screen.fill((255, 255, 255))
         
         # Calcular fitness
-        fitness_values = [calculate_constrained_fitness(route) for route in population]
+        fitness_values = [calculate_constrained_fitness(route, speed=vehicle_speed) for route in population]
         
         # Ordenar população
         population, fitness_values = sort_population_by_fitness(population, fitness_values)
@@ -271,7 +279,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         best_fitness_history.append(best_fitness)
         
         # Calcular tempos de chegada
-        _, _, arrival_times = calculate_route_time_and_distance(best_route)
+        _, _, arrival_times = calculate_route_time_and_distance(best_route, speed=vehicle_speed)
         
         # Print do fitness inicial (apenas uma vez)
         if not first_fitness_printed:
@@ -284,7 +292,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         # Print a cada geração
         if generation == 0 or generation % 1 == 0:
             # Calcular distância e tempo
-            total_distance, total_time, _ = calculate_route_time_and_distance(best_route)
+            total_distance, total_time, _ = calculate_route_time_and_distance(best_route, speed=vehicle_speed)
             distance_km = total_distance * 0.1
             hours = int(total_time // 60)
             minutes = int(total_time % 60)
@@ -438,7 +446,7 @@ def display_results(best_route, best_fitness, arrival_times):
         total_distance_km += distance_by_day[day]
     
     # Métricas principais
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric("Fitness Total", f"{best_fitness:.2f}")
@@ -449,6 +457,28 @@ def display_results(best_route, best_fitness, arrival_times):
     
     with col3:
         st.metric("Distância Total", f"{total_distance_km:.1f} km")
+    
+    with col4:
+        # Calcular tempo total: somar tempo de percurso de todos os dias
+        total_time_hours = 0.0
+        for day in sorted(points_by_day.keys()):
+            day_points = points_by_day[day]
+            if day_points:
+                first_arrival = day_points[0][1]
+                last_arrival = day_points[-1][1]
+                day_time = last_arrival - first_arrival + day_points[-1][0].service_duration
+                
+                # Se for o último dia, adicionar tempo de retorno ao depósito
+                if day == sorted(points_by_day.keys())[-1]:
+                    return_distance = calculate_distance(day_points[-1][0].location, depot.location)
+                    vehicle_speed = st.session_state.get('vehicle_speed', 60)
+                    speed_km_per_min = vehicle_speed / 60.0
+                    return_time = (return_distance * 0.1) / speed_km_per_min
+                    day_time += return_time
+                
+                total_time_hours += day_time / 60.0
+        
+        st.metric("Tempo Total", f"{total_time_hours:.1f}h")
     
     st.divider()
     
@@ -600,7 +630,7 @@ def display_results_multi_vehicle(best_solution, best_fitness):
         2: "#00C8C8"   # Ciano
     }
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric("Fitness Total", f"{best_fitness:.2f}")
@@ -614,6 +644,12 @@ def display_results_multi_vehicle(best_solution, best_fitness):
         # Converter para km (multiplicar por 0.1)
         total_distance_km = total_distance * 0.1
         st.metric("Distância Total", f"{total_distance_km:.1f} km")
+    
+    with col4:
+        # Calcular tempo total: somar tempo de percurso dos 2 veículos
+        total_time_minutes = sum(v.total_time for v in best_solution.vehicles)
+        total_time_hours = total_time_minutes / 60.0
+        st.metric("Tempo Total", f"{total_time_hours:.1f}h")
     
     st.divider()
     
@@ -798,6 +834,9 @@ def main():
     if 'max_generations' not in st.session_state:
         st.session_state.max_generations = 10
     
+    if 'vehicle_speed' not in st.session_state:
+        st.session_state.vehicle_speed = 60
+    
     if not st.session_state.optimization_done:
         # Verificar se deve auto-iniciar (após Reiniciar)
         auto_start = st.session_state.get('auto_start', False)
@@ -865,8 +904,19 @@ def main():
                 st.session_state.max_generations = max_generations
             
             with col_empty:
-                # Coluna vazia (reservada para futuras opções)
-                pass
+                # Campo de entrada de velocidade média
+                st.markdown("<h3 style='font-size: 1.3rem; margin-bottom: 15px;'>Velocidade Média (km/h):</h3>", unsafe_allow_html=True)
+                vehicle_speed = st.number_input(
+                    "Velocidade Média (km/h)",
+                    min_value=1,
+                    max_value=100,
+                    value=60,  # Valor padrão
+                    step=1,
+                    help="Velocidade média dos veículos (1-100 km/h). Afeta tempo de viagem e número de dias necessários.",
+                    key='vehicle_speed_input',
+                    label_visibility="collapsed"
+                )
+                st.session_state.vehicle_speed = vehicle_speed
             
             st.markdown("<br>", unsafe_allow_html=True)
             st.divider()
@@ -908,7 +958,7 @@ def main():
             if close_button:
                 # Limpar arquivos temporários
                 temp_dir = '/tmp'
-                for filename in ['service_points.pkl', 'progress.pkl', 'pygame_final.png', 'depot_location.pkl']:
+                for filename in ['service_points.pkl', 'progress.pkl', 'pygame_final.png', 'depot_location.pkl', 'vehicle_speed.pkl']:
                     filepath = os.path.join(temp_dir, filename)
                     if os.path.exists(filepath):
                         try:
@@ -1020,23 +1070,29 @@ def main():
             if 'auto_start' in st.session_state:
                 del st.session_state['auto_start']
             
-            # Obter número de veículos e gerações selecionados
+            # Obter número de veículos, gerações e velocidade selecionados
             num_vehicles = st.session_state.num_vehicles
             MAX_GENERATIONS = st.session_state.max_generations
+            vehicle_speed = st.session_state.get('vehicle_speed', 60)
             
             # Arquivos temporários
             service_points_file = os.path.join(TEMP_DIR, SERVICE_POINTS_FILE)
             progress_file = os.path.join(TEMP_DIR, PROGRESS_FILE)
             screenshot_file = os.path.join(TEMP_DIR, SCREENSHOT_FILE)
             depot_file = os.path.join(TEMP_DIR, DEPOT_FILE)
+            speed_file = os.path.join(TEMP_DIR, 'vehicle_speed.pkl')
             
             # Limpar arquivos antigos
-            for filepath in [progress_file, screenshot_file, depot_file]:
+            for filepath in [progress_file, screenshot_file, depot_file, speed_file]:
                 if os.path.exists(filepath):
                     try:
                         os.remove(filepath)
                     except:
                         pass
+            
+            # Salvar velocidade para o Pygame
+            with open(speed_file, 'wb') as f:
+                pickle.dump(vehicle_speed, f)
             
             # Criar pontos de serviço baseado no número de veículos
             if num_vehicles == 1:
@@ -1254,7 +1310,8 @@ def main():
                 all_arrival_times = []
                 for vehicle in st.session_state.best_solution.vehicles:
                     all_points.extend(vehicle.route)
-                    _, _, v_arrival_times = calculate_route_time_and_distance(vehicle.route)
+                    vehicle_speed = st.session_state.get('vehicle_speed', 60)
+                    _, _, v_arrival_times = calculate_route_time_and_distance(vehicle.route, speed=vehicle_speed)
                     all_arrival_times.extend(v_arrival_times)
                 
                 route = all_points
@@ -1265,7 +1322,8 @@ def main():
                 # Veículo único
                 route = st.session_state.best_route
                 arrival_times = st.session_state.arrival_times
-                total_distance, total_time, _ = calculate_route_time_and_distance(route)
+                vehicle_speed = st.session_state.get('vehicle_speed', 60)
+                total_distance, total_time, _ = calculate_route_time_and_distance(route, speed=vehicle_speed)
                 total_distance = total_distance * 0.1
                 vehicles_data = None
             
@@ -1580,7 +1638,7 @@ def main():
                 
                 # Limpar arquivos temporários
                 temp_dir = '/tmp'
-                for filename in ['service_points.pkl', 'progress.pkl', 'pygame_final.png', 'depot_location.pkl']:
+                for filename in ['service_points.pkl', 'progress.pkl', 'pygame_final.png', 'depot_location.pkl', 'vehicle_speed.pkl']:
                     filepath = os.path.join(temp_dir, filename)
                     if os.path.exists(filepath):
                         try:
@@ -1603,7 +1661,7 @@ def main():
             if st.button("🔧 Alterar Parâmetros Iniciais", type="secondary", use_container_width=True):
                 # Limpar arquivos temporários
                 temp_dir = '/tmp'
-                for filename in ['service_points.pkl', 'progress.pkl', 'pygame_final.png', 'depot_location.pkl']:
+                for filename in ['service_points.pkl', 'progress.pkl', 'pygame_final.png', 'depot_location.pkl', 'vehicle_speed.pkl']:
                     filepath = os.path.join(temp_dir, filename)
                     if os.path.exists(filepath):
                         try:
@@ -1623,7 +1681,7 @@ def main():
             if st.button("❌ Encerrar", type="secondary", use_container_width=True):
                 # Limpar arquivos temporários
                 temp_dir = '/tmp'
-                for filename in ['service_points.pkl', 'progress.pkl', 'pygame_final.png']:
+                for filename in ['service_points.pkl', 'progress.pkl', 'pygame_final.png', 'vehicle_speed.pkl']:
                     filepath = os.path.join(temp_dir, filename)
                     if os.path.exists(filepath):
                         try:
