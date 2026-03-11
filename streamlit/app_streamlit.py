@@ -1219,6 +1219,147 @@ def main():
                     st.session_state.screenshot_file = screenshot_file
                     st.session_state.optimization_done = True
                     
+                    # Salvar dados para o bot do Telegram
+                    try:
+                        from telegram_bot.route_integration import RouteDataIntegration
+                        integration = RouteDataIntegration()
+                        
+                        # Carregar pontos de serviço
+                        with open(service_points_file, 'rb') as f:
+                            service_points = pickle.load(f)
+                        
+                        if st.session_state.is_multi_vehicle:
+                            # Multi-veículo: converter dados
+                            best_solution = st.session_state.best_solution
+                            route_data = {
+                                'date': time.strftime('%Y-%m-%d %H:%M:%S'),
+                                'fitness': st.session_state.best_fitness,
+                                'num_vehicles': 2,
+                                'vehicles': []
+                            }
+                            
+                            for vehicle in best_solution.vehicles:
+                                vehicle_data = {
+                                    'id': vehicle.vehicle_id,
+                                    'driver': f'Motorista {vehicle.vehicle_id}',
+                                    'total_stops': len(vehicle.route),
+                                    'total_distance': round(vehicle.total_distance * 0.1, 2),
+                                    'estimated_time': f"{int(vehicle.total_time // 60)}h {int(vehicle.total_time % 60)}min",
+                                    'start_time': '08:00',
+                                    'end_time': format_time(480 + vehicle.total_time),
+                                    'stops': []
+                                }
+                                
+                                current_time = 480  # 8:00 AM
+                                for idx, point in enumerate(vehicle.route, 1):
+                                    stop = {
+                                        'id': idx,
+                                        'type': PRIORITY_ABBREVIATIONS.get(point.priority, 'REG'),
+                                        'priority': list(ServicePriority).index(point.priority) + 1,
+                                        'address': f"Ponto {point.id}",
+                                        'time': format_time(current_time),
+                                        'duration': f"{int(point.service_duration)} min",
+                                        'instructions': f"Atendimento {PRIORITY_NAMES.get(point.priority, 'Regular')}",
+                                        'special_notes': f"Ponto ID {point.id}"
+                                    }
+                                    vehicle_data['stops'].append(stop)
+                                    current_time += point.service_duration + 10
+                                
+                                route_data['vehicles'].append(vehicle_data)
+                        else:
+                            # 1 veículo: converter dados
+                            best_route = st.session_state.best_route
+                            arrival_times = st.session_state.arrival_times
+                            total_distance, total_time, _ = calculate_route_time_and_distance(best_route, speed=vehicle_speed)
+                            
+                            route_data = {
+                                'date': time.strftime('%Y-%m-%d %H:%M:%S'),
+                                'fitness': st.session_state.best_fitness,
+                                'num_vehicles': 1,
+                                'vehicles': [{
+                                    'id': 1,
+                                    'driver': 'Motorista 1',
+                                    'total_stops': len([p for p in best_route if p.id != 0]),
+                                    'total_distance': round(total_distance * 0.1, 2),
+                                    'estimated_time': f"{int(total_time // 60)}h {int(total_time % 60)}min",
+                                    'start_time': '08:00',
+                                    'end_time': format_time(480 + total_time),
+                                    'stops': []
+                                }]
+                            }
+                            
+                            # Criar lista de paradas sem o depósito, mantendo a ordem correta
+                            for idx, point in enumerate(best_route):
+                                if point.id == 0:  # Pular depósito
+                                    continue
+                                
+                                stop = {
+                                    'id': len(route_data['vehicles'][0]['stops']) + 1,
+                                    'type': PRIORITY_ABBREVIATIONS.get(point.priority, 'REG'),
+                                    'priority': list(ServicePriority).index(point.priority) + 1,
+                                    'address': f"Ponto {point.id}",
+                                    'time': format_time(arrival_times[idx]),
+                                    'duration': f"{int(point.service_duration)} min",
+                                    'instructions': f"Atendimento {PRIORITY_NAMES.get(point.priority, 'Regular')}",
+                                    'special_notes': f"Ponto ID {point.id}"
+                                }
+                                route_data['vehicles'][0]['stops'].append(stop)
+                        
+                        # Salvar dados
+                        integration.save_route(route_data)
+                        print("✅ Dados salvos para o bot do Telegram!")
+                        
+                        # Iniciar bot do Telegram automaticamente
+                        try:
+                            import subprocess
+                            import threading
+                            
+                            def start_telegram_bot():
+                                """ Inicia o bot do Telegram em background """
+                                try:
+                                    bot_path = os.path.join(project_root, 'telegram_bot', 'bot.py')
+                                    if os.path.exists(bot_path):
+                                        # Verificar se o bot já está rodando (opcional com psutil)
+                                        bot_running = False
+                                        try:
+                                            import psutil
+                                            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                                                try:
+                                                    cmdline = proc.info.get('cmdline', [])
+                                                    if cmdline and 'bot.py' in ' '.join(cmdline):
+                                                        bot_running = True
+                                                        print("ℹ️ Bot do Telegram já está rodando")
+                                                        break
+                                                except:
+                                                    continue
+                                        except ImportError:
+                                            # psutil não disponível, tentar iniciar mesmo assim
+                                            print("ℹ️ psutil não disponível, iniciando bot sem verificação de duplicação")
+                                        
+                                        if not bot_running:
+                                            # Iniciar bot em processo separado
+                                            subprocess.Popen(
+                                                [sys.executable, bot_path],
+                                                cwd=os.path.dirname(bot_path),
+                                                stdout=subprocess.DEVNULL,
+                                                stderr=subprocess.DEVNULL,
+                                                start_new_session=True
+                                            )
+                                            print("🤖 Bot do Telegram iniciado automaticamente!")
+                                    else:
+                                        print(f"⚠️ Arquivo do bot não encontrado: {bot_path}")
+                                except Exception as e:
+                                    print(f"⚠️ Erro ao iniciar bot do Telegram: {e}")
+                            
+                            # Iniciar bot em thread separada para não bloquear
+                            bot_thread = threading.Thread(target=start_telegram_bot)
+                            bot_thread.daemon = True
+                            bot_thread.start()
+                        except Exception as e:
+                            print(f"⚠️ Erro ao tentar iniciar bot: {e}")
+                    except Exception as e:
+                        print(f"⚠️ Erro ao salvar dados para o bot: {e}")
+                    
                     progress_bar.empty()
                     status_text.empty()
                     
@@ -1296,8 +1437,20 @@ def main():
         
         # Verificar se LLM está disponível
         if st.session_state.llm_initialized:
+            # CSS para adicionar espaçamento de 1cm entre as abas
+            st.markdown("""
+            <style>
+            button[data-baseweb="tab"] {
+                margin-right: 1cm !important;
+            }
+            button[data-baseweb="tab"]:last-child {
+                margin-right: 0 !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
             # Tabs para diferentes funcionalidades
-            tab1, tab2, tab3 = st.tabs(["📋 Manual de Instruções", "🗺️ Roteiro Detalhado", "💬 Perguntas & Respostas"])
+            tab1, tab2, tab_telegram, tab3 = st.tabs(["📋 Manual de Instruções", "🗺️ Roteiro Detalhado", "📱 Telegram QRCode", "⁉️ Perguntas & Respostas"])
             
             # Preparar dados da rota
             if st.session_state.get('is_multi_vehicle', False):
@@ -1527,6 +1680,33 @@ def main():
                 # Coluna 3 vazia
                 with col3:
                     pass
+            
+            # Tab Telegram: QR Code
+            with tab_telegram:
+                try:
+                    from src.utils.telegram_qrcode import render_telegram_qrcode_tab
+                    render_telegram_qrcode_tab(st)
+                except ImportError as e:
+                    st.warning("⚠️ Módulo de QR Code do Telegram não disponível")
+                    st.info(f"Erro: {e}")
+                    st.markdown("""
+                    **Para habilitar o QR Code do Telegram:**
+                    
+                    1. Instale a biblioteca qrcode:
+                       ```bash
+                       pip install qrcode[pil]
+                       ```
+                    
+                    2. Configure o bot no arquivo `.env`:
+                       ```
+                       TELEGRAM_BOT_TOKEN=seu_token_aqui
+                       TELEGRAM_BOT_USERNAME=seu_bot_username
+                       ```
+                    
+                    3. Execute o bot: `python telegram_bot/bot.py`
+                    
+                    **Documentação completa:** `telegram_bot/README.md`
+                    """)
             
             # TAB 3: Perguntas & Respostas
             with tab3:

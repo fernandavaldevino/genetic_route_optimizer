@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help setup install run streamlit test test-specific test-cov test-html all-tests test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration clean
+.PHONY: help setup install run streamlit start-bot stop-bot test test-specific test-cov test-html all-tests test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration clean
 
 # Target padrão
 help:
@@ -26,6 +26,10 @@ help:
 	@echo "$(YELLOW)Execução:$(NC)"
 	@echo "  $(YELLOW)make run$(NC)             - Executa o sistema principal (Pygame)"
 	@echo "  $(YELLOW)make streamlit$(NC)       - Executa interface web (Streamlit)"
+	@echo ""
+	@echo "$(YELLOW)Bot do Telegram:$(NC)"
+	@echo "  $(YELLOW)make start-bot$(NC)       - Inicia o bot do Telegram"
+	@echo "  $(YELLOW)make stop-bot$(NC)        - Para o bot do Telegram"
 	@echo ""
 	@echo "$(YELLOW)Testes:$(NC)"
 	@echo "  $(YELLOW)make test$(NC)            - Executa testes (pergunta se inclui testes pagos)"
@@ -119,6 +123,74 @@ streamlit:
 	@echo "$(YELLOW)A aplicação será aberta no navegador em http://localhost:8501$(NC)"
 	@echo ""
 	$(VENV_NAME)/bin/streamlit run streamlit/app_streamlit.py
+
+# Inicia o bot do Telegram
+start-bot:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@if [ ! -f ".env" ]; then \
+		echo "$(RED)Erro: Arquivo .env não encontrado!$(NC)"; \
+		echo "$(YELLOW)Copie .env.example para .env e configure o TELEGRAM_BOT_TOKEN$(NC)"; \
+		exit 1; \
+	fi
+	@if ! grep -q "TELEGRAM_BOT_TOKEN=" .env || grep -q "TELEGRAM_BOT_TOKEN=seu_token_aqui" .env; then \
+		echo "$(RED)Erro: TELEGRAM_BOT_TOKEN não configurado no .env!$(NC)"; \
+		echo "$(YELLOW)Configure o token do bot no arquivo .env$(NC)"; \
+		exit 1; \
+	fi
+	@if pgrep -f "telegram_bot/bot.py" > /dev/null; then \
+		echo "$(YELLOW)Bot do Telegram já está rodando!$(NC)"; \
+		echo "$(YELLOW)Use 'make stop-bot' para parar o bot antes de iniciar novamente.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Iniciando bot do Telegram...$(NC)"
+	@nohup $(PYTHON_VENV) telegram_bot/bot.py > telegram_bot.log 2>&1 & echo $$! > telegram_bot.pid
+	@sleep 2
+	@if pgrep -f "telegram_bot/bot.py" > /dev/null; then \
+		echo "$(GREEN)✓ Bot do Telegram iniciado com sucesso!$(NC)"; \
+		echo "$(YELLOW)PID: $$(cat telegram_bot.pid)$(NC)"; \
+		echo "$(YELLOW)Log: telegram_bot.log$(NC)"; \
+		echo ""; \
+		echo "$(GREEN)Use /start no Telegram para começar!$(NC)"; \
+	else \
+		echo "$(RED)Erro ao iniciar o bot. Verifique o log: telegram_bot.log$(NC)"; \
+		rm -f telegram_bot.pid; \
+		exit 1; \
+	fi
+
+# Para o bot do Telegram
+stop-bot:
+	@if [ ! -f "telegram_bot.pid" ]; then \
+		echo "$(YELLOW)Nenhum bot em execução (arquivo PID não encontrado).$(NC)"; \
+		if pgrep -f "telegram_bot/bot.py" > /dev/null; then \
+			echo "$(YELLOW)Mas encontrei um processo do bot rodando. Parando...$(NC)"; \
+			pkill -f "telegram_bot/bot.py"; \
+			sleep 1; \
+			if pgrep -f "telegram_bot/bot.py" > /dev/null; then \
+				echo "$(RED)Processo não parou. Forçando...$(NC)"; \
+				pkill -9 -f "telegram_bot/bot.py"; \
+			fi; \
+			echo "$(GREEN)✓ Bot parado!$(NC)"; \
+		fi; \
+	else \
+		PID=$$(cat telegram_bot.pid); \
+		if ps -p $$PID > /dev/null 2>&1; then \
+			echo "$(YELLOW)Parando bot do Telegram (PID: $$PID)...$(NC)"; \
+			kill $$PID; \
+			sleep 1; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				echo "$(YELLOW)Processo não parou. Forçando...$(NC)"; \
+				kill -9 $$PID; \
+			fi; \
+			echo "$(GREEN)✓ Bot parado!$(NC)"; \
+		else \
+			echo "$(YELLOW)Processo não está rodando (PID $$PID não existe).$(NC)"; \
+		fi; \
+		rm -f telegram_bot.pid; \
+	fi
 
 # Executa testes com opção de incluir testes de integração
 test:
