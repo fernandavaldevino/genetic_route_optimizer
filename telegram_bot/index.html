@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente de Rotas - Telegram Bot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+
+        .qr-container {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+            border: 3px dashed #667eea;
+        }
+
+        .qr-code {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .qr-code img {
+            width: 100%;
+            height: 100%;
+        }
+
+        .qr-text {
+            color: #555;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .telegram-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #0088cc, #00a0e9);
+            color: white;
+            text-decoration: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 136, 204, 0.4);
+        }
+
+        .telegram-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 136, 204, 0.6);
+        }
+
+        .telegram-button i {
+            margin-right: 10px;
+        }
+
+        .features {
+            text-align: left;
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .features h3 {
+            color: #333;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            color: #555;
+        }
+
+        .feature-item i {
+            color: #667eea;
+            margin-right: 10px;
+            font-size: 20px;
+            min-width: 30px;
+        }
+
+        .instructions {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            text-align: left;
+        }
+
+        .instructions h4 {
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+            color: #555;
+        }
+
+        .instructions li {
+            margin: 5px 0;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #999;
+            font-size: 14px;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #4caf50;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 10px 5px;
+        }
+
+        .badge.free {
+            background: #4caf50;
+        }
+
+        .badge.secure {
+            background: #2196f3;
+        }
+
+        .badge.fast {
+            background: #ff9800;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .qr-code {
+                width: 180px;
+                height: 180px;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🤖</div>
+        <h1>Assistente de Rotas</h1>
+        <p class="subtitle">Seu assistente inteligente para rotas de atendimento</p>
+
+        <div>
+            <span class="badge free">✅ 100% Gratuito</span>
+            <span class="badge secure">🔒 Seguro</span>
+            <span class="badge fast">⚡ Rápido</span>
+        </div>
+
+        <div class="qr-container">
+            <div class="qr-code" id="qrcode">
+                <!-- QR Code será gerado aqui -->
+            </div>
+            <p class="qr-text"><strong>Escaneie o QR Code</strong> com seu celular</p>
+            <p class="qr-text">ou</p>
+        </div>
+
+        <a href="https://t.me/SEU_BOT_USERNAME" class="telegram-button" id="telegramLink" target="_blank">
+            <i class="fab fa-telegram"></i>
+            Abrir no Telegram
+        </a>
+
+        <div class="instructions">
+            <h4>📱 Como usar:</h4>
+            <ol>
+                <li>Clique no botão acima ou escaneie o QR Code</li>
+                <li>Inicie uma conversa com o bot</li>
+                <li>Digite <code>/start</code> para começar</li>
+                <li>Use os comandos ou botões para obter informações</li>
+            </ol>
+        </div>
+
+        <div class="features">
+            <h3>✨ Funcionalidades</h3>
+            <div class="feature-item">
+                <i class="fas fa-route"></i>
+                <span>Ver rota completa do dia</span>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>Consultar próxima parada</span>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Alertas de emergências</span>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-chart-bar"></i>
+                <span>Estatísticas de paradas</span>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Instruções detalhadas</span>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-comments"></i>
+                <span>Perguntas em linguagem natural</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🚗 Sistema de Otimização de Rotas</p>
+            <p>Desenvolvido com ❤️ para facilitar seu trabalho</p>
+        </div>
+    </div>
+
+    <!-- Biblioteca para gerar QR Code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        // Configuração do bot
+        const BOT_USERNAME = 'SEU_BOT_USERNAME'; // Substitua pelo username do seu bot
+        const BOT_URL = `https://t.me/${BOT_USERNAME}`;
+
+        // Atualiza o link do botão
+        document.getElementById('telegramLink').href = BOT_URL;
+
+        // Gera o QR Code
+        const qrcodeContainer = document.getElementById('qrcode');
+        new QRCode(qrcodeContainer, {
+            text: BOT_URL,
+            width: 170,
+            height: 170,
+            colorDark: '#0088cc',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.H
+        });
+
+        // Animação de entrada
+        window.addEventListener('load', () => {
+            document.querySelector('.container').style.opacity = '0';
+            setTimeout(() => {
+                document.querySelector('.container').style.transition = 'opacity 0.5s';
+                document.querySelector('.container').style.opacity = '1';
+            }, 100);
+        });
+    </script>
+</body>
+</html>

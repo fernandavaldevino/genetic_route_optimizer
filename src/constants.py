@@ -287,7 +287,9 @@ ARROW_MARGIN = 2
 # ============================================================================
 
 DISTANCE_TO_KM_FACTOR = 0.1      # Fator de conversão de distância para km
-SPEED_KM_PER_MIN = 0.833         # Velocidade média em km/min (50 km/h)
+SPEED_KM_PER_MIN = 1.0           # Velocidade padrão em km/min (60 km/h ÷ 60 = 1.0)
+                                 # NOTA: Esta constante é mantida para compatibilidade,
+                                 # mas a velocidade real é parametrizada pelo usuário
 
 # ============================================================================
 # OPÇÕES DE GERAÇÕES (STREAMLIT)
