@@ -384,6 +384,7 @@ class RouteAssistantBot:
         num_vehicles = len(self.route_data.get("vehicles", [])) if "vehicles" in self.route_data else len([k for k in self.route_data.keys() if k.startswith("vehicle_")])
         
         # Formatar término previsto
+        # Para 1 veículo, calcular o dia; para 2 veículos, usar apenas o horário
         end_time_text = vehicle_data['end_time']
         if num_vehicles == 1:
             # Calcular o dia baseado na última parada
@@ -424,7 +425,8 @@ class RouteAssistantBot:
         if len(stops_by_day) > 1:
             route_text += f"📍 *Paradas por Dia:*\n\n"
             
-            for day in sorted(stops_by_day.keys()):
+            days_sorted = sorted(stops_by_day.keys())
+            for idx, day in enumerate(days_sorted):
                 route_text += f"📅 *Dia {day}:*\n"
                 
                 for stop in stops_by_day[day]:
@@ -442,7 +444,9 @@ class RouteAssistantBot:
                         f"🕐 {stop['time']} ({stop['duration']})\n"
                     )
                 
-                route_text += "\n"
+                # Adicionar linha em branco após cada dia (exceto o último)
+                if idx < len(days_sorted) - 1:
+                    route_text += "\n"
         else:
             # Se é apenas um dia, mostrar normalmente
             route_text += f"📍 *Todas as Paradas:*\n\n"
@@ -461,10 +465,6 @@ class RouteAssistantBot:
                     f"📍 {stop['address']}\n"
                     f"🕐 {stop['time']} ({stop['duration']})\n"
                 )
-                
-                # Adicionar quebra de linha a cada 5 paradas para melhor legibilidade
-                if stop['id'] % 5 == 0:
-                    route_text += "\n"
         
         await update.message.reply_text(route_text, parse_mode='Markdown', reply_markup=self._get_keyboard(context))
     
@@ -545,6 +545,7 @@ class RouteAssistantBot:
         num_vehicles = len(self.route_data.get("vehicles", [])) if "vehicles" in self.route_data else len([k for k in self.route_data.keys() if k.startswith("vehicle_")])
         
         # Formatar término previsto
+        # Para 1 veículo, calcular o dia; para 2 veículos, usar apenas o horário
         end_time_text = vehicle_data['end_time']
         if num_vehicles == 1:
             # Calcular o dia baseado na última parada

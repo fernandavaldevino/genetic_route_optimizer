@@ -42,4 +42,4 @@ wheels/
 Thumbs.db
 
 # Json routes files
-data/routes/routes_*.json
+data/routes/route_*.json

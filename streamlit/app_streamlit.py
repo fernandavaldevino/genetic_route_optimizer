@@ -1239,6 +1239,28 @@ def main():
                             }
                             
                             for vehicle in best_solution.vehicles:
+                                # Calcular horário de retorno ao depósito usando arrival_times
+                                # arrival_times[-1] = horário de chegada na última parada
+                                # + service_duration da última parada
+                                # + tempo de viagem de volta ao depósito
+                                if vehicle.arrival_times and vehicle.route:
+                                    from src.core.service_points import calculate_travel_time
+                                    
+                                    # Carregar depot_location
+                                    depot_file = os.path.join(TEMP_DIR, DEPOT_FILE)
+                                    if os.path.exists(depot_file):
+                                        with open(depot_file, 'rb') as f:
+                                            depot_location = pickle.load(f)
+                                    else:
+                                        depot_location = (0, 0)
+                                    
+                                    last_arrival = vehicle.arrival_times[-1]
+                                    last_point = vehicle.route[-1]
+                                    return_travel_time = calculate_travel_time(last_point.location, depot_location, vehicle_speed)
+                                    return_time = last_arrival + last_point.service_duration + return_travel_time
+                                else:
+                                    return_time = 480
+                                
                                 vehicle_data = {
                                     'id': vehicle.vehicle_id,
                                     'driver': f'Motorista {vehicle.vehicle_id}',
@@ -1246,24 +1268,24 @@ def main():
                                     'total_distance': round(vehicle.total_distance * 0.1, 2),
                                     'estimated_time': f"{int(vehicle.total_time // 60)}h {int(vehicle.total_time % 60)}min",
                                     'start_time': '08:00',
-                                    'end_time': format_time(480 + vehicle.total_time),
+                                    'end_time': format_time(return_time),
                                     'stops': []
                                 }
                                 
-                                current_time = 480  # 8:00 AM
-                                for idx, point in enumerate(vehicle.route, 1):
+                                # Usar arrival_times reais ao invés de recalcular
+                                for idx, point in enumerate(vehicle.route):
+                                    arrival_time = vehicle.arrival_times[idx] if idx < len(vehicle.arrival_times) else 480
                                     stop = {
-                                        'id': idx,
+                                        'id': idx + 1,
                                         'type': PRIORITY_ABBREVIATIONS.get(point.priority, 'REG'),
                                         'priority': list(ServicePriority).index(point.priority) + 1,
                                         'address': f"Ponto {point.id}",
-                                        'time': format_time(current_time),
+                                        'time': format_time(arrival_time),
                                         'duration': f"{int(point.service_duration)} min",
                                         'instructions': f"Atendimento {PRIORITY_NAMES.get(point.priority, 'Regular')}",
                                         'special_notes': f"Ponto ID {point.id}"
                                     }
                                     vehicle_data['stops'].append(stop)
-                                    current_time += point.service_duration + 10
                                 
                                 route_data['vehicles'].append(vehicle_data)
                         else:

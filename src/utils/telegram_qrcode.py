@@ -146,15 +146,15 @@ def render_telegram_qrcode_tab(st):
         qr_bytes_v2 = generate_telegram_qrcode(bot_username, size=300, start_param="veiculo2")
         
         if qr_bytes_v1 and qr_bytes_v2:
-            # Exibir 2 QR Codes lado a lado
+            # Exibir 2 QR Codes nas primeiras 2 colunas de 4
             st.markdown("---")
-            col1, col2 = st.columns(2)
+            col1, col2, col3, col4 = st.columns(4)
             
             # QR Code Veículo 1
             with col1:
                 st.markdown("""
-                <div style='text-align: center; padding: 20px; background-color: rgba(0, 150, 0, 0.1); border-radius: 10px; border: 2px solid #009600;'>
-                    <h3 style='color: #009600; margin-bottom: 15px;'>🚗 Veículo 1</h3>
+                <div style='text-align: center; padding: 10px; background-color: rgba(0, 150, 0, 0.1); border-radius: 10px; border: 2px solid #009600;'>
+                    <h3 style='color: #009600; margin-bottom: 8px; font-size: 1.2rem;'>🚗 Veículo 1</h3>
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -192,8 +192,8 @@ def render_telegram_qrcode_tab(st):
             # QR Code Veículo 2
             with col2:
                 st.markdown("""
-                <div style='text-align: center; padding: 20px; background-color: rgba(0, 200, 200, 0.1); border-radius: 10px; border: 2px solid #00C8C8;'>
-                    <h3 style='color: #00C8C8; margin-bottom: 15px;'>🚗 Veículo 2</h3>
+                <div style='text-align: center; padding: 10px; background-color: rgba(0, 200, 200, 0.1); border-radius: 10px; border: 2px solid #00C8C8;'>
+                    <h3 style='color: #00C8C8; margin-bottom: 8px; font-size: 1.2rem;'>🚗 Veículo 2</h3>
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -231,14 +231,15 @@ def render_telegram_qrcode_tab(st):
             st.error("❌ Erro ao gerar QR Codes para os veículos.")
     
     else:
-        # MODO 1 VEÍCULO: Gerar QR Code único
+        # MODO 1 VEÍCULO: Gerar QR Code único na 1ª coluna de 4
         qr_bytes = generate_telegram_qrcode(bot_username, size=300, start_param="veiculo1")
         
         if qr_bytes:
-            # Layout original centralizado
-            col1, col2, col3 = st.columns([2, 1, 2])
+            # Layout: 1ª coluna de 4
+            st.markdown("---")
+            col1, col2, col3, col4 = st.columns(4)
             
-            with col2:
+            with col1:
                 # Exibir QR Code com tamanho fixo de 3cm (aproximadamente 113px)
                 st.markdown(f"""
                 <div style='text-align: center;'>
