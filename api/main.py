@@ -3,20 +3,25 @@ API FastAPI para Sistema de Otimização de Rotas
 Fornece endpoints REST para otimização de rotas e gerenciamento de dados
 """
 
+import os
 import sys
 import time
 import random
 from pathlib import Path
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
 
 # Adicionar diretório raiz ao path
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
+
+# Carregar variáveis de ambiente
+load_dotenv(ROOT_DIR / '.env')
 
 from api.models import (
     OptimizationRequest,
@@ -56,6 +61,26 @@ app.add_middleware(
 # Instância de integração de rotas
 route_integration = RouteDataIntegration()
 
+# Instância do bot do Telegram inicializada sob demanda
+telegram_bot = None
+
+
+def get_telegram_bot():
+    """ Obtém ou cria a instância do bot do Telegram """
+    global telegram_bot
+    if telegram_bot is None:
+        try:
+            from telegram import Bot
+            token = os.getenv("TELEGRAM_BOT_TOKEN")
+            if token:
+                telegram_bot = Bot(token=token)
+                print("✅ Bot do Telegram inicializado para webhook")
+            else:
+                print("⚠️ TELEGRAM_BOT_TOKEN não configurado")
+        except Exception as e:
+            print(f"⚠️ Erro ao inicializar bot: {e}")
+    return telegram_bot
+
 
 @app.get("/", tags=["Root"])
 async def root():
@@ -64,7 +89,8 @@ async def root():
         "message": "API de Otimização de Rotas",
         "version": "1.0.0",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "webhook": "/webhook"
     }
 
 
@@ -350,6 +376,71 @@ async def get_vehicle_data(vehicle_id: int):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao obter dados do veículo: {str(e)}"
         )
+
+
+@app.post(
+    "/webhook",
+    tags=["Telegram"],
+    summary="Webhook do Telegram",
+    description="Recebe atualizações do Telegram via webhook"
+)
+async def telegram_webhook(request: Request):
+    """ Endpoint de webhook do Telegram chamado sempre que há uma nova mensagem """
+    try:
+        # Obter dados do webhook
+        update_data = await request.json()
+        
+        # Processar usando o webhook handler otimizado
+        from telegram_bot.webhook_handler import process_telegram_update
+        
+        await process_telegram_update(update_data)
+        
+        # Sempre retornar 200 OK para o Telegram
+        return {"ok": True}
+        
+    except Exception as e:
+        print(f"❌ Erro no webhook: {e}")
+        import traceback
+        traceback.print_exc()
+        # Retornar 200 mesmo com erro para evitar reenvios do Telegram
+        return {"ok": True, "error": str(e)}
+
+
+@app.get(
+    "/webhook/info",
+    tags=["Telegram"],
+    summary="Informações do webhook",
+    description="Retorna informações sobre a configuração do webhook"
+)
+async def webhook_info():
+    """ Retorna informações sobre o webhook do Telegram para verificar se está configurado corretamente.
+    """
+    try:
+        bot = get_telegram_bot()
+        if not bot:
+            return {
+                "configured": False,
+                "message": "Bot do Telegram não configurado. Configure TELEGRAM_BOT_TOKEN no .env"
+            }
+        
+        # Obter informações do webhook
+        webhook_info = await bot.get_webhook_info()
+        
+        return {
+            "configured": True,
+            "url": webhook_info.url,
+            "has_custom_certificate": webhook_info.has_custom_certificate,
+            "pending_update_count": webhook_info.pending_update_count,
+            "last_error_date": webhook_info.last_error_date,
+            "last_error_message": webhook_info.last_error_message,
+            "max_connections": webhook_info.max_connections
+        }
+        
+    except Exception as e:
+        return {
+            "configured": False,
+            "error": str(e)
+        }
 
 
 # Tratamento de erros global
