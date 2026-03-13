@@ -52,3 +52,7 @@ htmlcov/
 # Backup files
 *.bak
 *.backup
+
+# Json routes files
+data/routes/route*.json
+route*.json
