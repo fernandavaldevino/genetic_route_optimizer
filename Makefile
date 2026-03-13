@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help setup install run streamlit start-bot stop-bot test test-specific test-cov test-html all-tests test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration clean
+.PHONY: help setup install run streamlit start-bot stop-bot test test-specific test-cov test-html all-tests test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration test-telegram clean
 
 # Target padrão
 help:
@@ -35,6 +35,7 @@ help:
 	@echo "  $(YELLOW)make test$(NC)            - Executa testes (pergunta se inclui testes pagos)"
 	@echo "  $(YELLOW)make all-tests$(NC)       - Executa TODOS os testes (incluindo testes pagos sem perguntar)"
 	@echo "  $(YELLOW)make test-specific$(NC)   - Executa teste específico (ex: FILE=test_service_points.py)"
+	@echo "  $(YELLOW)make test-telegram$(NC)   - Executa testes do Bot do Telegram"
 	@echo "  $(YELLOW)make test-cov$(NC)        - Mostra cobertura de código"
 	@echo "  $(YELLOW)make test-html$(NC)       - Executa testes e gera relatório HTML"
 	@echo ""
@@ -410,6 +411,27 @@ test-llm-integration:
 	else \
 		echo "$(YELLOW)Testes cancelados.$(NC)"; \
 	fi
+
+# Executa testes do Bot do Telegram
+test-telegram:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  TESTES DO BOT DO TELEGRAM$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@echo "$(GREEN)Executando testes do bot do Telegram e integração de rotas...$(NC)"
+	@echo "$(YELLOW)✓ Estes testes NÃO requerem o bot rodando$(NC)"
+	@echo "$(YELLOW)✓ Estes testes NÃO consomem tokens de API$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/pytest tests/test_telegram_bot.py -v
+	@echo ""
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  ✓ TESTES DO TELEGRAM CONCLUÍDOS!$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
 
 # Executa tudo de uma vez
 app: setup streamlit
