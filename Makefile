@@ -13,48 +13,53 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help setup install run streamlit start-bot stop-bot test test-specific test-cov test-html all-tests test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration test-telegram clean
+.PHONY: help setup install run streamlit start-api stop-api start-bot stop-bot test test-specific test-cov test-html all-tests test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration test-telegram test-api test-api-unit test-api-integration clean
 
 # Target padrão
 help:
 	@echo "$(GREEN)Sistema de Otimização de Rotas - Comandos Disponíveis:$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Início Rápido:$(NC)"
-	@echo "  $(YELLOW)make setup$(NC)           - Cria ambiente + Instala dependências (RECOMENDADO)"
-	@echo "  $(YELLOW)make app$(NC)             - Setup + Executa Streamlit"
+	@echo "  $(YELLOW)make setup$(NC)           		- Cria ambiente + Instala dependências (RECOMENDADO)"
+	@echo "  $(YELLOW)make app$(NC)             		- Setup + Executa Streamlit"
 	@echo ""
 	@echo "$(YELLOW)Execução:$(NC)"
-	@echo "  $(YELLOW)make run$(NC)             - Executa o sistema principal (Pygame)"
-	@echo "  $(YELLOW)make streamlit$(NC)       - Executa interface web (Streamlit)"
+	@echo "  $(YELLOW)make run$(NC)             		- Executa o sistema principal (Pygame)"
+	@echo "  $(YELLOW)make streamlit$(NC)       		- Executa interface web (Streamlit)"
+	@echo "  $(YELLOW)make start-api$(NC)       		- Executa API REST (FastAPI)"
+	@echo "  $(YELLOW)make stop-api$(NC)        		- Para a API REST"
 	@echo ""
 	@echo "$(YELLOW)Bot do Telegram:$(NC)"
-	@echo "  $(YELLOW)make start-bot$(NC)       - Inicia o bot do Telegram"
-	@echo "  $(YELLOW)make stop-bot$(NC)        - Para o bot do Telegram"
+	@echo "  $(YELLOW)make start-bot$(NC)       		- Inicia o bot do Telegram"
+	@echo "  $(YELLOW)make stop-bot$(NC)        		- Para o bot do Telegram"
 	@echo ""
 	@echo "$(YELLOW)Testes:$(NC)"
-	@echo "  $(YELLOW)make test$(NC)            - Executa testes (pergunta se inclui testes pagos)"
-	@echo "  $(YELLOW)make all-tests$(NC)       - Executa TODOS os testes (incluindo testes pagos sem perguntar)"
-	@echo "  $(YELLOW)make test-specific$(NC)   - Executa teste específico (ex: FILE=test_service_points.py)"
-	@echo "  $(YELLOW)make test-telegram$(NC)   - Executa testes do Bot do Telegram"
-	@echo "  $(YELLOW)make test-cov$(NC)        - Mostra cobertura de código"
-	@echo "  $(YELLOW)make test-html$(NC)       - Executa testes e gera relatório HTML"
+	@echo "  $(YELLOW)make test$(NC)            		- Executa testes (pergunta se inclui testes pagos)"
+	@echo "  $(YELLOW)make all-tests$(NC)       		- Executa TODOS os testes (incluindo testes pagos sem perguntar)"
+	@echo "  $(YELLOW)make test-specific$(NC)   		- Executa teste específico (ex: FILE=test_service_points.py)"
+	@echo "  $(YELLOW)make test-telegram$(NC)   		- Executa testes do Bot do Telegram"
+	@echo "  $(YELLOW)make test-api$(NC)        		- Executa todos os testes da API (unitários + integração)"
+	@echo "  $(YELLOW)make test-api-unit$(NC)   		- Executa apenas testes unitários da API"
+	@echo "  $(YELLOW)make test-api-integration$(NC)		- Executa apenas testes de integração da API"
+	@echo "  $(YELLOW)make test-cov$(NC)        		- Mostra cobertura de código"
+	@echo "  $(YELLOW)make test-html$(NC)       		- Executa testes e gera relatório HTML"
 	@echo ""
 	@echo "$(YELLOW)Testes LLM - OpenAI:$(NC)"
-	@echo "  $(YELLOW)make test-openai$(NC)              - Todos os testes OpenAI (básicos + integração)"
-	@echo "  $(YELLOW)make test-openai-basic$(NC)        - Testes básicos OpenAI (sem gastar tokens)"
-	@echo "  $(YELLOW)make test-openai-integration$(NC)  - Testes de integração OpenAI (gasta tokens)"
+	@echo "  $(YELLOW)make test-openai$(NC)			- Todos os testes OpenAI (básicos + integração)"
+	@echo "  $(YELLOW)make test-openai-basic$(NC)		- Testes básicos OpenAI (sem gastar tokens)"
+	@echo "  $(YELLOW)make test-openai-integration$(NC)		- Testes de integração OpenAI (gasta tokens)"
 	@echo ""
 	@echo "$(YELLOW)Testes LLM - Ollama:$(NC)"
-	@echo "  $(YELLOW)make test-ollama$(NC)              - Todos os testes Ollama (básicos + integração)"
-	@echo "  $(YELLOW)make test-ollama-basic$(NC)        - Testes básicos Ollama (sem conexão)"
-	@echo "  $(YELLOW)make test-ollama-integration$(NC)  - Testes de integração Ollama (requer Ollama rodando)"
+	@echo "  $(YELLOW)make test-ollama$(NC)			- Todos os testes Ollama (básicos + integração)"
+	@echo "  $(YELLOW)make test-ollama-basic$(NC)		- Testes básicos Ollama (sem conexão)"
+	@echo "  $(YELLOW)make test-ollama-integration$(NC)		- Testes de integração Ollama (requer Ollama rodando)"
 	@echo ""
 	@echo "$(YELLOW)Testes LLM - Integração Completa:$(NC)"
-	@echo "  $(YELLOW)make test-llm-integration$(NC)     - Testes de integração completos (usa provedor do .env)"
+	@echo "  $(YELLOW)make test-llm-integration$(NC)		- Testes de integração completos (usa provedor do .env)"
 	@echo ""
 	@echo "$(YELLOW)Utilitários:$(NC)"
-	@echo "  $(YELLOW)make clean$(NC)           - Remove ambiente virtual e cache"
-	@echo "  $(YELLOW)make info$(NC)            - Mostra informações do ambiente"
+	@echo "  $(YELLOW)make clean$(NC)           		- Remove ambiente virtual e cache"
+	@echo "  $(YELLOW)make info$(NC)            		- Mostra informações do ambiente"
 	@echo ""
 
 # Cria o ambiente virtual e instala dependências
@@ -98,6 +103,23 @@ setup:
 	fi
 	@echo ""
 	@echo "$(GREEN)✓ Setup concluído com sucesso!$(NC)"
+	@echo ""
+	@echo "$(GREEN)Iniciando API FastAPI...$(NC)"
+	@echo "$(YELLOW)API será iniciada em background na porta 8080$(NC)"
+	@echo "$(YELLOW)Documentação: http://localhost:8080/docs$(NC)"
+	@echo ""
+	@nohup $(VENV_NAME)/bin/uvicorn api.main:app --host 0.0.0.0 --port 8080 > api.log 2>&1 & echo $$! > api.pid
+	@sleep 2
+	@if pgrep -f "api.main:app" > /dev/null; then \
+		echo "$(GREEN)✓ API iniciada com sucesso!$(NC)"; \
+		echo "$(YELLOW)PID: $$(cat api.pid)$(NC)"; \
+		echo "$(YELLOW)Log: api.log$(NC)"; \
+		echo ""; \
+		echo "$(GREEN)Acesse: http://localhost:8080/docs$(NC)"; \
+	else \
+		echo "$(RED)Erro ao iniciar a API. Verifique o log: api.log$(NC)"; \
+		rm -f api.pid; \
+	fi
 
 # Alias para setup (compatibilidade)
 install: setup
@@ -124,6 +146,51 @@ streamlit:
 	@echo "$(YELLOW)A aplicação será aberta no navegador em http://localhost:8501$(NC)"
 	@echo ""
 	$(VENV_NAME)/bin/streamlit run streamlit/app_streamlit.py
+
+# Executa a API REST com FastAPI
+start-api:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Iniciando API REST FastAPI...$(NC)"
+	@echo "$(YELLOW)API disponível em: http://localhost:8080$(NC)"
+	@echo "$(YELLOW)Documentação Swagger: http://localhost:8080/docs$(NC)"
+	@echo "$(YELLOW)Documentação ReDoc: http://localhost:8080/redoc$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/uvicorn api.main:app --host 0.0.0.0 --port 8080 --reload
+
+# Para a API REST
+stop-api:
+	@if [ ! -f "api.pid" ]; then \
+		echo "$(YELLOW)Nenhuma API em execução (arquivo PID não encontrado).$(NC)"; \
+		if pgrep -f "api.main:app" > /dev/null; then \
+			echo "$(YELLOW)Mas encontrei um processo da API rodando. Parando...$(NC)"; \
+			pkill -f "api.main:app"; \
+			sleep 1; \
+			if pgrep -f "api.main:app" > /dev/null; then \
+				echo "$(RED)Processo não parou. Forçando...$(NC)"; \
+				pkill -9 -f "api.main:app"; \
+			fi; \
+			echo "$(GREEN)✓ API parada!$(NC)"; \
+		fi; \
+	else \
+		PID=$$(cat api.pid); \
+		if ps -p $$PID > /dev/null 2>&1; then \
+			echo "$(YELLOW)Parando API FastAPI (PID: $$PID)...$(NC)"; \
+			kill $$PID; \
+			sleep 1; \
+			if ps -p $$PID > /dev/null 2>&1; then \
+				echo "$(YELLOW)Processo não parou. Forçando...$(NC)"; \
+				kill -9 $$PID; \
+			fi; \
+			echo "$(GREEN)✓ API parada!$(NC)"; \
+		else \
+			echo "$(YELLOW)Processo não está rodando (PID $$PID não existe).$(NC)"; \
+		fi; \
+		rm -f api.pid; \
+	fi
 
 # Inicia o bot do Telegram
 start-bot:
@@ -433,12 +500,85 @@ test-telegram:
 	@echo "$(GREEN)  ✓ TESTES DO TELEGRAM CONCLUÍDOS!$(NC)"
 	@echo "$(GREEN)========================================$(NC)"
 
+# Executa todos os testes da API (unitários + integração)
+test-api:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  TESTES DA API FASTAPI$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@echo "$(GREEN)Executando testes unitários e de integração da API...$(NC)"
+	@echo "$(YELLOW)✓ Testes unitários: validações, modelos e endpoints$(NC)"
+	@echo "$(YELLOW)✓ Testes de integração: fluxos completos e persistência$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/pytest tests/test_api.py tests/test_api_integration.py -v
+	@echo ""
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  ✓ TESTES DA API CONCLUÍDOS!$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+
+# Executa apenas testes unitários da API
+test-api-unit:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  TESTES UNITÁRIOS DA API$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@echo "$(GREEN)Executando testes unitários da API...$(NC)"
+	@echo "$(YELLOW)✓ Validação de modelos Pydantic$(NC)"
+	@echo "$(YELLOW)✓ Endpoints de saúde e documentação$(NC)"
+	@echo "$(YELLOW)✓ Tratamento de erros$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/pytest tests/test_api.py -v -m "not integration"
+	@echo ""
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  ✓ TESTES UNITÁRIOS CONCLUÍDOS!$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+
+# Executa apenas testes de integração da API
+test-api-integration:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  TESTES DE INTEGRAÇÃO DA API$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@echo "$(GREEN)Executando testes de integração da API...$(NC)"
+	@echo "$(YELLOW)✓ Fluxos completos de otimização$(NC)"
+	@echo "$(YELLOW)✓ Persistência de rotas$(NC)"
+	@echo "$(YELLOW)✓ Integração entre componentes$(NC)"
+	@echo "$(YELLOW)✓ Testes de performance$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/pytest tests/test_api_integration.py -v -m integration
+	@echo ""
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  ✓ TESTES DE INTEGRAÇÃO CONCLUÍDOS!$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+
 # Executa tudo de uma vez
 app: setup streamlit
 
 # Limpa ambiente virtual e cache
 clean:
 	@echo "$(YELLOW)Removendo ambiente virtual e cache...$(NC)"
+	@echo "$(YELLOW)Parando serviços em execução...$(NC)"
+	@if [ -f "api.pid" ]; then \
+		$(MAKE) stop-api; \
+	fi
+	@if [ -f "telegram_bot.pid" ]; then \
+		$(MAKE) stop-bot; \
+	fi
 	rm -rf $(VENV_NAME)
 	rm -rf __pycache__
 	rm -rf src/__pycache__
@@ -446,9 +586,12 @@ clean:
 	rm -rf src/visualization/__pycache__
 	rm -rf src/utils/__pycache__
 	rm -rf tests/__pycache__
+	rm -rf api/__pycache__
 	rm -rf htmlcov
 	rm -rf .coverage
 	rm -rf .pytest_cache
+	rm -f api.pid api.log
+	rm -f telegram_bot.pid telegram_bot.log
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	@echo "$(GREEN)✓ Limpeza concluída!$(NC)"
