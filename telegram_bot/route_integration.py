@@ -124,15 +124,16 @@ class RouteDataIntegration:
                 if first_stop_time is None:
                     first_stop_time = current_time
                 
+                service_type = self._get_service_type_from_priority(point)
                 stop = {
                     'id': idx,
-                    'type': point.service_type,
-                    'priority': point.priority,
-                    'address': f"Ponto {point_idx} - {point.service_type}",
-                    'coordinates': {'x': point.x, 'y': point.y},
-                    'time': f"{current_time // 60:02d}:{current_time % 60:02d}",
-                    'duration': f"{point.service_duration} min",
-                    'instructions': self._get_instructions(point.service_type),
+                    'type': service_type,
+                    'priority': point.priority.value,
+                    'address': f"Ponto {point_idx} - {service_type}",
+                    'coordinates': {'x': point.location[0], 'y': point.location[1]},
+                    'time': f"{int(current_time // 60):02d}:{int(current_time % 60):02d}",
+                    'duration': f"{int(point.service_duration)} min",
+                    'instructions': self._get_instructions(service_type),
                     'special_notes': self._get_special_notes(point)
                 }
                 
@@ -191,7 +192,7 @@ class RouteDataIntegration:
                 'total_distance': round(distance_km, 2),
                 'estimated_time': f"{total_time_minutes // 60}h {total_time_minutes % 60}min",
                 'start_time': '08:00',
-                'end_time': f"{current_time // 60:02d}:{current_time % 60:02d}",
+                'end_time': f"{int(current_time // 60):02d}:{int(current_time % 60):02d}",
                 'stops': stops
             }
             
@@ -213,16 +214,17 @@ class RouteDataIntegration:
                 
                 for idx, point_idx in enumerate(vehicle_route, 1):
                     point = service_points[point_idx]
+                    service_type = self._get_service_type_from_priority(point)
                     
                     stop = {
                         'id': idx,
-                        'type': point.service_type,
-                        'priority': point.priority,
-                        'address': f"Ponto {point_idx} - {point.service_type}",
-                        'coordinates': {'x': point.x, 'y': point.y},
-                        'time': f"{current_time // 60:02d}:{current_time % 60:02d}",
-                        'duration': f"{point.service_duration} min",
-                        'instructions': self._get_instructions(point.service_type),
+                        'type': service_type,
+                        'priority': point.priority.value,
+                        'address': f"Ponto {point_idx} - {service_type}",
+                        'coordinates': {'x': point.location[0], 'y': point.location[1]},
+                        'time': f"{int(current_time // 60):02d}:{int(current_time % 60):02d}",
+                        'duration': f"{int(point.service_duration)} min",
+                        'instructions': self._get_instructions(service_type),
                         'special_notes': self._get_special_notes(point)
                     }
                     
@@ -276,13 +278,25 @@ class RouteDataIntegration:
                     'total_distance': round(distance_km / 2, 2),
                     'estimated_time': f"{total_time_minutes // 60}h {total_time_minutes % 60}min",
                     'start_time': '08:00',
-                    'end_time': f"{current_time // 60:02d}:{current_time % 60:02d}",
+                    'end_time': f"{int(current_time // 60):02d}:{int(current_time % 60):02d}",
                     'stops': stops
                 }
                 
                 route_data['vehicles'].append(vehicle_data)
         
         return route_data
+    
+    def _get_service_type_from_priority(self, point) -> str:
+        """ Converte prioridade do ServicePoint para tipo de serviço """
+        priority_map = {
+            'EMERGENCY_OBSTETRIC': 'EME',
+            'DOMESTIC_VIOLENCE': 'VIO',
+            'HORMONAL_MEDICATION': 'MED',
+            'POSTPARTUM_CARE': 'POS',
+            'REGULAR': 'REG'
+        }
+        priority_name = point.priority.name
+        return priority_map.get(priority_name, 'REG')
     
     def _get_instructions(self, service_type: str) -> str:
         """ Retorna instruções baseadas no tipo de serviço """
@@ -304,7 +318,8 @@ class RouteDataIntegration:
             'POS': 'Janela de tempo: 9h-11h.',
             'REG': 'Horário comercial: 8h-18h.'
         }
-        return notes.get(point.service_type, 'Seguir protocolo padrão.')
+        service_type = self._get_service_type_from_priority(point)
+        return notes.get(service_type, 'Seguir protocolo padrão.')
 
 
 # Exemplo de uso
