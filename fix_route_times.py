@@ -65,9 +65,7 @@ def calculate_correct_time(stops: List[Dict]) -> str:
 
 
 def fix_route_file(filepath: Path) -> bool:
-    """
-    Corrige o tempo estimado em um arquivo de rota
-    """
+    """ Corrige o tempo estimado em um arquivo de rota """
     try:
         # Carregar arquivo
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -100,9 +98,7 @@ def fix_route_file(filepath: Path) -> bool:
 
 
 def main():
-    """
-    Processa todos os arquivos de rota
-    """
+    """ Processa todos os arquivos de rota """
     data_dir = Path(__file__).parent / 'data' / 'routes'
     
     if not data_dir.exists():

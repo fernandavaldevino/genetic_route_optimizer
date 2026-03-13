@@ -394,24 +394,34 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
     
     pygame.quit()
 
-def display_results(best_route, best_fitness, arrival_times):
+def display_results(best_route, best_fitness, arrival_times, route_json=None):
     """Exibe os resultados da otimização"""
-    
-    last_service_arrival = arrival_times[-1]
-    max_day = get_day_from_minutes(last_service_arrival)
-    time_str = format_time(last_service_arrival)
     
     from src.core.service_points import calculate_distance
     
-    # Agrupar pontos por dia
+    # Agrupar pontos por dia usando detecção de mudança de horário
     points_by_day = {}
+    current_day = 1
+    previous_time_mins = None
+    
     for i, point in enumerate(best_route):
         if point.id == 0:
             continue
-        day = get_day_from_minutes(arrival_times[i])
-        if day not in points_by_day:
-            points_by_day[day] = []
-        points_by_day[day].append((point, arrival_times[i]))
+        
+        # Converter arrival_time para horário do dia (0-1439)
+        time_mins = arrival_times[i] % 1440
+        
+        # Detectar mudança de dia (horário volta para trás)
+        if previous_time_mins is not None and time_mins < previous_time_mins:
+            current_day += 1
+        
+        if current_day not in points_by_day:
+            points_by_day[current_day] = []
+        points_by_day[current_day].append((point, time_mins))
+        
+        previous_time_mins = time_mins
+    
+    max_day = max(points_by_day.keys()) if points_by_day else 1
     
     # Calcular distância por dia e distância total
     distance_by_day = {}
@@ -459,25 +469,19 @@ def display_results(best_route, best_fitness, arrival_times):
         st.metric("Distância Total", f"{total_distance_km:.1f} km")
     
     with col4:
-        # Calcular tempo total: somar tempo de percurso de todos os dias
-        total_time_hours = 0.0
+        # Calcular tempo total: somar tempo de trabalho de cada dia
+        total_time_minutes = 0
         for day in sorted(points_by_day.keys()):
             day_points = points_by_day[day]
             if day_points:
-                first_arrival = day_points[0][1]
+                first_arrival = day_points[0][1]  # Já em minutos do dia (0-1439)
                 last_arrival = day_points[-1][1]
-                day_time = last_arrival - first_arrival + day_points[-1][0].service_duration
-                
-                # Se for o último dia, adicionar tempo de retorno ao depósito
-                if day == sorted(points_by_day.keys())[-1]:
-                    return_distance = calculate_distance(day_points[-1][0].location, depot.location)
-                    vehicle_speed = st.session_state.get('vehicle_speed', 60)
-                    speed_km_per_min = vehicle_speed / 60.0
-                    return_time = (return_distance * 0.1) / speed_km_per_min
-                    day_time += return_time
-                
-                total_time_hours += day_time / 60.0
+                last_duration = day_points[-1][0].service_duration
+                # Tempo de trabalho do dia
+                day_time = (last_arrival - first_arrival) + last_duration
+                total_time_minutes += day_time
         
+        total_time_hours = total_time_minutes / 60.0
         st.metric("Tempo Total", f"{total_time_hours:.1f}h")
     
     st.divider()
@@ -495,18 +499,11 @@ def display_results(best_route, best_fitness, arrival_times):
             
             day_points = points_by_day[day]
             if day_points:
-                first_arrival = day_points[0][1]
+                first_arrival = day_points[0][1]  # Já em minutos do dia (0-1439)
                 last_arrival = day_points[-1][1]
-                day_time = last_arrival - first_arrival + day_points[-1][0].service_duration
-                
-                # Se for o último dia, adicionar tempo de retorno ao depósito
-                if day_idx == len(sorted_days) - 1:
-                    return_distance = calculate_distance(day_points[-1][0].location, depot.location)
-                    # Velocidade média: 50 km/h = 0.833 km/min
-                    # Distância em unidades do jogo * 0.1 = km
-                    # Tempo = distância_km / velocidade_km_por_min
-                    return_time = (return_distance * 0.1) / 0.833
-                    day_time += return_time
+                last_duration = day_points[-1][0].service_duration
+                # Tempo de trabalho do dia
+                day_time = (last_arrival - first_arrival) + last_duration
                 
                 hours = int(day_time // 60)
                 minutes = int(day_time % 60)
@@ -646,9 +643,33 @@ def display_results_multi_vehicle(best_solution, best_fitness):
         st.metric("Distância Total", f"{total_distance_km:.1f} km")
     
     with col4:
-        # Calcular tempo total: somar tempo de percurso dos 2 veículos
-        total_time_minutes = sum(v.total_time for v in best_solution.vehicles)
-        total_time_hours = total_time_minutes / 60.0
+        # Calcular tempo total corretamente (apenas tempo de trabalho, sem o descanso) e carregar dados do JSON salvo que já tem o tempo correto
+        try:
+            from telegram_bot.route_integration import RouteDataIntegration
+            integration = RouteDataIntegration()
+            route_json = integration.load_latest_route()
+            
+            if route_json and route_json.get('vehicles'):
+                # Somar tempo estimado de todos os veículos do JSON
+                total_time_minutes = 0
+                for vehicle_data in route_json['vehicles']:
+                    estimated_time_str = vehicle_data.get('estimated_time', '0h 0min')
+                    # Parse "7h 26min" -> minutos
+                    parts = estimated_time_str.replace('h', '').replace('min', '').split()
+                    if len(parts) >= 2:
+                        total_time_minutes += int(parts[0]) * 60 + int(parts[1])
+                    elif len(parts) == 1:
+                        total_time_minutes += int(parts[0]) * 60
+                total_time_hours = total_time_minutes / 60.0
+            else:
+                # Fallback: usar total_time do algoritmo (pode estar incorreto)
+                total_time_minutes = sum(v.total_time for v in best_solution.vehicles)
+                total_time_hours = total_time_minutes / 60.0
+        except:
+            # Fallback: usar total_time do algoritmo
+            total_time_minutes = sum(v.total_time for v in best_solution.vehicles)
+            total_time_hours = total_time_minutes / 60.0
+        
         st.metric("Tempo Total", f"{total_time_hours:.1f}h")
     
     st.divider()
@@ -667,9 +688,47 @@ def display_results_multi_vehicle(best_solution, best_fitness):
             distance_km = vehicle.total_distance * 0.1
             st.metric("Distância", f"{distance_km:.1f} km")
             
-            # Converter tempo de minutos para horas e minutos
-            hours = int(vehicle.total_time // 60)
-            minutes = int(vehicle.total_time % 60)
+            # Usar tempo do JSON ao invés de vehicle.total_time
+            try:
+                from telegram_bot.route_integration import RouteDataIntegration
+                integration = RouteDataIntegration()
+                route_json = integration.load_latest_route()
+                
+                if route_json and route_json.get('vehicles'):
+                    # Encontrar dados deste veículo no JSON
+                    vehicle_data = None
+                    for v_data in route_json['vehicles']:
+                        if v_data.get('id') == vehicle.vehicle_id:
+                            vehicle_data = v_data
+                            break
+                    
+                    if vehicle_data:
+                        estimated_time_str = vehicle_data.get('estimated_time', '0h 0min')
+                        # Parse "7h 26min" -> horas e minutos
+                        parts = estimated_time_str.replace('h', '').replace('min', '').split()
+                        if len(parts) >= 2:
+                            hours = int(parts[0])
+                            minutes = int(parts[1])
+                        elif len(parts) == 1:
+                            hours = int(parts[0])
+                            minutes = 0
+                        else:
+                            # Fallback
+                            hours = int(vehicle.total_time // 60)
+                            minutes = int(vehicle.total_time % 60)
+                    else:
+                        # Fallback
+                        hours = int(vehicle.total_time // 60)
+                        minutes = int(vehicle.total_time % 60)
+                else:
+                    # Fallback
+                    hours = int(vehicle.total_time // 60)
+                    minutes = int(vehicle.total_time % 60)
+            except:
+                # Fallback: usar vehicle.total_time
+                hours = int(vehicle.total_time // 60)
+                minutes = int(vehicle.total_time % 60)
+            
             st.metric("Tempo Total", f"{hours}h{minutes:02d}")
     
     st.divider()
@@ -1239,12 +1298,10 @@ def main():
                             }
                             
                             for vehicle in best_solution.vehicles:
-                                # Calcular horário de retorno ao depósito usando arrival_times
-                                # arrival_times[-1] = horário de chegada na última parada
-                                # + service_duration da última parada
-                                # + tempo de viagem de volta ao depósito
+                                # Calcular horário de retorno ao depósito
+                                # Última parada + duração + tempo de viagem de volta
                                 if vehicle.arrival_times and vehicle.route:
-                                    from src.core.service_points import calculate_travel_time
+                                    from src.core.service_points import calculate_distance
                                     
                                     # Carregar depot_location
                                     depot_file = os.path.join(TEMP_DIR, DEPOT_FILE)
@@ -1254,9 +1311,16 @@ def main():
                                     else:
                                         depot_location = (0, 0)
                                     
+                                    # Última parada (em minutos absolutos)
                                     last_arrival = vehicle.arrival_times[-1]
                                     last_point = vehicle.route[-1]
-                                    return_travel_time = calculate_travel_time(last_point.location, depot_location, vehicle_speed)
+                                    
+                                    # Calcular tempo de retorno ao depósito
+                                    return_distance = calculate_distance(last_point.location, depot_location)
+                                    speed_km_per_min = vehicle_speed / 60.0
+                                    return_travel_time = (return_distance * 0.1) / speed_km_per_min
+                                    
+                                    # Horário de retorno = última parada + duração + viagem de volta
                                     return_time = last_arrival + last_point.service_duration + return_travel_time
                                 else:
                                     return_time = 480
@@ -1286,6 +1350,52 @@ def main():
                                         'special_notes': f"Ponto ID {point.id}"
                                     }
                                     vehicle_data['stops'].append(stop)
+                                
+                                # CORREÇÃO: Calcular tempo total corretamente (apenas tempo de trabalho, sem o descanso)
+                                # Usar o mesmo algoritmo do route_integration.py
+                                stops = vehicle_data['stops']
+                                days = []
+                                current_day_stops = []
+                                previous_time_mins = None
+                                
+                                for stop in stops:
+                                    time_str = stop['time']
+                                    hours, mins = map(int, time_str.split(':'))
+                                    stop_time_mins = hours * 60 + mins
+                                    
+                                    # Detectar mudança de dia (horário volta para trás)
+                                    if previous_time_mins is not None and stop_time_mins < previous_time_mins:
+                                        if current_day_stops:
+                                            days.append(current_day_stops)
+                                        current_day_stops = [stop]
+                                    else:
+                                        current_day_stops.append(stop)
+                                    
+                                    duration_mins = int(stop['duration'].split()[0])
+                                    previous_time_mins = stop_time_mins + duration_mins
+                                
+                                # Adicionar último dia
+                                if current_day_stops:
+                                    days.append(current_day_stops)
+                                
+                                # Calcular tempo de trabalho de cada dia (SEM contar descanso)
+                                total_time_minutes = 0
+                                for day_stops in days:
+                                    first_time = day_stops[0]['time']
+                                    first_h, first_m = map(int, first_time.split(':'))
+                                    first_mins = first_h * 60 + first_m
+                                    
+                                    last_time = day_stops[-1]['time']
+                                    last_h, last_m = map(int, last_time.split(':'))
+                                    last_mins = last_h * 60 + last_m
+                                    last_duration = int(day_stops[-1]['duration'].split()[0])
+                                    
+                                    # Tempo de trabalho do dia
+                                    day_time = (last_mins + last_duration) - first_mins
+                                    total_time_minutes += day_time
+                                
+                                # Atualizar estimated_time com o valor correto
+                                vehicle_data['estimated_time'] = f"{total_time_minutes // 60}h {total_time_minutes % 60}min"
                                 
                                 route_data['vehicles'].append(vehicle_data)
                         else:
@@ -1326,6 +1436,52 @@ def main():
                                     'special_notes': f"Ponto ID {point.id}"
                                 }
                                 route_data['vehicles'][0]['stops'].append(stop)
+                            
+                            # Calcular tempo total corretamente (apenas tempo de trabalho, sem o descanso)
+                            # Usar o mesmo algoritmo do route_integration.py
+                            stops = route_data['vehicles'][0]['stops']
+                            days = []
+                            current_day_stops = []
+                            previous_time_mins = None
+                            
+                            for stop in stops:
+                                time_str = stop['time']
+                                hours, mins = map(int, time_str.split(':'))
+                                stop_time_mins = hours * 60 + mins
+                                
+                                # Detectar mudança de dia (horário volta para trás)
+                                if previous_time_mins is not None and stop_time_mins < previous_time_mins:
+                                    if current_day_stops:
+                                        days.append(current_day_stops)
+                                    current_day_stops = [stop]
+                                else:
+                                    current_day_stops.append(stop)
+                                
+                                duration_mins = int(stop['duration'].split()[0])
+                                previous_time_mins = stop_time_mins + duration_mins
+                            
+                            # Adicionar último dia
+                            if current_day_stops:
+                                days.append(current_day_stops)
+                            
+                            # Calcular tempo de trabalho de cada dia (SEM contar descanso)
+                            total_time_minutes = 0
+                            for day_stops in days:
+                                first_time = day_stops[0]['time']
+                                first_h, first_m = map(int, first_time.split(':'))
+                                first_mins = first_h * 60 + first_m
+                                
+                                last_time = day_stops[-1]['time']
+                                last_h, last_m = map(int, last_time.split(':'))
+                                last_mins = last_h * 60 + last_m
+                                last_duration = int(day_stops[-1]['duration'].split()[0])
+                                
+                                # Tempo de trabalho do dia
+                                day_time = (last_mins + last_duration) - first_mins
+                                total_time_minutes += day_time
+                            
+                            # Atualizar estimated_time com o valor correto
+                            route_data['vehicles'][0]['estimated_time'] = f"{total_time_minutes // 60}h {total_time_minutes % 60}min"
                         
                         # Salvar dados
                         integration.save_route(route_data)
