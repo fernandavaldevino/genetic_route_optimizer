@@ -142,7 +142,7 @@ class RouteDataIntegration:
                 current_time += point.service_duration + 10
                 last_stop_end_time = current_time
             
-            # Calcular tempo total considerando múltiplos dias e agrupar paradas por dia
+            # Calcular tempo total de trabalho e agrupar paradas por dia
             days = []
             current_day_stops = []
             previous_time_mins = None
@@ -152,7 +152,7 @@ class RouteDataIntegration:
                 hours, mins = map(int, time_str.split(':'))
                 stop_time_mins = hours * 60 + mins
                 
-                # Detectar mudança de dia
+                # Detectar mudança de dia (horário volta para trás)
                 if previous_time_mins is not None and stop_time_mins < previous_time_mins:
                     if current_day_stops:
                         days.append(current_day_stops)
@@ -167,9 +167,10 @@ class RouteDataIntegration:
             if current_day_stops:
                 days.append(current_day_stops)
             
-            # Calcular tempo de cada dia
+            # Calcular tempo de trabalho de cada dia (SEM contar descanso)
             total_time_minutes = 0
             for day_stops in days:
+                # Tempo do dia = (horário fim última parada) - (horário início primeira parada)
                 first_time = day_stops[0]['time']
                 first_h, first_m = map(int, first_time.split(':'))
                 first_mins = first_h * 60 + first_m
@@ -179,6 +180,7 @@ class RouteDataIntegration:
                 last_mins = last_h * 60 + last_m
                 last_duration = int(day_stops[-1]['duration'].split()[0])
                 
+                # Tempo de trabalho do dia (início até fim + duração da última parada)
                 day_time = (last_mins + last_duration) - first_mins
                 total_time_minutes += day_time
             
