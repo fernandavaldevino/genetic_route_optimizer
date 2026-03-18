@@ -1,18 +1,23 @@
-# Usa uma imagem oficial do Python leve
-FROM python:3.10-slim
+# Usa uma imagem oficial do Python
+FROM python:3.11-slim
 
 # Define o diretório de trabalho dentro do container
 WORKDIR /app
 
-# Copia os arquivos de dependências e instala
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Instala apenas as dependências essenciais
+RUN pip install --no-cache-dir \
+    fastapi==0.115.0 \
+    uvicorn[standard]==0.32.0 \
+    pydantic==2.9.2
 
-# Copia o resto do código da aplicação
-COPY . .
+# Copia apenas os arquivos necessários
+COPY main.py .
 
 # Expõe a porta que o Cloud Run espera (8080)
 EXPOSE 8080
 
-# Comando para rodar a aplicação FastAPI (não o bot em polling)
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Define variável de ambiente
+ENV PYTHONUNBUFFERED=1
+
+# Comando para rodar a aplicação
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
