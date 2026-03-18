@@ -1,0 +1,25 @@
+steps:
+  # Build da imagem Docker
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/project-1804e3ce-8509-46cd-b62/gro-repository/genetic-route-optimizer-api:latest'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/project-1804e3ce-8509-46cd-b62/gro-repository/genetic-route-optimizer-api:v1.0.0'
+      - '.'
+  
+  # Push da imagem para o Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/project-1804e3ce-8509-46cd-b62/gro-repository/genetic-route-optimizer-api'
+
+# Imagens que serão armazenadas
+images:
+  - 'us-central1-docker.pkg.dev/project-1804e3ce-8509-46cd-b62/gro-repository/genetic-route-optimizer-api:latest'
+  - 'us-central1-docker.pkg.dev/project-1804e3ce-8509-46cd-b62/gro-repository/genetic-route-optimizer-api:v1.0.0'
+
+# Timeout do build
+timeout: '600s'

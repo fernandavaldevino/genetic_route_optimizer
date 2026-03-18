@@ -53,6 +53,15 @@ htmlcov/
 *.bak
 *.backup
 
+# Terraform
+# Manter .terraform.lock.hcl (deve subir para o Git)
+# Ignorar diretório .terraform/ e arquivos de estado
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform.tfstate.lock.info
+
 # Json routes files
 data/routes/route*.json
 route*.json
+key.json
