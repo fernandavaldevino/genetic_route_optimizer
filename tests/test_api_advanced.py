@@ -14,7 +14,7 @@ from api.main import app, get_telegram_bot
 class TestTelegramWebhook:
     """ Testes para webhook do Telegram """
     
-    @patch('api.main.process_telegram_update')
+    @patch('telegram_bot.webhook_handler.process_telegram_update')
     async def test_webhook_endpoint_receives_update(self, mock_process, api_client):
         """ Testa se webhook recebe atualizações do Telegram """
         update_data = {
@@ -58,8 +58,10 @@ class TestTelegramWebhook:
             headers={"Content-Type": "application/json"}
         )
         
-        # Deve retornar erro de validação
-        assert response.status_code == 422
+        # Webhook retorna 200 mesmo com erro (por design, para não reenviar)
+        assert response.status_code == 200
+        data = response.json()
+        assert "ok" in data
     
     @patch('api.main.get_telegram_bot')
     def test_webhook_info_without_bot_configured(self, mock_get_bot, api_client):
@@ -99,7 +101,7 @@ class TestTelegramBotInitialization:
     """ Testes para inicialização do bot do Telegram """
     
     @patch.dict('os.environ', {'TELEGRAM_BOT_TOKEN': 'test_token_123'})
-    @patch('api.main.Bot')
+    @patch('telegram.Bot')
     def test_get_telegram_bot_with_token(self, mock_bot_class):
         """ Testa obtenção do bot com token configurado """
         mock_bot_instance = Mock()
