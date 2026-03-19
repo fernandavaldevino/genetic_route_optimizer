@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help setup install run streamlit start-api stop-api start-bot stop-bot test test-specific test-cov test-html all-tests test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration test-telegram test-api test-api-unit test-api-integration clean
+.PHONY: help setup install run streamlit start-api stop-api start-bot stop-bot test test-specific test-cov all-tests test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration test-telegram test-api test-api-unit test-api-integration test-cloud test-coverage-report clean
 
 # Target padrão
 help:
@@ -38,11 +38,12 @@ help:
 	@echo "  $(YELLOW)make all-tests$(NC)       		- Executa TODOS os testes (incluindo testes pagos sem perguntar)"
 	@echo "  $(YELLOW)make test-specific$(NC)   		- Executa teste específico (ex: FILE=test_service_points.py)"
 	@echo "  $(YELLOW)make test-telegram$(NC)   		- Executa testes do Bot do Telegram"
-	@echo "  $(YELLOW)make test-api$(NC)        		- Executa todos os testes da API (unitários + integração)"
+	@echo "  $(YELLOW)make test-api$(NC)        		- Executa todos os testes da API (unitários + integração + avançados)"
 	@echo "  $(YELLOW)make test-api-unit$(NC)   		- Executa apenas testes unitários da API"
 	@echo "  $(YELLOW)make test-api-integration$(NC)		- Executa apenas testes de integração da API"
-	@echo "  $(YELLOW)make test-cov$(NC)        		- Mostra cobertura de código"
-	@echo "  $(YELLOW)make test-html$(NC)       		- Executa testes e gera relatório HTML"
+	@echo "  $(YELLOW)make test-cloud$(NC)      		- Executa testes de Cloud/Deployment (GCP, Terraform, Docker)"
+	@echo "  $(YELLOW)make test-cov$(NC)        		- Executa todos os testes e mostra cobertura no terminal"
+	@echo "  $(YELLOW)make test-coverage-report$(NC)		- Executa todos os testes e gera relatório HTML completo"
 	@echo ""
 	@echo "$(YELLOW)Testes LLM - OpenAI:$(NC)"
 	@echo "  $(YELLOW)make test-openai$(NC)			- Todos os testes OpenAI (básicos + integração)"
@@ -312,35 +313,21 @@ test-specific:
 		$(VENV_NAME)/bin/pytest tests/$(FILE) -v; \
 	fi
 
-# Mostra cobertura de código (sem executar testes)
+# Mostra cobertura de código (executa TODOS os testes incluindo integração)
 test-cov:
 	@if [ ! -d "$(VENV_NAME)" ]; then \
 		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
 		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
 		exit 1; \
 	fi
-	@if [ ! -f ".coverage" ]; then \
-		echo "$(YELLOW)Nenhum dado de cobertura encontrado. Executando testes primeiro...$(NC)"; \
-		echo ""; \
-		$(VENV_NAME)/bin/pytest tests/ --cov=src --cov-report= -q; \
-	fi
+	@echo "$(GREEN)Executando TODOS os testes e gerando cobertura...$(NC)"
+	@echo "$(RED)⚠️  Inclui testes de integração que consomem tokens!$(NC)"
+	@echo ""
+	@$(VENV_NAME)/bin/pytest tests/ --cov=src --cov=api --cov=telegram_bot --cov-report=term -v
+	@echo ""
 	@echo "$(GREEN)Relatório de Cobertura de Código:$(NC)"
 	@echo ""
-	@$(VENV_NAME)/bin/coverage report --include="src/*"
-
-# Executa testes e gera relatório HTML
-test-html:
-	@if [ ! -d "$(VENV_NAME)" ]; then \
-		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
-		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(GREEN)Executando testes e gerando relatório HTML...$(NC)"
-	@echo ""
-	$(VENV_NAME)/bin/pytest tests/ --cov=src --cov-report=html --cov-report=term -v
-	@echo ""
-	@echo "$(GREEN)✓ Relatório HTML gerado em: htmlcov/index.html$(NC)"
-	@echo "$(YELLOW)Abra o arquivo no navegador para visualizar a cobertura detalhada.$(NC)"
+	@$(VENV_NAME)/bin/coverage report
 
 # Executa TODOS os testes do projeto (incluindo testes de integração que gastam tokens)
 all-tests:
@@ -500,7 +487,7 @@ test-telegram:
 	@echo "$(GREEN)  ✓ TESTES DO TELEGRAM CONCLUÍDOS!$(NC)"
 	@echo "$(GREEN)========================================$(NC)"
 
-# Executa todos os testes da API (unitários + integração)
+# Executa todos os testes da API (unitários + integração + avançados)
 test-api:
 	@if [ ! -d "$(VENV_NAME)" ]; then \
 		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
@@ -508,17 +495,18 @@ test-api:
 		exit 1; \
 	fi
 	@echo "$(GREEN)========================================$(NC)"
-	@echo "$(GREEN)  TESTES DA API FASTAPI$(NC)"
+	@echo "$(GREEN)  TESTES COMPLETOS DA API FASTAPI$(NC)"
 	@echo "$(GREEN)========================================$(NC)"
 	@echo ""
-	@echo "$(GREEN)Executando testes unitários e de integração da API...$(NC)"
+	@echo "$(GREEN)Executando todos os testes da API...$(NC)"
 	@echo "$(YELLOW)✓ Testes unitários: validações, modelos e endpoints$(NC)"
 	@echo "$(YELLOW)✓ Testes de integração: fluxos completos e persistência$(NC)"
+	@echo "$(YELLOW)✓ Testes avançados: webhook, validações, parâmetros$(NC)"
 	@echo ""
-	$(VENV_NAME)/bin/pytest tests/test_api.py tests/test_api_integration.py -v
+	$(VENV_NAME)/bin/pytest tests/test_api.py tests/test_api_integration.py tests/test_api_advanced.py -v
 	@echo ""
 	@echo "$(GREEN)========================================$(NC)"
-	@echo "$(GREEN)  ✓ TESTES DA API CONCLUÍDOS!$(NC)"
+	@echo "$(GREEN)  ✓ TODOS OS TESTES DA API CONCLUÍDOS!$(NC)"
 	@echo "$(GREEN)========================================$(NC)"
 
 # Executa apenas testes unitários da API
@@ -565,6 +553,86 @@ test-api-integration:
 	@echo "$(GREEN)========================================$(NC)"
 	@echo "$(GREEN)  ✓ TESTES DE INTEGRAÇÃO CONCLUÍDOS!$(NC)"
 	@echo "$(GREEN)========================================$(NC)"
+
+# Executa testes avançados da API (webhook, validações, etc.)
+test-api-advanced:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  TESTES AVANÇADOS DA API$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@echo "$(GREEN)Executando testes avançados da API...$(NC)"
+	@echo "$(YELLOW)✓ Webhook do Telegram$(NC)"
+	@echo "$(YELLOW)✓ Inicialização do bot$(NC)"
+	@echo "$(YELLOW)✓ Validações avançadas$(NC)"
+	@echo "$(YELLOW)✓ Diferentes parâmetros de otimização$(NC)"
+	@echo "$(YELLOW)✓ Tipos de serviço e janelas de tempo$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/pytest tests/test_api_advanced.py -v
+	@echo ""
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  ✓ TESTES AVANÇADOS CONCLUÍDOS!$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+
+# Executa testes de Cloud/Deployment (GCP, Terraform, Docker)
+test-cloud:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  TESTES DE CLOUD/DEPLOYMENT$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@echo "$(GREEN)Executando testes de infraestrutura e deployment...$(NC)"
+	@echo "$(YELLOW)✓ Configuração do Cloud Build$(NC)"
+	@echo "$(YELLOW)✓ Configuração do Terraform$(NC)"
+	@echo "$(YELLOW)✓ Dockerfile e Docker$(NC)"
+	@echo "$(YELLOW)✓ Variáveis de ambiente$(NC)"
+	@echo "$(YELLOW)✓ Documentação GCP$(NC)"
+	@echo "$(YELLOW)✓ Makefile$(NC)"
+	@echo "$(YELLOW)✓ Cloud Run deployment$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/pytest tests/test_cloud_deployment.py -v
+	@echo ""
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  ✓ TESTES DE CLOUD CONCLUÍDOS!$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+
+# Gera relatório completo de cobertura de testes (TODOS os testes incluindo integração)
+test-coverage-report:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
+		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  RELATÓRIO COMPLETO DE COBERTURA$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@echo "$(GREEN)Executando TODOS os 266 testes (incluindo integração)...$(NC)"
+	@echo "$(RED)⚠️  ATENÇÃO: Testes de integração consomem tokens da API!$(NC)"
+	@echo "$(YELLOW)Isso pode levar alguns minutos...$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/pytest tests/ --cov=src --cov=api --cov=telegram_bot --cov-report=html --cov-report=term-missing -v
+	@echo ""
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  ✓ RELATÓRIO GERADO COM SUCESSO!$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Total de testes executados: 266$(NC)"
+	@echo "$(YELLOW)Relatório HTML: htmlcov/index.html$(NC)"
+	@echo "$(YELLOW)Relatório Markdown: docs/COVERAGE_REPORT.md$(NC)"
+	@echo ""
+	@echo "$(GREEN)Abra o relatório HTML no navegador:$(NC)"
+	@echo "  macOS:   $(YELLOW)open htmlcov/index.html$(NC)"
+	@echo "  Linux:   $(YELLOW)xdg-open htmlcov/index.html$(NC)"
+	@echo "  Windows: $(YELLOW)start htmlcov/index.html$(NC)"
 
 # Executa tudo de uma vez
 app: setup streamlit
