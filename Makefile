@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help setup install run streamlit start-api stop-api start-bot stop-bot test test-specific test-cov test-html all-tests test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration test-telegram test-api test-api-unit test-api-integration test-api-advanced test-cloud test-coverage-report clean
+.PHONY: help setup install run streamlit start-api stop-api start-bot stop-bot test test-specific test-cov all-tests test-openai test-openai-basic test-openai-integration test-ollama test-ollama-basic test-ollama-integration test-llm-integration test-telegram test-api test-api-unit test-api-integration test-cloud test-coverage-report clean
 
 # Target padrão
 help:
@@ -42,9 +42,8 @@ help:
 	@echo "  $(YELLOW)make test-api-unit$(NC)   		- Executa apenas testes unitários da API"
 	@echo "  $(YELLOW)make test-api-integration$(NC)		- Executa apenas testes de integração da API"
 	@echo "  $(YELLOW)make test-cloud$(NC)      		- Executa testes de Cloud/Deployment (GCP, Terraform, Docker)"
-	@echo "  $(YELLOW)make test-cov$(NC)        		- Mostra cobertura de código"
-	@echo "  $(YELLOW)make test-html$(NC)       		- Executa testes e gera relatório HTML"
-	@echo "  $(YELLOW)make test-coverage-report$(NC)		- Gera relatório completo de cobertura (HTML + Terminal)"
+	@echo "  $(YELLOW)make test-cov$(NC)        		- Executa todos os testes e mostra cobertura no terminal"
+	@echo "  $(YELLOW)make test-coverage-report$(NC)		- Executa todos os testes e gera relatório HTML completo"
 	@echo ""
 	@echo "$(YELLOW)Testes LLM - OpenAI:$(NC)"
 	@echo "  $(YELLOW)make test-openai$(NC)			- Todos os testes OpenAI (básicos + integração)"
@@ -329,20 +328,6 @@ test-cov:
 	@echo "$(GREEN)Relatório de Cobertura de Código:$(NC)"
 	@echo ""
 	@$(VENV_NAME)/bin/coverage report
-
-# Executa testes e gera relatório HTML
-test-html:
-	@if [ ! -d "$(VENV_NAME)" ]; then \
-		echo "$(RED)Erro: Ambiente virtual não encontrado!$(NC)"; \
-		echo "$(YELLOW)Execute 'make setup' primeiro.$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(GREEN)Executando testes e gerando relatório HTML...$(NC)"
-	@echo ""
-	$(VENV_NAME)/bin/pytest tests/ --cov=src --cov-report=html --cov-report=term -v
-	@echo ""
-	@echo "$(GREEN)✓ Relatório HTML gerado em: htmlcov/index.html$(NC)"
-	@echo "$(YELLOW)Abra o arquivo no navegador para visualizar a cobertura detalhada.$(NC)"
 
 # Executa TODOS os testes do projeto (incluindo testes de integração que gastam tokens)
 all-tests:
