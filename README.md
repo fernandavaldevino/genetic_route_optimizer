@@ -687,13 +687,10 @@ start htmlcov/index.html  # Windows
 ### Documentos Disponíveis
 
 - [README.md](README.md) - Este arquivo
-- [DEPLOY_GCP_NEW.md](docs/DEPLOY_GCP_NEW.md) - Guia completo de deploy no GCP
-- [TROUBLESHOOTING_GCP.md](docs/TROUBLESHOOTING_GCP.md) - Solução de problemas no GCP
 - [README_LLM.md](docs/README_LLM.md) - Integração com LLMs
 - [README_RESTRICOES.md](docs/README_RESTRICOES.md) - Restrições do algoritmo
 - [README_STREAMLIT.md](docs/README_STREAMLIT.md) - Dashboard Streamlit
 - [README_TESTS.md](docs/README_TESTS.md) - Guia de testes
-- [WEBHOOK_SETUP.md](docs/WEBHOOK_SETUP.md) - Configuração de webhooks
 
 ### API Documentation
 
