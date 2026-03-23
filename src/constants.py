@@ -259,6 +259,42 @@ TOURNAMENT_SIZE_LATE = 3         # Final: mais diversidade
 TOURNAMENT_EARLY_THRESHOLD = 0.3  # Primeiros 30%
 TOURNAMENT_MID_THRESHOLD = 0.7    # 30% a 70%
 
+# Mutação dinâmica (2 veículos)
+MUTATION_RATE_INITIAL = 0.7      # Taxa inicial de mutação (70%) - alta para exploração
+MUTATION_RATE_FINAL = 0.2        # Taxa final de mutação (20%)
+
+# Elitismo dinâmico (2 veículos)
+ELITE_SIZE_INITIAL = 5           # Elitismo inicial (5 indivíduos)
+ELITE_SIZE_FINAL = 10            # Elitismo final (10 indivíduos)
+
+# Diversidade genética
+DIVERSITY_THRESHOLD_LOW = 0.1    # Limiar de baixa diversidade (aumentar mutação)
+DIVERSITY_THRESHOLD_HIGH = 0.5   # Limiar de alta diversidade (diminuir mutação)
+
+# Simulated Annealing
+INITIAL_TEMPERATURE = 100.0      # Temperatura inicial
+FINAL_TEMPERATURE = 0.1          # Temperatura final
+COOLING_RATE = 0.95              # Taxa de resfriamento
+
+# Otimização 2-opt adaptativa
+OPT2_INTERVAL_EARLY = 5          # A cada 5 gerações (0-100)
+OPT2_INTERVAL_MID = 15           # A cada 15 gerações (100-300)
+OPT2_INTERVAL_LATE = 30          # A cada 30 gerações (300+)
+OPT2_EARLY_THRESHOLD = 100       # Threshold para fase inicial
+OPT2_MID_THRESHOLD = 300         # Threshold para fase média
+
+# Reinjeção de diversidade
+STAGNATION_THRESHOLD = 30        # Gerações sem melhoria para detectar estagnação
+DIVERSITY_INJECTION_MIN = 0.2    # Substituir 20% da população (estagnação leve)
+DIVERSITY_INJECTION_MAX = 0.5    # Substituir 50% da população (estagnação severa)
+
+# Geração guiada
+GUIDED_GENERATION_THRESHOLD = 150  # Gerações sem melhoria para ativar geração guiada
+GUIDED_TOP_SOLUTIONS = 5          # Número de melhores soluções para gerar novas
+
+# Otimização forçada (cruzamentos)
+FORCED_OPT_PASSES = 5             # Número de passadas 2-opt quando há cruzamentos
+
 # ============================================================================
 # CONFIGURAÇÕES DE VISUALIZAÇÃO
 # ============================================================================
