@@ -283,7 +283,7 @@ genetic_route_optimizer/
 ### Cloud & DevOps
 - **Google Cloud Run**: Serverless container platform
 - **Google Artifact Registry**: Registro de imagens Docker
-- **Terraform**: Infraestrutura como código
+- **Terraform**: Infraestrutura como código (IaC)
 - **Docker**: Containerização
 - **Google Cloud Build**: CI/CD
 
@@ -463,9 +463,6 @@ https://genetic-route-optimizer-api-wzfyhoxurq-uc.a.run.app
 - `GET /docs` - Documentação Swagger
 - `POST /optimize` - Otimizar rota (em desenvolvimento)
 
-Para mais detalhes, consulte:
-- [Guia de Deploy Completo](docs/DEPLOY_GCP_NEW.md)
-- [Troubleshooting GCP](docs/TROUBLESHOOTING_GCP.md)
 
 ## 📡 API
 
@@ -512,17 +509,6 @@ class OptimizationRequest(BaseModel):
 ```
 
 ## 🤖 Telegram Bot
-
-### Configuração
-
-1. Criar bot com [@BotFather](https://t.me/botfather)
-2. Obter token do bot
-3. Configurar webhook (produção) ou polling (desenvolvimento)
-
-```bash
-# Configurar webhook
-python scripts/setup_telegram_webhook.py
-```
 
 ### Comandos Disponíveis
 
@@ -664,11 +650,6 @@ Testes avançados para funcionalidades específicas da API:
 - `TestGlobalExceptionHandler` (1 teste)
 - `TestCORSMiddleware` (2 testes)
 
-### Relatório de Cobertura Completo
-
-Para ver o relatório detalhado de cobertura de testes, incluindo funcionalidades sem testes e recomendações prioritárias, consulte:
-
-📊 **[Relatório de Cobertura de Testes](docs/COVERAGE_REPORT.md)**
 
 ### Executar Testes com Relatório de Cobertura
 
@@ -699,43 +680,6 @@ A documentação completa da API está disponível em:
 - **ReDoc**: `/redoc`
 - **OpenAPI JSON**: `/openapi.json`
 
-## 🔧 Troubleshooting
-
-### Problemas Comuns
-
-#### 1. Erro "exec format error" no Cloud Run
-
-**Causa**: Imagem Docker construída para arquitetura errada (ARM64 vs x86_64)
-
-**Solução**: Use Google Cloud Build para construir a imagem:
-```bash
-gcloud builds submit --config cloudbuild.yaml
-```
-
-Veja mais em: [TROUBLESHOOTING_GCP.md](docs/TROUBLESHOOTING_GCP.md#problema-1-exec-format-error)
-
-#### 2. Container failed to start
-
-**Causa**: Aplicação não está escutando na porta 8080 ou demora muito para iniciar
-
-**Solução**: 
-- Verificar se a porta está correta no Dockerfile
-- Aumentar timeout no Terraform
-- Remover health probes agressivos
-
-Veja mais em: [TROUBLESHOOTING_GCP.md](docs/TROUBLESHOOTING_GCP.md#problema-2-container-failed-to-start)
-
-#### 3. Terraform usando imagem incorreta
-
-**Causa**: `terraform.tfvars` sobrescrevendo `variables.tf`
-
-**Solução**: Atualizar AMBOS os arquivos com o digest SHA256 correto
-
-Veja mais em: [TROUBLESHOOTING_GCP.md](docs/TROUBLESHOOTING_GCP.md#problema-3-terraform-usando-imagem-incorreta)
-
-### Documentação Completa
-
-Para troubleshooting completo, consulte: [TROUBLESHOOTING_GCP.md](docs/TROUBLESHOOTING_GCP.md)
 
 ## 📄 Licença
 
@@ -743,7 +687,7 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 
 ## 👥 Autores
 
-- **Fernanda Valdevino** - *Desenvolvimento Inicial* - [GitHub](https://github.com/seu-usuario)
+- **Fernanda Valdevino** - *Desenvolvimento Inicial* - [GitHub](https://github.com/fernandavaldevino)
 
 ## 🎓 Projeto Acadêmico
 
@@ -781,16 +725,6 @@ Este projeto foi desenvolvido como parte do curso de Pós-Tech da FIAP.
 - ✅ **Testes**: Cobertura > 85%
 - ✅ **Documentação**: Completa
 
-## 🚀 Próximos Passos
-
-- [ ] Implementar cache de rotas otimizadas
-- [ ] Adicionar suporte para mais restrições
-- [ ] Melhorar visualização 3D
-- [ ] Implementar API de histórico
-- [ ] Adicionar métricas e monitoring
-- [ ] Implementar CI/CD completo
-- [ ] Adicionar suporte para mais LLMs
-- [ ] Criar aplicativo mobile
 
 ## 📞 Contato
 
