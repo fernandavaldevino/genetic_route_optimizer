@@ -627,22 +627,19 @@ def display_results_multi_vehicle(best_solution, best_fitness):
         2: "#00C8C8"   # Ciano
     }
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("Fitness Total", f"{best_fitness:.2f}")
-    
-    with col2:
         total_points = sum(len(v.route) for v in best_solution.vehicles)
         st.metric("Total de Pontos", total_points)
     
-    with col3:
+    with col2:
         total_distance = sum(v.total_distance for v in best_solution.vehicles)
         # Converter para km (multiplicar por 0.1)
         total_distance_km = total_distance * 0.1
         st.metric("Distância Total", f"{total_distance_km:.1f} km")
     
-    with col4:
+    with col3:
         # Calcular tempo total corretamente (apenas tempo de trabalho, sem o descanso) e carregar dados do JSON salvo que já tem o tempo correto
         try:
             from telegram_bot.route_integration import RouteDataIntegration
@@ -888,13 +885,13 @@ def main():
         st.session_state.optimization_done = False
     
     if 'num_vehicles' not in st.session_state:
-        st.session_state.num_vehicles = 1
+        st.session_state.num_vehicles = 1  # Default: 1 veículo
     
     if 'max_generations' not in st.session_state:
-        st.session_state.max_generations = 10
+        st.session_state.max_generations = 500  # Default: 500
     
     if 'vehicle_speed' not in st.session_state:
-        st.session_state.vehicle_speed = 60
+        st.session_state.vehicle_speed = 80  # Default: 80 km/h
     
     if not st.session_state.optimization_done:
         # Verificar se deve auto-iniciar (após Reiniciar)
@@ -929,7 +926,8 @@ def main():
                     horizontal=True,
                     help="1 veículo: Otimização tradicional | 2 veículos: Otimização multi-veículo com depósito",
                     key='num_vehicles_radio',
-                    label_visibility="collapsed"
+                    label_visibility="collapsed",
+                    index=0  # Default: 1 veículo (índice 0 na lista [1, 2])
                 )
                 st.session_state.num_vehicles = num_vehicles
                 
@@ -952,14 +950,34 @@ def main():
             with col_generations:
                 # Seletor de número de gerações
                 st.markdown("<h3 style='font-size: 1.3rem; margin-bottom: 15px;'>Número de gerações:</h3>", unsafe_allow_html=True)
-                max_generations = st.selectbox(
+                
+                # Opções incluindo "Infinito" (representado por -1)
+                generation_options = [100, 200, 500, 1000, 2000, 5000, 10000, 15000, 20000, "Infinito"]
+                generation_display = {
+                    100: "100",
+                    200: "200",
+                    500: "500",
+                    1000: "1.000",
+                    2000: "2.000",
+                    5000: "5.000",
+                    10000: "10.000",
+                    15000: "15.000",
+                    20000: "20.000",
+                    "Infinito": "∞ Infinito (para após 5000 gerações sem melhoria)"
+                }
+                
+                selected_option = st.selectbox(
                     "Número de gerações",
-                    options=[10, 100, 200, 500, 1000, 2000, 5000, 10000, 15000, 20000],
-                    index=0,  # 10 como padrão
-                    help="Número máximo de gerações do algoritmo genético",
+                    options=generation_options,
+                    format_func=lambda x: generation_display[x],
+                    index=2,  # 500 como padrão (índice 2 na lista [100, 200, 500, ...])
+                    help="Número máximo de gerações do algoritmo genético. 'Infinito' para até 5000 gerações sem melhoria.",
                     key='max_generations_select',
                     label_visibility="collapsed"
                 )
+                
+                # Converter "Infinito" para -1 internamente
+                max_generations = -1 if selected_option == "Infinito" else selected_option
                 st.session_state.max_generations = max_generations
             
             with col_empty:
@@ -967,11 +985,11 @@ def main():
                 st.markdown("<h3 style='font-size: 1.3rem; margin-bottom: 15px;'>Velocidade Média (km/h):</h3>", unsafe_allow_html=True)
                 vehicle_speed = st.number_input(
                     "Velocidade Média (km/h)",
-                    min_value=1,
-                    max_value=100,
-                    value=60,  # Valor padrão
-                    step=1,
-                    help="Velocidade média dos veículos (1-100 km/h). Afeta tempo de viagem e número de dias necessários.",
+                    min_value=10,
+                    max_value=200,
+                    value=80,  # Valor padrão: 80 km/h
+                    step=10,  # Incrementos de 10 em 10 km/h
+                    help="Velocidade média dos veículos (10-200 km/h). Afeta tempo de viagem e número de dias necessários.",
                     key='vehicle_speed_input',
                     label_visibility="collapsed"
                 )
@@ -1073,10 +1091,16 @@ def main():
         # Obter número de gerações atual
         max_generations = st.session_state.get('max_generations', 10)
         
+        # Formatar exibição de gerações
+        if max_generations == -1:
+            generations_display = "∞ (para após 5000 sem melhoria)"
+        else:
+            generations_display = f"{max_generations:,}".replace(',', '.')
+        
         st.markdown(f"""
         - **Pontos de Atendimento:** 20
         - **Tamanho da População:** 100
-        - **Gerações Máximas:** {max_generations}
+        - **Gerações Máximas:** {generations_display}
         - **Probabilidade de Mutação:** 50%
         - **Seleção:** Torneio (tamanho 5)
         - **Elitismo:** Ativo
@@ -1238,10 +1262,16 @@ def main():
                         generation = progress_data.get('generation', 0)
                         best_fitness = progress_data.get('best_fitness', 0)
                         
-                        # Usar generation diretamente (pygame_viewer_2v.py já salva o valor correto)
-                        progress = generation / MAX_GENERATIONS
-                        progress_bar.progress(min(progress, 1.0))
-                        status_text.text(f"Geração {generation}/{MAX_GENERATIONS} - Fitness: {best_fitness:.2f}")
+                        # Modo infinito: mostrar progresso indeterminado
+                        if MAX_GENERATIONS == -1:
+                            # Barra de progresso pulsante (0.5 fixo)
+                            progress_bar.progress(0.5)
+                            status_text.text(f"Geração {generation} (∞) - Fitness: {best_fitness:.2f}")
+                        else:
+                            # Modo normal: progresso baseado em gerações
+                            progress = generation / MAX_GENERATIONS
+                            progress_bar.progress(min(progress, 1.0))
+                            status_text.text(f"Geração {generation}/{MAX_GENERATIONS} - Fitness: {best_fitness:.2f}")
                 except:
                     pass
                 
@@ -1576,6 +1606,16 @@ def main():
             # Verificar se há dados no histórico antes de acessar
             if st.session_state.fitness_history and len(st.session_state.fitness_history) > 0:
                 col1, col2, col3, col4 = st.columns(4)
+                # Calcular última geração com otimização (melhoria > 0.1%)
+                last_improvement_gen = 0
+                best_fitness_so_far = float('inf')
+                
+                for i in range(len(st.session_state.fitness_history)):
+                    # Considerar melhoria se for pelo menos 0.1% melhor
+                    if st.session_state.fitness_history[i] < best_fitness_so_far * 0.999:
+                        last_improvement_gen = i
+                        best_fitness_so_far = st.session_state.fitness_history[i]
+                
                 with col1:
                     st.metric("Fitness Inicial", f"{st.session_state.fitness_history[0]:.2f}")
                 with col2:
@@ -1586,6 +1626,19 @@ def main():
                 with col4:
                     improvement_pct = (improvement / st.session_state.fitness_history[0]) * 100
                     st.metric("Melhoria %", f"{improvement_pct:.1f}%")
+                
+                # Nova linha com última geração com otimização
+                st.markdown("---")
+                col_opt1, col_opt2, col_opt3 = st.columns(3)
+                with col_opt1:
+                    st.metric("Última Geração com Otimização", f"{last_improvement_gen}")
+                with col_opt2:
+                    total_generations = len(st.session_state.fitness_history) - 1
+                    st.metric("Total de Gerações", f"{total_generations}")
+                with col_opt3:
+                    if total_generations > 0:
+                        stagnation = total_generations - last_improvement_gen
+                        st.metric("Gerações sem Melhoria", f"{stagnation}")
             
             st.divider()
         

@@ -8,16 +8,22 @@ import pygame
 from pygame.locals import *
 import random
 import sys
+import copy
+import math
 import numpy as np
+from typing import List, Tuple
 from src.core.multi_vehicle import (
     generate_multi_vehicle_population,
     calculate_multi_vehicle_fitness,
     multi_vehicle_crossover,
     multi_vehicle_mutate,
     sort_multi_vehicle_population,
-    MultiVehicleSolution
+    MultiVehicleSolution,
+    two_opt_optimize,
+    count_route_crossings,
+    calculate_population_diversity
 )
-from src.core.service_points import create_service_point, ServicePriority, calculate_distance
+from src.core.service_points import create_service_point, ServicePriority, ServicePoint, calculate_distance
 from src.constants import (
     WIDTH, HEIGHT, NODE_RADIUS, FPS,
     INFO_PANEL_WIDTH, MAP_X_START, MAP_WIDTH, MAP_HEIGHT,
@@ -33,7 +39,15 @@ from src.constants import (
     WORK_END_TIME, WORK_START_TIME, MINUTES_PER_DAY,
     ELITE_SIZE_2V, TOURNAMENT_SIZE_EARLY, TOURNAMENT_SIZE_MID, TOURNAMENT_SIZE_LATE,
     TOURNAMENT_EARLY_THRESHOLD, TOURNAMENT_MID_THRESHOLD,
-    PRIORITY_DEADLINE_2V, TEMP_DIR, PROGRESS_FILE, SCREENSHOT_FILE
+    PRIORITY_DEADLINE_2V, TEMP_DIR, PROGRESS_FILE, SCREENSHOT_FILE,
+    ELITE_SIZE_INITIAL, ELITE_SIZE_FINAL,
+    MUTATION_RATE_INITIAL, MUTATION_RATE_FINAL,
+    INITIAL_TEMPERATURE, FINAL_TEMPERATURE, COOLING_RATE,
+    OPT2_INTERVAL_EARLY, OPT2_INTERVAL_MID, OPT2_INTERVAL_LATE,
+    OPT2_EARLY_THRESHOLD, OPT2_MID_THRESHOLD,
+    STAGNATION_THRESHOLD, DIVERSITY_INJECTION_MIN, DIVERSITY_INJECTION_MAX,
+    GUIDED_GENERATION_THRESHOLD, GUIDED_TOP_SOLUTIONS,
+    FORCED_OPT_PASSES, DIVERSITY_THRESHOLD_LOW, DIVERSITY_THRESHOLD_HIGH
 )
 
 
@@ -180,7 +194,7 @@ def draw_vehicle_route(screen, route, vehicle_id, depot_location, draw_priority_
         draw_arrow(screen, vehicle_color, route[-1].location, depot_location, 3, 8)
 
 
-def draw_info_panel(screen, generation, best_solution):
+def draw_info_panel(screen, generation, best_solution, elapsed_time=0, last_improvement_gen=0):
     """ Desenha painel de informações no lado esquerdo """
     pygame.draw.rect(screen, LIGHT_GRAY, (0, 0, INFO_PANEL_WIDTH, HEIGHT))
     pygame.draw.line(screen, BLACK, (INFO_PANEL_WIDTH, 0), (INFO_PANEL_WIDTH, HEIGHT), 2)
@@ -202,12 +216,30 @@ def draw_info_panel(screen, generation, best_solution):
     # Informações gerais
     info_texts = [
         f"Geração: {generation}",
+        f"Última otimização: {last_improvement_gen}",
         f"Fitness Total: {best_solution.total_fitness:.2f}",
     ]
     
     for text in info_texts:
         rendered = font_text.render(text, True, BLACK)
         screen.blit(rendered, (x_start, y_start))
+        y_start += line_height
+    
+    # Tempo total decorrido
+    if generation > 0:
+        hours = int(elapsed_time // 3600)
+        minutes = int((elapsed_time % 3600) // 60)
+        seconds = int(elapsed_time % 60)
+        
+        if hours > 0:
+            time_str = f"{hours}h{minutes:02d}m{seconds:02d}s"
+        elif minutes > 0:
+            time_str = f"{minutes}m{seconds:02d}s"
+        else:
+            time_str = f"{seconds}s"
+        
+        time_text = font_text.render(f"Duração: {time_str}", True, BLACK)
+        screen.blit(time_text, (x_start, y_start))
         y_start += line_height
     
     y_start += 8
@@ -361,7 +393,7 @@ def draw_info_panel(screen, generation, best_solution):
             y_pos += 13
 
 
-def draw_simple_plot(screen, x_data, y_data, best_fitness=None):
+def draw_simple_plot(screen, x_data, y_data, best_fitness=None, last_improvement_gen=0):
     """ Desenha gráfico de evolução do fitness """
     if len(x_data) < 2:
         return
@@ -404,6 +436,27 @@ def draw_simple_plot(screen, x_data, y_data, best_fitness=None):
     
     if len(points) > 1:
         pygame.draw.lines(screen, BLUE, False, points, 2)
+
+    # Marcar última melhoria no gráfico (recebido como parâmetro)
+    if last_improvement_gen < len(points):
+        px, py = points[last_improvement_gen]
+        
+        # Desenhar linha vertical tracejada
+        dash_length = 5
+        y_current = plot_y + plot_h
+        while y_current > py:
+            pygame.draw.line(screen, RED, (px, y_current), (px, max(y_current - dash_length, py)), 2)
+            y_current -= dash_length * 2
+        
+        # Desenhar círculo no ponto de melhoria
+        pygame.draw.circle(screen, RED, (px, py), 4)
+        pygame.draw.circle(screen, WHITE, (px, py), 2)
+        
+        # Exibir número da geração horizontalmente
+        font_gen = pygame.font.Font(None, 12)
+        gen_text = font_gen.render(str(last_improvement_gen), True, RED)
+        text_rect = gen_text.get_rect(center=(px, plot_y + plot_h + 10))
+        screen.blit(gen_text, text_rect)
     
     # Fontes
     font_title = pygame.font.Font(None, 14)
@@ -794,10 +847,10 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
         y = map_y_start + margin + (location[1] - min_y) * scale
         return (int(x), int(y))
     
-    # Desenhar rotas (3 camadas)
+    # Desenhar rotas (3 camadas) COM SETAS
     node_radius = 8
     
-    # 1. Camada de prioridade
+    # 1. Camada de prioridade com setas finas
     for vehicle in best_solution.vehicles:
         if not vehicle.route:
             continue
@@ -805,18 +858,18 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
         first_pos = transform(vehicle.route[0].location)
         
         first_color = PRIORITY_COLORS.get(vehicle.route[0].priority, GRAY)
-        pygame.draw.line(screen, first_color, depot_pos, first_pos, 1)
+        draw_arrow(screen, first_color, depot_pos, first_pos, width=1, arrow_size=4, node_radius=node_radius)
         
         for i in range(len(vehicle.route) - 1):
             start_pos = transform(vehicle.route[i].location)
             end_pos = transform(vehicle.route[i + 1].location)
             line_color = PRIORITY_COLORS.get(vehicle.route[i + 1].priority, GRAY)
-            pygame.draw.line(screen, line_color, start_pos, end_pos, 1)
+            draw_arrow(screen, line_color, start_pos, end_pos, width=1, arrow_size=4, node_radius=node_radius)
         
         last_pos = transform(vehicle.route[-1].location)
-        pygame.draw.line(screen, GRAY, last_pos, depot_pos, 1)
+        draw_arrow(screen, GRAY, last_pos, depot_pos, width=1, arrow_size=4, node_radius=node_radius)
     
-    # 2. Camada de veículo
+    # 2. Camada de veículo com setas grossas
     for vehicle in best_solution.vehicles:
         if not vehicle.route:
             continue
@@ -824,15 +877,15 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
         depot_pos = transform(depot_location)
         first_pos = transform(vehicle.route[0].location)
         
-        pygame.draw.line(screen, vehicle_color, depot_pos, first_pos, 2)
+        draw_arrow(screen, vehicle_color, depot_pos, first_pos, width=2, arrow_size=6, node_radius=node_radius)
         
         for i in range(len(vehicle.route) - 1):
             start_pos = transform(vehicle.route[i].location)
             end_pos = transform(vehicle.route[i + 1].location)
-            pygame.draw.line(screen, vehicle_color, start_pos, end_pos, 2)
+            draw_arrow(screen, vehicle_color, start_pos, end_pos, width=2, arrow_size=6, node_radius=node_radius)
         
         last_pos = transform(vehicle.route[-1].location)
-        pygame.draw.line(screen, vehicle_color, last_pos, depot_pos, 2)
+        draw_arrow(screen, vehicle_color, last_pos, depot_pos, width=2, arrow_size=6, node_radius=node_radius)
     
     # 3. Desenhar pontos
     for point in service_points:
@@ -900,6 +953,158 @@ def create_depot_and_service_points(n_points):
     return depot_location, service_points
 
 
+def apply_simulated_annealing(solution: MultiVehicleSolution,
+                               temperature: float,
+                               depot_location: Tuple[float, float]) -> MultiVehicleSolution:
+    """
+    Aplica Simulated Annealing para aceitar soluções piores com probabilidade decrescente
+    Ajuda a escapar de ótimos locais
+    """
+    import math
+    
+    # Criar solução vizinha (pequena perturbação)
+    neighbor = copy.deepcopy(solution)
+    
+    # Escolher veículo aleatório
+    vehicle = random.choice(neighbor.vehicles)
+    
+    if len(vehicle.route) >= 2:
+        # 50% trocar 2 pontos, 50% reverter segmento
+        if random.random() < 0.5:
+            # Trocar 2 pontos
+            idx1, idx2 = random.sample(range(len(vehicle.route)), 2)
+            vehicle.route[idx1], vehicle.route[idx2] = vehicle.route[idx2], vehicle.route[idx1]
+        else:
+            # Reverter segmento aleatório
+            if len(vehicle.route) >= 3:
+                i = random.randint(0, len(vehicle.route) - 3)
+                j = random.randint(i + 2, len(vehicle.route))
+                vehicle.route[i:j] = reversed(vehicle.route[i:j])
+    
+    # Recalcular fitness
+    from src.core.multi_vehicle import calculate_multi_vehicle_fitness
+    calculate_multi_vehicle_fitness(neighbor, depot_location)
+    
+    # Aceitar se melhor OU com probabilidade baseada na temperatura
+    delta = neighbor.total_fitness - solution.total_fitness
+    
+    if delta < 0:
+        # Solução melhor: sempre aceitar
+        return neighbor
+    else:
+        # Solução pior: aceitar com probabilidade exp(-delta/T)
+        probability = math.exp(-delta / temperature) if temperature > 0 else 0
+        if random.random() < probability:
+            return neighbor
+        else:
+            return solution
+
+
+def inject_diversity(population: List[MultiVehicleSolution],
+                     service_points: List[ServicePoint],
+                     depot_location: Tuple[float, float],
+                     injection_rate: float,
+                     elite_size: int) -> List[MultiVehicleSolution]:
+    """
+    Injeta diversidade na população substituindo soluções piores
+    Mantém elite intacta e perturba algumas soluções elite
+    """
+    from src.core.multi_vehicle import (
+        create_initial_multi_vehicle_solution,
+        calculate_multi_vehicle_fitness,
+        split_points_by_priority
+    )
+    
+    num_to_replace = int(len(population) * injection_rate)
+    
+    # Manter elite intacta
+    new_population = population[:elite_size]
+    
+    # Perturbar 30% da elite para explorar regiões próximas
+    num_perturbed = max(1, elite_size // 3)
+    for i in range(num_perturbed):
+        perturbed = copy.deepcopy(population[i])
+        
+        # Aplicar perturbação forte
+        for vehicle in perturbed.vehicles:
+            if len(vehicle.route) >= 2:
+                # Embaralhar pontos regulares
+                priority_points, regular_points = split_points_by_priority(vehicle.route)
+                random.shuffle(regular_points)
+                vehicle.route = priority_points + regular_points
+        
+        calculate_multi_vehicle_fitness(perturbed, depot_location)
+        new_population.append(perturbed)
+    
+    # Gerar novas soluções aleatórias
+    num_new = num_to_replace - num_perturbed
+    for _ in range(num_new):
+        new_solution = create_initial_multi_vehicle_solution(
+            service_points, depot_location, NUM_VEHICLES, apply_2opt=False
+        )
+        new_population.append(new_solution)
+    
+    # Completar população com soluções existentes
+    remaining = POPULATION_SIZE - len(new_population)
+    if remaining > 0:
+        new_population.extend(population[elite_size:elite_size + remaining])
+    
+    return new_population[:POPULATION_SIZE]
+
+
+def generate_guided_solutions(top_solutions: List[MultiVehicleSolution],
+                              depot_location: Tuple[float, float],
+                              num_solutions: int = 10) -> List[MultiVehicleSolution]:
+    """ Gera novas soluções a partir das melhores, aplicando transformações graduais + 2-opt """
+    from src.core.multi_vehicle import (
+        calculate_multi_vehicle_fitness,
+        two_opt_optimize,
+        split_points_by_priority
+    )
+    
+    guided_solutions = []
+    
+    for _ in range(num_solutions):
+        # Escolher solução base aleatória das top
+        base = copy.deepcopy(random.choice(top_solutions))
+        
+        # Aplicar transformações graduais
+        for vehicle in base.vehicles:
+            if len(vehicle.route) >= 2:
+                priority_points, regular_points = split_points_by_priority(vehicle.route)
+                
+                # 70% trocar 2-3 pontos regulares
+                if random.random() < 0.7 and len(regular_points) >= 2:
+                    num_swaps = min(3, len(regular_points) // 2)
+                    for _ in range(num_swaps):
+                        idx1, idx2 = random.sample(range(len(regular_points)), 2)
+                        regular_points[idx1], regular_points[idx2] = regular_points[idx2], regular_points[idx1]
+                
+                # Reconstruir rota
+                vehicle.route = priority_points + regular_points
+                
+                # Aplicar 2-opt para otimizar
+                vehicle.route = two_opt_optimize(vehicle.route, depot_location, max_passes=2)
+        
+        calculate_multi_vehicle_fitness(base, depot_location)
+        guided_solutions.append(base)
+    
+    return guided_solutions
+
+
+def calculate_diversity_adjustment(diversity: float) -> float:
+    """ Calcula ajuste na taxa de mutação baseado na diversidade genética """
+    if diversity < DIVERSITY_THRESHOLD_LOW:
+        # Baixa diversidade: aumentar mutação 1.5x
+        return 1.5
+    elif diversity > DIVERSITY_THRESHOLD_HIGH:
+        # Alta diversidade: diminuir mutação 0.7x
+        return 0.7
+    else:
+        # Diversidade normal: sem ajuste
+        return 1.0
+
+
 def main(max_generations=10):
     import pickle
     import time
@@ -910,14 +1115,33 @@ def main(max_generations=10):
     pygame.display.set_caption("Roteamento Multi-Veículo com Depósito - AG")
     clock = pygame.time.Clock()
     
+    # Mostrar tela branca inicial para que a janela não fique preta
+    screen.fill(WHITE)
+    font = pygame.font.Font(None, 36)
+    text = font.render("Gerando população inicial...", True, BLACK)
+    text_rect = text.get_rect(center=(WIDTH//2, HEIGHT//2))
+    screen.blit(text, text_rect)
+    pygame.display.flip()
+    
     depot_location, service_points = create_depot_and_service_points(N_POINTS)
     population = generate_multi_vehicle_population(service_points, depot_location, POPULATION_SIZE, NUM_VEHICLES)
     
     best_fitness_history = []
     generation = 0
+    last_improvement_generation = 0  # Rastreia última geração com melhoria
     MAX_GENERATIONS = max_generations  # Parâmetro configurável
     finished = False  # Flag para controlar estado final
     screenshot_saved = False  # Flag para salvar screenshot apenas uma vez
+    
+    # Controle de tempo
+    import time
+    start_time = time.time()
+    elapsed_time = 0
+    
+    # Variáveis para otimizações avançadas
+    stagnation_counter = 0  # Contador de gerações sem melhoria
+    temperature = INITIAL_TEMPERATURE  # Temperatura para Simulated Annealing
+    best_fitness_ever = float('inf')  # Melhor fitness já encontrado
     
     # Arquivos para comunicação com Streamlit
     progress_file = os.path.join(TEMP_DIR, PROGRESS_FILE)
@@ -939,20 +1163,36 @@ def main(max_generations=10):
                     generation = 0
         
         # Critério de parada: número de gerações parametrizado
-        if generation >= MAX_GENERATIONS and not finished:
-            # Imprimir no console (apenas uma vez)
-            print(f"\n{'='*60}")
-            print(f"CRITÉRIO DE PARADA ATINGIDO: {MAX_GENERATIONS} gerações")
-            print(f"{'='*60}")
-            print(f"Melhor Fitness Final: {best_fitness:.2f}")
-            for vehicle in best_solution.vehicles:
-                hours = int(vehicle.total_time // 60)
-                minutes = int(vehicle.total_time % 60)
-                distance_km = vehicle.total_distance * 0.1
-                print(f"  Veículo {vehicle.vehicle_id}: {len(vehicle.route)} pontos, "
-                      f"Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
-            print(f"{'='*60}\n")
-            finished = True
+        # Modo infinito: MAX_GENERATIONS = -1 (para após 5000 gerações sem melhoria)
+        if not finished:
+            if MAX_GENERATIONS > 0 and generation >= MAX_GENERATIONS:
+                # Modo normal: parar ao atingir número de gerações
+                print(f"\n{'='*60}")
+                print(f"CRITÉRIO DE PARADA ATINGIDO: {MAX_GENERATIONS} gerações")
+                print(f"{'='*60}")
+                print(f"Melhor Fitness Final: {best_fitness:.2f}")
+                for vehicle in best_solution.vehicles:
+                    hours = int(vehicle.total_time // 60)
+                    minutes = int(vehicle.total_time % 60)
+                    distance_km = vehicle.total_distance * 0.1
+                    print(f"  Veículo {vehicle.vehicle_id}: {len(vehicle.route)} pontos, "
+                          f"Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
+                print(f"{'='*60}\n")
+                finished = True
+            elif MAX_GENERATIONS == -1 and stagnation_counter >= 5000:
+                # Modo infinito: parar após 5000 gerações sem melhoria
+                print(f"\n{'='*60}")
+                print(f"CRITÉRIO DE PARADA ATINGIDO: 5000 gerações sem melhoria")
+                print(f"{'='*60}")
+                print(f"Melhor Fitness Final: {best_fitness:.2f}")
+                for vehicle in best_solution.vehicles:
+                    hours = int(vehicle.total_time // 60)
+                    minutes = int(vehicle.total_time % 60)
+                    distance_km = vehicle.total_distance * 0.1
+                    print(f"  Veículo {vehicle.vehicle_id}: {len(vehicle.route)} pontos, "
+                          f"Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
+                print(f"{'='*60}\n")
+                finished = True
         
         # Se terminou, mostrar frame final, salvar dados e fechar após 2 segundos
         if finished:
@@ -986,23 +1226,139 @@ def main(max_generations=10):
             
             continue
         
+        # Se já terminou, não processar mais gerações
+        if finished:
+            continue
+        
         screen.fill(WHITE)
+        
+        # Calcular tempo decorrido
+        elapsed_time = time.time() - start_time
         
         population = sort_multi_vehicle_population(population)
         
         best_solution = population[0]
         best_fitness = best_solution.total_fitness
         
-        # Debug: mostrar melhoria
+        # Debug: mostrar melhoria e atualizar contadores
         if generation == 0:
             print(f"\n{'='*60}")
             print(f"FITNESS INICIAL: {best_fitness:.2f}")
             print(f"{'='*60}\n")
-        elif generation > 0 and best_fitness < best_fitness_history[-1]:
+            best_fitness_ever = best_fitness
+        elif generation > 0 and best_fitness < best_fitness_history[-1] * 0.999:
+            # Considerar melhoria se for pelo menos 0.1% melhor
             improvement = best_fitness_history[-1] - best_fitness
+            last_improvement_generation = generation  # Atualizar última melhoria
+            stagnation_counter = 0  # Resetar contador de estagnação
             print(f"✓ Geração {generation}: MELHORIA de {improvement:.2f} (Fitness: {best_fitness:.2f})")
+            
+            # Atualizar melhor fitness ever
+            if best_fitness < best_fitness_ever:
+                best_fitness_ever = best_fitness
+        else:
+            # Sem melhoria: incrementar contador de estagnação
+            stagnation_counter += 1
         
         best_fitness_history.append(best_fitness)
+        
+        # ============================================================================
+        # OTIMIZAÇÃO FORÇADA: Se melhor solução tem cruzamentos, aplicar 2-opt AGRESSIVO
+        # ============================================================================
+        num_crossings = count_route_crossings(best_solution.vehicles)
+        if num_crossings > 0:
+            print(f"⚠️  Geração {generation}: {num_crossings} cruzamentos detectados! Aplicando 2-opt agressivo...")
+            
+            # Aplicar 2-opt agressivo em TODOS os veículos
+            for vehicle in best_solution.vehicles:
+                if vehicle.route:
+                    vehicle.route = two_opt_optimize(vehicle.route, depot_location, max_passes=FORCED_OPT_PASSES)
+            
+            # Recalcular fitness
+            calculate_multi_vehicle_fitness(best_solution, depot_location)
+            
+            # Atualizar população com solução otimizada
+            population[0] = best_solution
+            
+            # Verificar se eliminou cruzamentos
+            new_crossings = count_route_crossings(best_solution.vehicles)
+            if new_crossings == 0:
+                print(f"✓ Cruzamentos eliminados! Novo fitness: {best_solution.total_fitness:.2f}")
+            else:
+                print(f"⚠️  Ainda restam {new_crossings} cruzamentos após otimização")
+        
+        # ============================================================================
+        # OTIMIZAÇÃO 2-OPT ADAPTATIVA: Aplicar periodicamente baseado na geração
+        # ============================================================================
+        should_apply_2opt = False
+        
+        if generation <= OPT2_EARLY_THRESHOLD:
+            # Fase inicial (0-100): a cada 5 gerações
+            should_apply_2opt = (generation % OPT2_INTERVAL_EARLY == 0)
+        elif generation <= OPT2_MID_THRESHOLD:
+            # Fase média (100-300): a cada 15 gerações
+            should_apply_2opt = (generation % OPT2_INTERVAL_MID == 0)
+        else:
+            # Fase tardia (300+): a cada 30 gerações
+            should_apply_2opt = (generation % OPT2_INTERVAL_LATE == 0)
+        
+        if should_apply_2opt and generation > 0:
+            print(f"🔧 Geração {generation}: Aplicando otimização 2-opt nas top 3 soluções...")
+            
+            # Aplicar 2-opt nas 3 melhores soluções
+            for i in range(min(3, len(population))):
+                for vehicle in population[i].vehicles:
+                    if vehicle.route:
+                        vehicle.route = two_opt_optimize(vehicle.route, depot_location, max_passes=2)
+                calculate_multi_vehicle_fitness(population[i], depot_location)
+            
+            # Reordenar população
+            population = sort_multi_vehicle_population(population)
+            best_solution = population[0]
+            best_fitness = best_solution.total_fitness
+        
+        # ============================================================================
+        # REINJEÇÃO DE DIVERSIDADE PROGRESSIVA: Detectar estagnação
+        # ============================================================================
+        if stagnation_counter >= STAGNATION_THRESHOLD:
+            # Calcular taxa de injeção baseada no tempo de estagnação
+            stagnation_severity = min(stagnation_counter / (STAGNATION_THRESHOLD * 3), 1.0)
+            injection_rate = DIVERSITY_INJECTION_MIN + (DIVERSITY_INJECTION_MAX - DIVERSITY_INJECTION_MIN) * stagnation_severity
+            
+            print(f"🔄 Geração {generation}: Estagnação detectada ({stagnation_counter} gerações)!")
+            print(f"   Injetando {injection_rate*100:.0f}% de diversidade na população...")
+            
+            # Calcular elite_size atual
+            if MAX_GENERATIONS > 0:
+                progress = generation / MAX_GENERATIONS
+                current_elite_size = int(ELITE_SIZE_INITIAL + (ELITE_SIZE_FINAL - ELITE_SIZE_INITIAL) * progress)
+            else:
+                current_elite_size = (ELITE_SIZE_INITIAL + ELITE_SIZE_FINAL) // 2
+            
+            # Injetar diversidade
+            population = inject_diversity(population, service_points, depot_location, injection_rate, current_elite_size)
+            
+            # Resetar contador parcialmente (não completamente para evitar loops)
+            stagnation_counter = STAGNATION_THRESHOLD // 2
+        
+        # ============================================================================
+        # GERAÇÃO GUIADA: Após muita estagnação, gerar soluções das melhores
+        # ============================================================================
+        if stagnation_counter >= GUIDED_GENERATION_THRESHOLD:
+            print(f"🎯 Geração {generation}: Estagnação severa ({stagnation_counter} gerações)!")
+            print(f"   Gerando soluções guiadas a partir das top {GUIDED_TOP_SOLUTIONS}...")
+            
+            # Gerar novas soluções guiadas
+            top_solutions = population[:GUIDED_TOP_SOLUTIONS]
+            guided_solutions = generate_guided_solutions(top_solutions, depot_location, num_solutions=20)
+            
+            # Substituir piores soluções por guiadas
+            population = population[:POPULATION_SIZE - 20] + guided_solutions
+            population = sort_multi_vehicle_population(population)
+            
+            # Resetar contador
+            stagnation_counter = 0
+            print(f"   ✓ Soluções guiadas geradas e inseridas na população")
         
         # Salvar progresso para Streamlit
         with open(progress_file, 'wb') as f:
@@ -1012,20 +1368,32 @@ def main(max_generations=10):
                 'fitness_history': best_fitness_history
             }, f)
         
-        draw_info_panel(screen, generation, best_solution)
+        draw_info_panel(screen, generation, best_solution, elapsed_time, last_improvement_generation)
         
         if len(best_fitness_history) > 1:
-            draw_simple_plot(screen, list(range(len(best_fitness_history))), best_fitness_history, best_fitness)
+            draw_simple_plot(screen, list(range(len(best_fitness_history))), best_fitness_history, best_fitness, last_improvement_generation)
         
         draw_best_solution(screen, best_solution, best_fitness)
         
         # Ordem de desenho (rotas primeiro, pontos depois cobrem as linhas):
-        # 1. Segunda melhor solução (linhas cinza claro finas) - Sempre durante otimização
+        # 1. Top 5 soluções da população (linhas cinza claro finas)
+        # Mostra as soluções sendo calculadas em tempo real
         # Só desaparece na tela final (quando finished=True)
-        if len(population) > 1 and not finished:
-            second_best = population[1]
-            for vehicle in second_best.vehicles:
-                draw_vehicle_route(screen, vehicle.route, vehicle.vehicle_id, depot_location, draw_light_gray=True)
+        if not finished:
+            # Desenhar soluções aleatórias da população para maior diversidade visual
+            # IMPORTANTE: Desenhar AMBOS os veículos de cada solução
+            # Usar amostragem aleatória ao invés de sempre as mesmas top soluções
+            num_to_draw = min(15, len(population))  # Aumentado para 15
+            if num_to_draw > 1:
+                # Pegar índices aleatórios (excluindo a melhor que é índice 0)
+                import random
+                random_indices = random.sample(range(1, len(population)), min(num_to_draw - 1, len(population) - 1))
+                for i in random_indices:
+                    solution = population[i]
+                    # Desenhar TODOS os veículos da solução (não apenas um)
+                    for vehicle in solution.vehicles:
+                        if vehicle.route:  # Verificar se o veículo tem rota
+                            draw_vehicle_route(screen, vehicle.route, vehicle.vehicle_id, depot_location, draw_light_gray=True)
         
         # 2. Camada de prioridade: linhas finas coloridas com setas
         for vehicle in best_solution.vehicles:
@@ -1050,17 +1418,75 @@ def main(max_generations=10):
             print(f"  Veículo {vehicle.vehicle_id}: {len(vehicle.route)} pontos, "
                     f"Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
     
-        # Criar nova população com Elitismo forte e Torneio adaptativo
-        new_population = population[:ELITE_SIZE_2V]
+        # ============================================================================
+        # CALCULAR DIVERSIDADE GENÉTICA E AJUSTAR MUTAÇÃO
+        # ============================================================================
+        diversity = calculate_population_diversity(population)
+        diversity_adjustment = calculate_diversity_adjustment(diversity)
         
+        # ============================================================================
+        # ELITISMO DINÂMICO: aumenta ao longo das gerações (5 -> 10)
+        # ============================================================================
+        if MAX_GENERATIONS > 0:
+            progress = generation / MAX_GENERATIONS
+            elite_size = int(ELITE_SIZE_INITIAL + (ELITE_SIZE_FINAL - ELITE_SIZE_INITIAL) * progress)
+        else:
+            # Modo infinito: usar elitismo médio
+            elite_size = (ELITE_SIZE_INITIAL + ELITE_SIZE_FINAL) // 2
+        
+        # ============================================================================
+        # MUTAÇÃO DINÂMICA COM AJUSTE DE DIVERSIDADE: (70% -> 20%) * ajuste
+        # ============================================================================
+        if MAX_GENERATIONS > 0:
+            base_mutation_rate = MUTATION_RATE_INITIAL - (MUTATION_RATE_INITIAL - MUTATION_RATE_FINAL) * progress
+        else:
+            # Modo infinito: usar taxa média
+            base_mutation_rate = (MUTATION_RATE_INITIAL + MUTATION_RATE_FINAL) / 2
+        
+        # Aplicar ajuste baseado em diversidade
+        mutation_rate = base_mutation_rate * diversity_adjustment
+        mutation_rate = max(0.1, min(0.9, mutation_rate))  # Limitar entre 10% e 90%
+        
+        # ============================================================================
+        # SIMULATED ANNEALING: Atualizar temperatura
+        # ============================================================================
+        if MAX_GENERATIONS > 0:
+            # Temperatura diminui linearmente
+            temperature = INITIAL_TEMPERATURE - (INITIAL_TEMPERATURE - FINAL_TEMPERATURE) * progress
+        else:
+            # Modo infinito: resfriamento exponencial
+            temperature = max(FINAL_TEMPERATURE, temperature * COOLING_RATE)
+        
+        # ============================================================================
+        # CRIAR NOVA POPULAÇÃO COM ELITISMO GARANTIDO
+        # ============================================================================
+        new_population = []
+        
+        # PASSO 1: Copiar elite (SEMPRE preservar as melhores soluções)
+        for i in range(elite_size):
+            new_population.append(copy.deepcopy(population[i]))
+        
+        # PASSO 2: Aplicar Simulated Annealing em cópias da elite (não substitui a elite)
+        num_annealing = max(1, elite_size // 5)
+        for i in range(num_annealing):
+            annealed = apply_simulated_annealing(copy.deepcopy(population[i]), temperature, depot_location)
+            new_population.append(annealed)
+        
+        # PASSO 3: Gerar resto da população por crossover e mutação
         while len(new_population) < POPULATION_SIZE:
-            # Torneio adaptativo: maior no início, menor no final
-            if generation < MAX_GENERATIONS * TOURNAMENT_EARLY_THRESHOLD:
-                tournament_size = TOURNAMENT_SIZE_EARLY  # Início: pressão seletiva alta
-            elif generation < MAX_GENERATIONS * TOURNAMENT_MID_THRESHOLD:
-                tournament_size = TOURNAMENT_SIZE_MID  # Meio: pressão moderada
+            # Torneio adaptativo: menor no início, MAIOR no final
+            # Início (3): Torneio pequeno → Aceita soluções variadas → Explora espaço
+            # Final (7): Torneio grande → SEMPRE escolhe os melhores → Muta ótimos para achar ainda melhores
+            if MAX_GENERATIONS > 0:
+                if generation < MAX_GENERATIONS * TOURNAMENT_EARLY_THRESHOLD:
+                    tournament_size = TOURNAMENT_SIZE_LATE  # Início: 3 (explora mais)
+                elif generation < MAX_GENERATIONS * TOURNAMENT_MID_THRESHOLD:
+                    tournament_size = TOURNAMENT_SIZE_MID  # Meio: 5 (equilíbrio)
+                else:
+                    tournament_size = TOURNAMENT_SIZE_EARLY  # Final: 7 (refina ótimos)
             else:
-                tournament_size = TOURNAMENT_SIZE_LATE  # Final: mais diversidade
+                # Modo infinito: usar tamanho médio
+                tournament_size = TOURNAMENT_SIZE_MID
             
             tournament = random.sample(population, min(tournament_size, len(population)))
             tournament = sort_multi_vehicle_population(tournament)
@@ -1068,15 +1494,18 @@ def main(max_generations=10):
             parent1 = tournament[0]
             parent2 = tournament[1] if len(tournament) > 1 else tournament[0]
             
-            child = multi_vehicle_crossover(parent1, parent2, depot_location)
+            child = multi_vehicle_crossover(parent1, parent2, depot_location, service_points)
             
-            # Aplicar mutação com probabilidade configurada
-            child = multi_vehicle_mutate(child, depot_location, MUTATION_PROBABILITY)
+            # Aplicar mutação com taxa DINÂMICA
+            child = multi_vehicle_mutate(child, depot_location, mutation_rate, service_points)
             
             new_population.append(child)
         
         population = new_population
-        generation += 1
+        
+        # Só incrementar geração se não terminou
+        if not finished:
+            generation += 1
         
         pygame.display.flip()
         clock.tick(FPS)
