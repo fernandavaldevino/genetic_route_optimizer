@@ -65,3 +65,7 @@ terraform/.terraform.tfstate.lock.info
 data/routes/route*.json
 route*.json
 key.json
+
+
+# API
+api.pid
