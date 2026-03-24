@@ -23,16 +23,6 @@ def calculate_route_time_and_distance(route: List[ServicePoint],
     """
     Calcula tempo total e distância de uma rota, considerando tempos de serviço
     e pausas noturnas (horário comercial: 8h-18h)
-    
-    Args:
-        route: Lista de pontos de atendimento na ordem
-        start_time: Tempo de início em minutos (default: 8h = 480 min)
-        speed: Velocidade média em km/h
-        work_start: Início do horário comercial em minutos (default: 8h = 480 min)
-        work_end: Fim do horário comercial em minutos (default: 18h = 1080 min)
-    
-    Returns:
-        Tupla (distância_total, tempo_total, lista_de_tempos_de_chegada)
     """
     if not route:
         return 0.0, 0.0, []
@@ -113,14 +103,6 @@ def calculate_constrained_fitness(route: List[ServicePoint],
     - Ordem de prioridades: EME → VIO → MED → POS → REG
     - Permite até 1 parada entre pontos da mesma prioridade para otimizar distância
     - Penaliza violações de ordem, mas prioriza minimização de distância
-    
-    Args:
-        route: Lista de pontos de atendimento
-        start_time: Horário de início (default: 8h = 480 min)
-        speed: Velocidade do veículo em km/h (default: 60 km/h)
-        priority_deadline: Deadline para medicamentos prioritários em minutos desde início do dia
-                          - 1440 min (24h/fim do Dia 1) para 1 veículo
-                          - 720 min (12h) para 2 veículos
     """
     if not route:
         return float('inf')
@@ -237,16 +219,7 @@ def generate_priority_aware_population(service_points: List[ServicePoint],
                                        priority_bias: float = 0.9) -> List[List[ServicePoint]]:
     """
     Gera população inicial com viés para ordem de prioridade
-    Sempre coloca o depósito (ID=0) como primeiro ponto
-    
-    Args:
-        service_points: Lista de pontos de atendimento
-        population_size: Tamanho da população
-        priority_bias: Probabilidade de usar ordem por prioridade (0 a 1)
-    
-    Returns:
-        Lista de rotas (população)
-    """
+    Sempre coloca o depósito (ID=0) como primeiro ponto """
     population = []
     
     # Separar depósito dos outros pontos
@@ -300,14 +273,8 @@ def generate_priority_aware_population(service_points: List[ServicePoint],
 def constrained_order_crossover(parent1: List[ServicePoint],
                                 parent2: List[ServicePoint],
                                 preserve_priority_blocks: bool = True) -> List[ServicePoint]:
-    """
-    Crossover que preserva ordem de prioridades
-    Sempre mantém o depósito (ID=0) na primeira posição
-    
-    Args:
-        parent1, parent2: Rotas dos pais
-        preserve_priority_blocks: Se True, mantém blocos de prioridade (default: True)
-    """
+    """ Crossover que preserva ordem de prioridades
+    Sempre mantém o depósito (ID=0) na primeira posição """
     length = len(parent1)
     
     # Separar depósito dos outros pontos
@@ -382,15 +349,8 @@ def constrained_order_crossover(parent1: List[ServicePoint],
 def constrained_mutate(route: List[ServicePoint],
                        mutation_probability: float,
                        respect_priorities: bool = True) -> List[ServicePoint]:
-    """
-    Mutação que respeita ordem de prioridades
-    Sempre mantém o depósito (ID=0) na primeira posição
-    
-    Args:
-        route: Rota a ser mutada
-        mutation_probability: Probabilidade de mutação
-        respect_priorities: Se True, só troca dentro do mesmo grupo de prioridade (default: True)
-    """
+    """ Mutação que respeita ordem de prioridades
+    Sempre mantém o depósito (ID=0) na primeira posição """
     if random.random() >= mutation_probability:
         return route
     
