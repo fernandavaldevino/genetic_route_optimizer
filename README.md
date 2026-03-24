@@ -325,14 +325,30 @@ cp .env.example .env
 ### Configuração do `.env`
 
 ```bash
-# OpenAI (opcional)
-OPENAI_API_KEY=sk-...
+# ===== PROVEDOR PRINCIPAL =====
+# Opções: openai, ollama
+LLM_PROVIDER=openai
 
-# Telegram Bot (opcional)
-TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
-TELEGRAM_WEBHOOK_URL=https://seu-dominio.com/webhook
+# ===== CONFIGURAÇÃO OPENAI =====
+# Obtenha sua API Key em: https://platform.openai.com/api-keys
+OPENAI_API_KEY=sk-proj-abc123...
+OPENAI_MODEL="gpt-3.5-turbo"
+OPENAI_TEMPERATURE=0.7
 
-# Google Cloud (para deploy)
+# ===== CONFIGURAÇÃO OLLAMA (LOCAL) =====
+# Para usar modelos locais com Ollama
+# Instale Ollama: https://ollama.ai
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama2
+OLLAMA_TEMPERATURE=0.7
+
+# ===== CONFIGURAÇÃO BOT TELEGRAM =====
+# Obtenha o token do bot em: https://t.me/BotFather
+TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+TELEGRAM_BOT_USERNAME=SeuBotUsername
+BOT_NAME=SeuBotName
+
+# ===== GOOGLE CLOUD (para deploy) =====
 GOOGLE_CLOUD_PROJECT=seu-projeto-gcp
 GOOGLE_APPLICATION_CREDENTIALS=./key.json
 ```
