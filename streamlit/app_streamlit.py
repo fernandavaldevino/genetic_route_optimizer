@@ -336,18 +336,33 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
                 last_improvement_generation
             )
         
-        # Desenhar segunda melhor rota
+        # Desenhar 5 soluções aleatórias (linhas cinzas)
         if len(population) > 1:
-            draw_route(screen, population[1], color=(200, 200, 200), width=1, use_priority_colors=False)
+            num_to_draw = min(5, len(population))
+            if num_to_draw > 1:
+                random_indices = random.sample(range(1, len(population)), min(num_to_draw - 1, len(population) - 1))
+                for idx in random_indices:
+                    for j in range(len(population[idx]) - 1):
+                        pygame.draw.line(screen, (200, 200, 200), population[idx][j].location, population[idx][j+1].location, 1)
         
-        # Desenhar melhor rota
-        draw_route(screen, best_route, width=4, use_priority_colors=True)
+        # Desenhar melhor rota COM SETAS (parâmetros do 2V: width=3, arrow_size=8)
+        from src.visualization.pygame_viewer import draw_arrow, NODE_RADIUS
+        for i in range(len(best_route) - 1):
+            start_pos = best_route[i].location
+            end_pos = best_route[i + 1].location
+            dest_point = best_route[i + 1]
+            
+            if dest_point.id == 0:
+                line_color = (0, 255, 0)  # Verde para depósito
+            else:
+                from src.constants import PRIORITY_COLORS
+                line_color = PRIORITY_COLORS.get(dest_point.priority, (128, 128, 128))
+            
+            draw_arrow(screen, line_color, start_pos, end_pos, width=3, arrow_size=8, node_radius=NODE_RADIUS)
         
-        # Desenhar linha de retorno
+        # Seta de retorno ao depósito
         if len(best_route) > 1:
-            last_point = best_route[-1]
-            depot = best_route[0]
-            pygame.draw.line(screen, (128, 128, 128), last_point.location, depot.location, 4)
+            draw_arrow(screen, (128, 128, 128), best_route[-1].location, best_route[0].location, width=3, arrow_size=8, node_radius=NODE_RADIUS)
         
         # Identificar pontos iniciais de cada dia
         start_points_by_day = {}
@@ -395,6 +410,9 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         pygame.display.flip()
         clock.tick(FPS)
     
+    # Calcular tempo total decorrido
+    final_elapsed_time = pygame.time.get_ticks() / 1000.0 - start_time
+    
     # Salvar resultados finais
     with open(progress_file, 'wb') as f:
         pickle.dump({
@@ -403,6 +421,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
             'fitness_history': best_fitness_history,
             'best_route': best_route,
             'arrival_times': arrival_times,
+            'elapsed_time': final_elapsed_time,
             'completed': True
         }, f)
     
@@ -1319,6 +1338,7 @@ def main():
                         st.session_state.is_multi_vehicle = False
                     
                     st.session_state.fitness_history = final_data['fitness_history']
+                    st.session_state.elapsed_time = final_data.get('elapsed_time', 0)
                     st.session_state.screenshot_file = screenshot_file
                     st.session_state.optimization_done = True
                     
@@ -1643,7 +1663,7 @@ def main():
                 
                 # Nova linha com última geração com otimização
                 st.markdown("---")
-                col_opt1, col_opt2, col_opt3 = st.columns(3)
+                col_opt1, col_opt2, col_opt3, col_opt4 = st.columns(4)
                 with col_opt1:
                     st.metric("Última Geração com Otimização", f"{last_improvement_gen}")
                 with col_opt2:
@@ -1653,6 +1673,24 @@ def main():
                     if total_generations > 0:
                         stagnation = total_generations - last_improvement_gen
                         st.metric("Gerações sem Melhoria", f"{stagnation}")
+                with col_opt4:
+                    # Exibir duração total de execução
+                    elapsed_time = st.session_state.get('elapsed_time', 0)
+                    if elapsed_time > 0:
+                        hours = int(elapsed_time // 3600)
+                        minutes = int((elapsed_time % 3600) // 60)
+                        seconds = int(elapsed_time % 60)
+                        
+                        if hours > 0:
+                            duration_str = f"{hours}h{minutes:02d}m{seconds:02d}s"
+                        elif minutes > 0:
+                            duration_str = f"{minutes}m{seconds:02d}s"
+                        else:
+                            duration_str = f"{seconds}s"
+                        
+                        st.metric("Duração Total", duration_str)
+                    else:
+                        st.metric("Duração Total", "N/A")
             
             st.divider()
         

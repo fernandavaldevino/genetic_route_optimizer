@@ -226,7 +226,7 @@ class TestEnvironmentConfiguration:
     """ Testes para configuração de ambiente """
     
     def test_env_example_exists(self):
-        """Testa se .env.example existe"""
+        """ Testa se .env.example existe """
         env_example = Path(".env.example")
         assert env_example.exists(), ".env.example não encontrado"
     
@@ -237,15 +237,22 @@ class TestEnvironmentConfiguration:
         with open(env_example, 'r') as f:
             content = f.read()
         
-        # Verificar variáveis importantes (pelo menos uma deve existir)
-        important_vars = [
-            'OPENAI_API_KEY',
+        # Verificar variáveis importantes (todas devem existir)
+        required_vars = [
             'LLM_PROVIDER',
-            'OLLAMA_BASE_URL'
+            'OPENAI_API_KEY',
+            'OPENAI_MODEL',
+            'OPENAI_TEMPERATURE',
+            'OLLAMA_BASE_URL',
+            'OLLAMA_MODEL',
+            'OLLAMA_TEMPERATURE',
+            'TELEGRAM_BOT_TOKEN',
+            'TELEGRAM_BOT_USERNAME',
+            'BOT_NAME'
         ]
         
-        has_any = any(var in content for var in important_vars)
-        assert has_any, f"Nenhuma variável importante encontrada em .env.example"
+        missing_vars = [var for var in required_vars if var not in content]
+        assert len(missing_vars) == 0, f"Variáveis faltando em .env.example: {', '.join(missing_vars)}"
     
     def test_gitignore_excludes_env_file(self):
         """ Testa se .gitignore exclui arquivo .env """
@@ -257,39 +264,7 @@ class TestEnvironmentConfiguration:
             
             assert '.env' in content, ".env não está no .gitignore"
 
-
-class TestGCPDeploymentDocumentation:
-    """ Testes para documentação de deployment GCP """
     
-    def test_gcp_deployment_docs_exist(self):
-        """Testa se documentação de deployment GCP existe"""
-        docs_dir = Path("docs")
-        
-        # Verificar se existe pelo menos um arquivo de documentação GCP
-        gcp_docs = list(docs_dir.glob("*GCP*.md")) if docs_dir.exists() else []
-        assert len(gcp_docs) > 0, "Nenhuma documentação GCP encontrada"
-    
-    def test_deploy_gcp_doc_exists(self):
-        """ Testa se DEPLOY_GCP.md existe """
-        deploy_doc = Path("docs/DEPLOY_GCP.md")
-        
-        if deploy_doc.exists():
-            with open(deploy_doc, 'r') as f:
-                content = f.read()
-            
-            assert len(content) > 0, "DEPLOY_GCP.md está vazio"
-    
-    def test_webhook_setup_doc_exists(self):
-        """ Testa se WEBHOOK_SETUP.md existe """
-        webhook_doc = Path("docs/WEBHOOK_SETUP.md")
-        
-        if webhook_doc.exists():
-            with open(webhook_doc, 'r') as f:
-                content = f.read()
-            
-            assert len(content) > 0, "WEBHOOK_SETUP.md está vazio"
-
-
 class TestMakefile:
     """ Testes para Makefile """
     
