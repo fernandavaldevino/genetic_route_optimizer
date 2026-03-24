@@ -1213,7 +1213,9 @@ def main(max_generations=10):
                         'best_fitness': best_fitness,
                         'fitness_history': best_fitness_history,
                         'best_solution': best_solution,
-                        'completed': True
+                        'completed': True,
+                        'elapsed_time': elapsed_time,
+                        'last_improvement_gen': last_improvement_generation
                     }, f)
                 print(f"Dados salvos em: {progress_file}")
                 
@@ -1406,10 +1408,9 @@ def main(max_generations=10):
         # Mostra as soluções sendo calculadas em tempo real
         # Só desaparece na tela final (quando finished=True)
         if not finished:
-            # Desenhar soluções aleatórias da população para maior diversidade visual
+            # Desenhar 5 soluções aleatórias da população (linhas cinzas)
             # IMPORTANTE: Desenhar AMBOS os veículos de cada solução
-            # Usar amostragem aleatória ao invés de sempre as mesmas top soluções
-            num_to_draw = min(15, len(population))  # Aumentado para 15
+            num_to_draw = min(5, len(population))
             if num_to_draw > 1:
                 # Pegar índices aleatórios (excluindo a melhor que é índice 0)
                 import random

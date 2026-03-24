@@ -355,7 +355,7 @@ all-tests:
 	@echo "$(GREEN)  EXECUÇÃO COMPLETA DE TESTES$(NC)"
 	@echo "$(GREEN)========================================$(NC)"
 	@echo ""
-	@echo "$(YELLOW)Este comando executará TODOS os 140 testes do projeto.$(NC)"
+	@echo "$(YELLOW)Este comando executará TODOS os testes do projeto.$(NC)"
 	@echo "$(RED)⚠️  ATENÇÃO: Inclui 24 testes de integração que consomem tokens da API OpenAI!$(NC)"
 	@echo "$(YELLOW)Certifique-se de que OPENAI_API_KEY está configurada no .env$(NC)"
 	@echo ""
@@ -630,7 +630,7 @@ test-coverage-report:
 	@echo "$(GREEN)  RELATÓRIO COMPLETO DE COBERTURA$(NC)"
 	@echo "$(GREEN)========================================$(NC)"
 	@echo ""
-	@echo "$(GREEN)Executando TODOS os 266 testes (incluindo integração)...$(NC)"
+	@echo "$(GREEN)Executando TODOS os testes (incluindo integração)...$(NC)"
 	@echo "$(RED)⚠️  ATENÇÃO: Testes de integração consomem tokens da API!$(NC)"
 	@echo "$(YELLOW)Isso pode levar alguns minutos...$(NC)"
 	@echo ""
@@ -640,7 +640,7 @@ test-coverage-report:
 	@echo "$(GREEN)  ✓ RELATÓRIO GERADO COM SUCESSO!$(NC)"
 	@echo "$(GREEN)========================================$(NC)"
 	@echo ""
-	@echo "$(YELLOW)Total de testes executados: 266$(NC)"
+	@echo "$(YELLOW)Total de testes executados: 250+$(NC)"
 	@echo "$(YELLOW)Relatório HTML: htmlcov/index.html$(NC)"
 	@echo "$(YELLOW)Relatório Markdown: docs/COVERAGE_REPORT.md$(NC)"
 	@echo ""
@@ -650,7 +650,45 @@ test-coverage-report:
 	@echo "  Windows: $(YELLOW)start htmlcov/index.html$(NC)"
 
 # Executa tudo de uma vez
-app: setup streamlit
+app: setup
+	@echo ""
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  INICIANDO BOT DO TELEGRAM$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@if [ ! -f ".env" ]; then \
+		echo "$(YELLOW)⚠️  Arquivo .env não encontrado$(NC)"; \
+		echo "$(YELLOW)Bot do Telegram não será iniciado$(NC)"; \
+		echo "$(YELLOW)Para usar o bot: copie .env.example para .env e configure TELEGRAM_BOT_TOKEN$(NC)"; \
+		echo ""; \
+	elif ! grep -q "TELEGRAM_BOT_TOKEN=" .env || grep -q "TELEGRAM_BOT_TOKEN=seu" .env; then \
+		echo "$(YELLOW)⚠️  TELEGRAM_BOT_TOKEN não configurado no .env$(NC)"; \
+		echo "$(YELLOW)Bot do Telegram não será iniciado$(NC)"; \
+		echo "$(YELLOW)Configure o token no arquivo .env para usar o bot$(NC)"; \
+		echo ""; \
+	elif pgrep -f "telegram_bot/bot.py" > /dev/null; then \
+		echo "$(GREEN)✓ Bot do Telegram já está rodando$(NC)"; \
+		echo ""; \
+	else \
+		echo "$(GREEN)Iniciando bot do Telegram...$(NC)"; \
+		nohup $(PYTHON_VENV) telegram_bot/bot.py > telegram_bot.log 2>&1 & echo $$! > telegram_bot.pid; \
+		sleep 2; \
+		if pgrep -f "telegram_bot/bot.py" > /dev/null; then \
+			echo "$(GREEN)✓ Bot do Telegram iniciado com sucesso!$(NC)"; \
+			echo "$(YELLOW)PID: $$(cat telegram_bot.pid)$(NC)"; \
+			echo "$(YELLOW)Log: telegram_bot.log$(NC)"; \
+			echo ""; \
+		else \
+			echo "$(YELLOW)⚠️  Erro ao iniciar o bot. Verifique o log: telegram_bot.log$(NC)"; \
+			rm -f telegram_bot.pid; \
+			echo ""; \
+		fi; \
+	fi
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)  INICIANDO STREAMLIT$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	$(VENV_NAME)/bin/streamlit run streamlit/app_streamlit.py
 
 # Limpa ambiente virtual e cache
 clean:
