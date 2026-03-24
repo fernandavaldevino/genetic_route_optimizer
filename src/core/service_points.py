@@ -25,11 +25,11 @@ class TimeWindow:
     end_time: float    # Tempo final (em minutos desde início do dia)
     
     def is_valid_time(self, arrival_time: float) -> bool:
-        """Verifica se o tempo de chegada está dentro da janela"""
+        """ Verifica se o tempo de chegada está dentro da janela """
         return self.start_time <= arrival_time <= self.end_time
     
     def get_penalty(self, arrival_time: float) -> float:
-        """Calcula penalidade por violação da janela de tempo"""
+        """ Calcula penalidade por violação da janela de tempo """
         if self.is_valid_time(arrival_time):
             return 0.0
         elif arrival_time > self.end_time:
@@ -78,15 +78,7 @@ def create_service_point(
     service_type: str,
     time_window: Optional[Tuple[float, float]] = None
 ) -> ServicePoint:
-    """
-    Factory function para criar pontos de atendimento baseado no tipo
-    
-    Args:
-        id: Identificador único do ponto
-        location: Coordenadas (x, y)
-        service_type: Tipo de serviço ('emergency', 'violence', 'medication', 'postpartum', 'regular')
-        time_window: Tupla opcional (início, fim) em minutos
-    """
+    """ Factory function para criar pontos de atendimento baseado no tipo """
     
     tw = TimeWindow(time_window[0], time_window[1]) if time_window else None
     
@@ -153,11 +145,11 @@ def calculate_travel_time(point1: Tuple[float, float], point2: Tuple[float, floa
     
     Args:
         point1, point2: Coordenadas dos pontos
-        speed: Velocidade média em km/h (default: 40 km/h)
+        speed: Velocidade média em km/h (default: 80 km/h)
         scale_factor: Fator de escala para converter coordenadas em km (default: 0.1 = 1 unidade = 100m)
     
     Returns:
-        Tempo de viagem em minutos
+        Tempo de viagem EM MINUTOS
     """
     distance_units = calculate_distance(point1, point2)
     distance_km = distance_units * scale_factor  # Converter para km
@@ -175,16 +167,7 @@ def sort_by_priority(service_points: List[ServicePoint]) -> List[ServicePoint]:
 
 def validate_temperature_control_route(route: List[ServicePoint], 
                                        max_time_without_control: float = 120.0) -> Tuple[bool, str]:
-    """
-    Valida se medicamentos com controle de temperatura são entregues dentro do tempo limite
-    
-    Args:
-        route: Lista de pontos de atendimento na ordem da rota
-        max_time_without_control: Tempo máximo (em minutos) que medicamentos podem ficar sem controle
-    
-    Returns:
-        Tupla (válido, mensagem)
-    """
+    """ Valida se medicamentos com controle de temperatura são entregues dentro do tempo limite """
     current_time = 0.0
     last_medication_pickup = None
     
@@ -208,10 +191,7 @@ def validate_temperature_control_route(route: List[ServicePoint],
 
 
 def validate_special_protocol_sequence(route: List[ServicePoint]) -> Tuple[bool, str]:
-    """
-    Valida se pontos com protocolos especiais (violência doméstica) têm tempo adequado
-    e não são agrupados de forma inadequada
-    """
+    """ Valida se pontos com protocolos especiais (violência doméstica) têm tempo adequado e não são agrupados de forma inadequada """
     for i, point in enumerate(route):
         if point.requires_special_protocol:
             # Verificar se há tempo suficiente alocado

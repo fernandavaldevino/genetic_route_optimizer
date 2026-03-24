@@ -47,9 +47,10 @@ def calculate_route_time_and_distance(route: List[ServicePoint],
                 current_time = current_day * 1440 + work_start
         
         arrival_times.append(current_time)
-        
-        # Adicionar tempo de serviço
-        current_time += route[i].service_duration
+
+        # Adicionar tempo de serviço (depósito não tem tempo de atendimento)
+        if route[i].id != 0:
+            current_time += route[i].service_duration
         
         # Verificar se o serviço termina após 18h
         time_after_service = current_time % 1440
@@ -112,22 +113,12 @@ def calculate_constrained_fitness(route: List[ServicePoint],
         route, start_time, speed
     )
     
-    # Fitness base: Distância (peso principal)
-    fitness = total_distance * 10  # Multiplicar para dar peso à distância
-    
-    # Encontrar posições de cada prioridade
-    priority_positions = {
-        ServicePriority.EMERGENCY_OBSTETRIC: [],
-        ServicePriority.DOMESTIC_VIOLENCE: [],
-        ServicePriority.HORMONAL_MEDICATION: [],
-        ServicePriority.POSTPARTUM_CARE: [],
-        ServicePriority.REGULAR: []
-    }
-    
-    for i, point in enumerate(route):
-        priority_positions[point.priority].append(i)
-    
-    # Verificar ordem: EME < VIO < MED < POS < REG
+    # Fitness base: distância sem multiplicador — penalidades expressas em "unidades de distância equivalente"
+    fitness = total_distance
+
+    # Penalidade por violação de ordem de prioridade (posição relativa na rota)
+    # Valor moderado: 100/violação — o GA pode "comprar" uma violação se economizar
+    # mais de 100 unidades de distância (ex: ponto REG literalmente no caminho entre dois EME).
     priority_order = [
         ServicePriority.EMERGENCY_OBSTETRIC,
         ServicePriority.DOMESTIC_VIOLENCE,
@@ -135,40 +126,37 @@ def calculate_constrained_fitness(route: List[ServicePoint],
         ServicePriority.POSTPARTUM_CARE,
         ServicePriority.REGULAR
     ]
-    
-    # Penalidade moderada por violação de ordem (permite otimização)
+    priority_positions: dict = {p: [] for p in priority_order}
+    for i, point in enumerate(route):
+        if point.priority in priority_positions:
+            priority_positions[point.priority].append(i)
+
     priority_order_penalty = 0.0
     for i in range(len(priority_order) - 1):
-        current_priority = priority_order[i]
-        next_priority = priority_order[i + 1]
-        
-        current_positions = priority_positions[current_priority]
-        next_positions = priority_positions[next_priority]
-        
-        if current_positions and next_positions:
-            max_current = max(current_positions)
-            min_next = min(next_positions)
-            
-            # Se ordem for violada: penalidade proporcional à violação
-            if min_next < max_current:
-                violation_size = max_current - min_next
-                priority_order_penalty += violation_size * 5000  # Penalidade moderada
-    
-    # Penalidade leve por gaps (permite 1 parada)
+        cur_p = priority_order[i]
+        nxt_p = priority_order[i + 1]
+        cur_pos = priority_positions[cur_p]
+        nxt_pos = priority_positions[nxt_p]
+        if cur_pos and nxt_pos:
+            if min(nxt_pos) < max(cur_pos):
+                priority_order_penalty += (max(cur_pos) - min(nxt_pos)) * 100
+
+    # Penalidade leve por gaps dentro do mesmo grupo (incentiva pontos de mesma prioridade juntos)
     gap_penalty = 0.0
-    for priority, positions in priority_positions.items():
+    for positions in priority_positions.values():
         if len(positions) > 1:
-            for i in range(len(positions) - 1):
-                gap = positions[i + 1] - positions[i] - 1
-                if gap > 1:  # Mais de 1 parada
-                    gap_penalty += (gap - 1) * 1000
-    
+            for k in range(len(positions) - 1):
+                gap = positions[k + 1] - positions[k] - 1
+                if gap > 1:
+                    gap_penalty += (gap - 1) * 20
+
     # Penalidades por violação de janelas de tempo
+    # Cada minuto de atraso ≈ 30 unidades de distância (proporcional à distância base)
     time_window_penalty = 0.0
     for point, arrival_time in zip(route, arrival_times):
-        if point.time_window:
-            penalty = point.time_window.get_penalty(arrival_time)
-            time_window_penalty += penalty
+        if point.time_window and arrival_time > point.time_window.end_time:
+            minutes_late = arrival_time - point.time_window.end_time
+            time_window_penalty += minutes_late * 30
     
     # Restrição: Medicamentos prioritários devem ser entregues antes do deadline
     priority_deadline_penalty = 0.0
@@ -181,34 +169,37 @@ def calculate_constrained_fitness(route: List[ServicePoint],
     
     for point, arrival_time in zip(route, arrival_times):
         if point.priority in priority_types:
-            # Verificar se passou do deadline
+            # Penalidade forte por passar do deadline: ≈ 150 unidades de distância por minuto
+            # (mais grave que atraso de janela de tempo, menos que restrição hard)
             if arrival_time > priority_deadline:
-                # Penalidade forte se medicamento prioritário passar do deadline: 10.000 por minuto de atraso
                 delay = arrival_time - priority_deadline
-                priority_deadline_penalty += delay * 10000
+                priority_deadline_penalty += delay * 150
     
-    # Validação de controle de temperatura: penalidade alta se rota não atender requisitos - 50000
+    # Restrições hard: penalidades equivalem a descartar a rota inteira (~10x distância típica)
+    # Temperatura: medicamento estragado é inaceitável — equivale a ~10 rotas completas
     temp_valid, temp_message = validate_temperature_control_route(route)
-    temperature_penalty = 0.0 if temp_valid else 50000
-    
-    # Validação de protocolos especiais: penalidade alta se sequência de protocolos for violada - 20000
+    temperature_penalty = 0.0 if temp_valid else 5000
+
+    # Protocolo de violência: não respeitar protocolo é inaceitável — equivale a ~4 rotas completas
     protocol_valid, protocol_message = validate_special_protocol_sequence(route)
-    protocol_penalty = 0.0 if protocol_valid else 20000
-    
-    # Penalidade por tempo total excessivo
+    protocol_penalty = 0.0 if protocol_valid else 2000
+
+    # Penalidade por tempo total excessivo (soft constraint)
+    # Cada minuto extra ≈ 5 unidades de distância — incentiva caber no horário, mas não domina
     max_work_time = 480.0  # 8 horas
-    overtime_penalty = max(0, total_time - max_work_time) * 100
+    overtime_penalty = max(0, total_time - max_work_time) * 5
     
-    # Fitness total: distância é o fator principal
+    # Fitness total: todos os componentes em escala de "distância equivalente"
+    # Quanto menor, melhor. Distância é o fator de desempate quando restrições são satisfeitas.
     total_fitness = (
-        fitness +                    # Distância x10 (peso principal)
-        priority_order_penalty +     # Penalidade moderada por ordem
-        gap_penalty +                # Penalidade leve por gaps
-        time_window_penalty +        # Penalidade por janelas de tempo
-        temperature_penalty +
-        protocol_penalty +
-        overtime_penalty +
-        priority_deadline_penalty    # Penalidade por deadline de prioritários
+        fitness +                    # Distância real (base de comparação)
+        priority_order_penalty +     # 100/violação  — moderado, pode ser "comprado" por distância
+        gap_penalty +                # 20/gap extra  — leve
+        time_window_penalty +        # 30/min tarde  — proporcional
+        temperature_penalty +        # 5000 fixo     — hard constraint (inaceitável)
+        protocol_penalty +           # 2000 fixo     — hard constraint
+        overtime_penalty +           # 5/min extra   — soft constraint
+        priority_deadline_penalty    # 150/min tarde — forte mas proporcional
     )
     
     return total_fitness
@@ -235,12 +226,12 @@ def generate_priority_aware_population(service_points: List[ServicePoint],
         if random.random() < priority_bias:
             # Criar rota baseada em prioridade com alguma aleatoriedade
             sorted_points = sort_by_priority(other_points)
-            
+
             # Embaralhar dentro de grupos de mesma prioridade
-            route = []
+            route: List[ServicePoint] = []
             current_priority = None
-            priority_group = []
-            
+            priority_group: List[ServicePoint] = []
+
             for point in sorted_points:
                 if point.priority != current_priority:
                     if priority_group:
@@ -250,15 +241,37 @@ def generate_priority_aware_population(service_points: List[ServicePoint],
                     current_priority = point.priority
                 else:
                     priority_group.append(point)
-            
+
+            # Último grupo: para REG, ~20% das vezes usar nearest neighbor
+            # em vez de shuffle para uma melhor semente inicial
             if priority_group:
-                random.shuffle(priority_group)
-                route.extend(priority_group)
-            
+                use_nn = (
+                    current_priority == ServicePriority.REGULAR
+                    and len(priority_group) >= 3
+                    and random.random() < 0.20
+                )
+                if use_nn:
+                    start_loc = route[-1].location if route else (
+                        depot.location if depot else priority_group[0].location
+                    )
+                    nn_group: List[ServicePoint] = []
+                    remaining = priority_group[:]
+                    current_loc = start_loc
+                    while remaining:
+                        nearest = min(remaining,
+                                      key=lambda p: calculate_distance(current_loc, p.location))
+                        nn_group.append(nearest)
+                        current_loc = nearest.location
+                        remaining.remove(nearest)
+                    route.extend(nn_group)
+                else:
+                    random.shuffle(priority_group)
+                    route.extend(priority_group)
+
             # Adicionar depósito no início
             if depot:
                 route.insert(0, depot)
-            
+
             population.append(route)
         else:
             # Rota completamente aleatória (mas depósito sempre primeiro)
@@ -266,126 +279,19 @@ def generate_priority_aware_population(service_points: List[ServicePoint],
             if depot:
                 route.insert(0, depot)
             population.append(route)
-    
+
     return population
 
 
 def constrained_order_crossover(parent1: List[ServicePoint],
                                 parent2: List[ServicePoint],
                                 preserve_priority_blocks: bool = True) -> List[ServicePoint]:
-    """ Crossover que preserva ordem de prioridades
-    Sempre mantém o depósito (ID=0) na primeira posição """
-    length = len(parent1)
-    
-    # Separar depósito dos outros pontos
-    depot = None
-    parent1_no_depot = []
-    parent2_no_depot = []
-    
-    for point in parent1:
-        if point.id == 0:
-            depot = point
-        else:
-            parent1_no_depot.append(point)
-    
-    for point in parent2:
-        if point.id != 0:
-            parent2_no_depot.append(point)
-    
-    # 80% das vezes preservar ordem de prioridades
-    if preserve_priority_blocks and random.random() < 0.8:
-        # Separar por grupos de prioridade
-        priority_groups = {}
-        for point in parent1_no_depot:
-            if point.priority not in priority_groups:
-                priority_groups[point.priority] = []
-            priority_groups[point.priority].append(point)
-        
-        # Ordem de prioridades
-        priority_order = [
-            ServicePriority.EMERGENCY_OBSTETRIC,
-            ServicePriority.DOMESTIC_VIOLENCE,
-            ServicePriority.HORMONAL_MEDICATION,
-            ServicePriority.POSTPARTUM_CARE,
-            ServicePriority.REGULAR
-        ]
-        
-        # Construir filho mantendo ordem de prioridades
-        child = []
-        for priority in priority_order:
-            if priority in priority_groups:
-                # Embaralhar dentro do grupo para variedade
-                group = priority_groups[priority].copy()
-                random.shuffle(group)
-                child.extend(group)
-        
-        # Adicionar depósito no início
-        if depot:
-            child.insert(0, depot)
-        
-        return child
-    
-    # 20% das vezes: Crossover padrão (para diversidade)
-    if len(parent1_no_depot) < 2:
-        child = parent1_no_depot.copy()
-    else:
-        start_index = random.randint(0, len(parent1_no_depot) - 1)
-        end_index = random.randint(start_index + 1, len(parent1_no_depot))
-        
-        child = parent1_no_depot[start_index:end_index]
-        remaining_positions = [i for i in range(len(parent1_no_depot)) if i < start_index or i >= end_index]
-        remaining_genes = [gene for gene in parent2_no_depot if gene not in child]
-        
-        for position, gene in zip(remaining_positions, remaining_genes):
-            child.insert(position, gene)
-    
-    # Adicionar depósito no início
-    if depot:
-        child.insert(0, depot)
-    
-    return child
-
-
-def validate_and_repair_route(route: List[ServicePoint]) -> List[ServicePoint]:
-    """ Valida e repara rota para garantir que seja válida
-    Garante:
-    1. Depósito (ID=0) está sempre na primeira posição
-    2. Ordem de prioridades é respeitada (EME → VIO → MED → POS → REG)
-    3. Todos os pontos estão presentes sem duplicação
     """
-    if not route:
-        return route
-    
-    # 1. Separar depósito dos outros pontos
+    OX por grupo de prioridade: combina a ordenação espacial de p1 e p2
+    dentro de cada bloco, garantindo que a ordem de prioridades seja preservada.
+    Depot (ID=0) permanece na posição 0.
+    """
     depot = None
-    other_points = []
-    seen_ids = set()
-    
-    for point in route:
-        # Evitar duplicação
-        if point.id in seen_ids:
-            continue
-        seen_ids.add(point.id)
-        
-        if point.id == 0:
-            depot = point
-        else:
-            other_points.append(point)
-    
-    # 2. Agrupar pontos por prioridade
-    priority_groups = {
-        ServicePriority.EMERGENCY_OBSTETRIC: [],
-        ServicePriority.DOMESTIC_VIOLENCE: [],
-        ServicePriority.HORMONAL_MEDICATION: [],
-        ServicePriority.POSTPARTUM_CARE: [],
-        ServicePriority.REGULAR: []
-    }
-    
-    for point in other_points:
-        if point.priority in priority_groups:
-            priority_groups[point.priority].append(point)
-    
-    # 3. Reconstruir rota na ordem correta de prioridades
     priority_order = [
         ServicePriority.EMERGENCY_OBSTETRIC,
         ServicePriority.DOMESTIC_VIOLENCE,
@@ -393,81 +299,119 @@ def validate_and_repair_route(route: List[ServicePoint]) -> List[ServicePoint]:
         ServicePriority.POSTPARTUM_CARE,
         ServicePriority.REGULAR
     ]
-    
-    repaired_route = []
-    
-    # Adicionar depósito no início
+    p1_groups: dict = {p: [] for p in priority_order}
+    p2_groups: dict = {p: [] for p in priority_order}
+
+    for pt in parent1:
+        if pt.id == 0:
+            depot = pt
+        elif pt.priority in p1_groups:
+            p1_groups[pt.priority].append(pt)
+    for pt in parent2:
+        if pt.id != 0 and pt.priority in p2_groups:
+            p2_groups[pt.priority].append(pt)
+
+    def _ox(seq1: List[ServicePoint], seq2: List[ServicePoint]) -> List[ServicePoint]:
+        n = len(seq1)
+        if n <= 1:
+            return seq1[:]
+        a = random.randint(0, n - 1)
+        b = random.randint(a, n - 1)
+        inherited = seq1[a:b + 1]
+        inherited_ids = {pt.id for pt in inherited}
+        remainder = [pt for pt in seq2 if pt.id not in inherited_ids]
+        return remainder[:a] + inherited + remainder[a:]
+
+    child: List[ServicePoint] = []
+    for p in priority_order:
+        g1, g2 = p1_groups[p], p2_groups[p]
+        if not g1:
+            continue
+        child.extend(_ox(g1, g2) if len(g1) > 1 else g1[:])
+
     if depot:
-        repaired_route.append(depot)
-    
-    # Adicionar pontos na ordem de prioridade
-    for priority in priority_order:
-        repaired_route.extend(priority_groups[priority])
-    
-    return repaired_route
+        child.insert(0, depot)
+    return child
+
+
+def validate_and_repair_route(route: List[ServicePoint]) -> List[ServicePoint]:
+    """Garante que a rota é válida:
+    1. Depósito (ID=0) na posição 0
+    2. Ordem de prioridades respeitada (EME → VIO → MED → POS → REG)
+    3. Sem duplicatas
+    A ordem dentro de cada grupo de prioridade é preservada (não embaralhada),
+    para que o GA possa otimizar a sequência intra-grupo.
+    """
+    if not route:
+        return route
+
+    seen_ids: set = set()
+    depot = None
+    priority_order = [
+        ServicePriority.EMERGENCY_OBSTETRIC,
+        ServicePriority.DOMESTIC_VIOLENCE,
+        ServicePriority.HORMONAL_MEDICATION,
+        ServicePriority.POSTPARTUM_CARE,
+        ServicePriority.REGULAR
+    ]
+    groups: dict = {p: [] for p in priority_order}
+
+    for point in route:
+        if point.id in seen_ids:
+            continue
+        seen_ids.add(point.id)
+        if point.id == 0:
+            depot = point
+        elif point.priority in groups:
+            groups[point.priority].append(point)
+
+    repaired: List[ServicePoint] = []
+    if depot:
+        repaired.append(depot)
+    for p in priority_order:
+        repaired.extend(groups[p])
+    return repaired
 
 
 def constrained_mutate(route: List[ServicePoint],
                        mutation_probability: float,
                        respect_priorities: bool = True) -> List[ServicePoint]:
-    """ Mutação que respeita ordem de prioridades e SEMPRE gera indivíduos válidos
-    Sempre mantém o depósito (ID=0) na primeira posição """
+    """
+    Mutação que respeita grupos de prioridade na maioria dos casos.
+    - 80%: swap dentro do mesmo grupo de prioridade (mantém estrutura)
+    - 20%: swap/inversão livre (permite cruzar grupos quando vale a pena geometricamente)
+    Depósito (ID=0) permanece sempre na posição 0.
+    """
     if random.random() >= mutation_probability:
         return route
-    
+
     mutated_route = copy.deepcopy(route)
-    
-    if len(route) < 2:
+    valid_indices = [i for i, p in enumerate(mutated_route) if p.id != 0]
+    if len(valid_indices) < 2:
         return mutated_route
-    
-    # Identificar se há depósito e sua posição
-    depot_idx = None
-    for i, point in enumerate(route):
-        if point.id == 0:
-            depot_idx = i
-            break
-    
-    # 90% das vezes: trocar apenas dentro do mesmo grupo de prioridade
-    if respect_priorities and random.random() < 0.9:
-        # Agrupar índices por prioridade (excluindo depósito)
-        priority_indices = {}
-        for i, point in enumerate(route):
-            if point.id != 0:  # Não incluir depósito
-                if point.priority not in priority_indices:
-                    priority_indices[point.priority] = []
-                priority_indices[point.priority].append(i)
-        
-        # Escolher um grupo que tenha pelo menos 2 elementos
-        valid_groups = [indices for indices in priority_indices.values() if len(indices) >= 2]
-        
+
+    if respect_priorities and random.random() < 0.8:
+        # Swap dentro do mesmo grupo de prioridade
+        priority_indices: dict = {}
+        for i, p in enumerate(mutated_route):
+            if p.id != 0:
+                priority_indices.setdefault(p.priority, []).append(i)
+        valid_groups = [idxs for idxs in priority_indices.values() if len(idxs) >= 2]
         if valid_groups:
-            # Escolher um grupo aleatório
             group = random.choice(valid_groups)
-            
-            # Trocar dois elementos dentro desse grupo
-            idx1, idx2 = random.sample(group, 2)
-            mutated_route[idx1], mutated_route[idx2] = mutated_route[idx2], mutated_route[idx1]
-        
-        # Validar e reparar (garante que está válida)
-        return validate_and_repair_route(mutated_route)
-    
-    # 10% das vezes: mutação livre (para diversidade, exceto depósito)
-    mutation_type = random.choice(['swap', 'inversion'])
-    
-    # Criar lista de índices válidos (sem o depósito)
-    valid_indices = [i for i in range(len(route)) if route[i].id != 0]
-    
-    if len(valid_indices) >= 2:
-        if mutation_type == 'swap':
-            idx1, idx2 = random.sample(valid_indices, 2)
-            mutated_route[idx1], mutated_route[idx2] = mutated_route[idx2], mutated_route[idx1]
-        else:  # inversion
-            idx1 = random.choice(valid_indices[:-1])
-            idx2 = random.choice([i for i in valid_indices if i > idx1])
-            mutated_route[idx1:idx2+1] = list(reversed(mutated_route[idx1:idx2+1]))
-    
-    # Sempre validar e reparar após mutação livre
-    return validate_and_repair_route(mutated_route)
+            i1, i2 = random.sample(group, 2)
+            mutated_route[i1], mutated_route[i2] = mutated_route[i2], mutated_route[i1]
+    else:
+        # Operação livre (swap ou inversão de qualquer segmento)
+        if random.random() < 0.6:
+            i1, i2 = random.sample(valid_indices, 2)
+            mutated_route[i1], mutated_route[i2] = mutated_route[i2], mutated_route[i1]
+        else:
+            i1 = random.choice(valid_indices[:-1])
+            i2 = random.choice([i for i in valid_indices if i > i1])
+            mutated_route[i1:i2 + 1] = list(reversed(mutated_route[i1:i2 + 1]))
+
+    return mutated_route
 
 
 def sort_population_by_fitness(population: List[List[ServicePoint]],
@@ -477,3 +421,194 @@ def sort_population_by_fitness(population: List[List[ServicePoint]],
     sorted_combined = sorted(combined, key=lambda x: x[1])
     sorted_population, sorted_fitness = zip(*sorted_combined)
     return list(sorted_population), list(sorted_fitness)
+
+
+def perturb_route(route: List[ServicePoint]) -> List[ServicePoint]:
+    """
+    Double-bridge dentro de cada grupo de prioridade.
+    Perturba a ordem intra-grupo sem violar a sequência EME→VIO→MED→POS→REG.
+    """
+    if len(route) < 5:
+        return route[:]
+
+    priority_order = [
+        ServicePriority.EMERGENCY_OBSTETRIC,
+        ServicePriority.DOMESTIC_VIOLENCE,
+        ServicePriority.HORMONAL_MEDICATION,
+        ServicePriority.POSTPARTUM_CARE,
+        ServicePriority.REGULAR
+    ]
+    depot = route[0] if route[0].id == 0 else None
+    groups: dict = {p: [] for p in priority_order}
+    for pt in route:
+        if pt.id != 0 and pt.priority in groups:
+            groups[pt.priority].append(pt)
+
+    def _perturb_group(pts: List[ServicePoint]) -> List[ServicePoint]:
+        """
+        Double-bridge adaptativo para perturbação intra-grupo.
+        - Grupos pequenos (n<4): swap simples de 2 pontos
+        - Grupos grandes (n≥4): double-bridge com 3 cortes aleatórios
+        Reorganiza a ordem dos pontos sem sair do grupo de prioridade.
+        """
+        n = len(pts)
+        if n < 4:
+            if n >= 2:
+                res = pts[:]
+                i1, i2 = random.sample(range(n), 2)
+                res[i1], res[i2] = res[i2], res[i1]
+                return res
+            return pts[:]
+        cuts = sorted(random.sample(range(1, n), 3))
+        a, b, c = cuts
+        return pts[:a] + pts[b:c] + pts[a:b] + pts[c:]
+
+    result: List[ServicePoint] = []
+    if depot:
+        result.append(depot)
+    for p in priority_order:
+        g = groups[p]
+        result.extend(_perturb_group(g) if len(g) >= 2 else g)
+
+    return result
+
+
+def two_opt_within_priority_groups(route: List[ServicePoint]) -> List[ServicePoint]:
+    """
+    Otimização 2-opt que respeita grupos de prioridade.
+    Aplica busca local dentro de cada grupo de prioridade separadamente, usando o contexto correto de entrada/saída de cada grupo.
+    Sempre mantém o depósito (ID=0) na primeira posição.
+    Aplicado na melhor solução a cada N gerações, não em todos os indivíduos (custo O(n²) por grupo).
+    """
+    if len(route) <= 3:
+        return route[:]
+
+    # Separar depósito
+    depot = route[0] if route[0].id == 0 else None
+    working_points = [p for p in route if p.id != 0]
+
+    if len(working_points) <= 2:
+        return route[:]
+
+    priority_order = [
+        ServicePriority.EMERGENCY_OBSTETRIC,
+        ServicePriority.DOMESTIC_VIOLENCE,
+        ServicePriority.HORMONAL_MEDICATION,
+        ServicePriority.POSTPARTUM_CARE,
+        ServicePriority.REGULAR
+    ]
+
+    # Agrupar pontos por prioridade, mantendo apenas grupos não-vazios
+    priority_groups: dict = {p: [] for p in priority_order}
+    for point in working_points:
+        if point.priority in priority_groups:
+            priority_groups[point.priority].append(point)
+
+    active_priorities = [p for p in priority_order if priority_groups[p]]
+
+    def _optimize_group(pts: List[ServicePoint],
+                        prev_loc: Tuple[float, float],
+                        next_loc: Optional[Tuple[float, float]]) -> List[ServicePoint]:
+        """ 2-opt num grupo com contexto de entrada/saída """
+        if len(pts) <= 2:
+            return pts[:]
+
+        def group_dist(p_list: List[ServicePoint]) -> float:
+            total = calculate_distance(prev_loc, p_list[0].location)
+            for k in range(len(p_list) - 1):
+                total += calculate_distance(p_list[k].location, p_list[k + 1].location)
+            if next_loc:
+                total += calculate_distance(p_list[-1].location, next_loc)
+            return total
+
+        best = pts[:]
+        best_dist = group_dist(best)
+        improved = True
+        max_iter = 50
+        itr = 0
+
+        while improved and itr < max_iter:
+            improved = False
+            itr += 1
+            for i in range(len(best) - 1):
+                for j in range(i + 2, len(best) + 1):
+                    candidate = best[:i] + list(reversed(best[i:j])) + best[j:]
+                    d = group_dist(candidate)
+                    if d < best_dist - 1e-9:
+                        best = candidate
+                        best_dist = d
+                        improved = True
+                        break
+                if improved:
+                    break
+
+        return best
+
+    depot_loc = depot.location if depot else working_points[0].location
+    final_points: List[ServicePoint] = []
+    current_last_loc = depot_loc
+
+    for idx, priority in enumerate(active_priorities):
+        group = priority_groups[priority]
+
+        # Próximo ponto de referência: início do próximo grupo ou retorno ao depósito
+        if idx < len(active_priorities) - 1:
+            next_p = active_priorities[idx + 1]
+            next_loc = priority_groups[next_p][0].location
+        else:
+            next_loc = depot_loc
+
+        optimized_group = _optimize_group(group, current_last_loc, next_loc)
+        final_points.extend(optimized_group)
+        current_last_loc = optimized_group[-1].location
+
+    result = []
+    if depot:
+        result.append(depot)
+    result.extend(final_points)
+    return result
+
+
+def two_opt_global(route: List[ServicePoint]) -> List[ServicePoint]:
+    """2-opt padrão sobre a rota completa. Após otimizar, aplica
+    validate_and_repair_route para garantir a ordem de prioridades.
+    Depot (ID=0) permanece fixo na posição 0.
+    """
+    if len(route) <= 3:
+        return route[:]
+
+    depot = route[0] if route[0].id == 0 else None
+    pts = [p for p in route if p.id != 0]
+    n = len(pts)
+    if n <= 2:
+        return route[:]
+
+    depot_loc = depot.location if depot else pts[0].location
+
+    def total_dist(seq: List[ServicePoint]) -> float:
+        d = calculate_distance(depot_loc, seq[0].location)
+        for k in range(len(seq) - 1):
+            d += calculate_distance(seq[k].location, seq[k + 1].location)
+        d += calculate_distance(seq[-1].location, depot_loc)
+        return d
+
+    best = pts[:]
+    best_d = total_dist(best)
+    improved = True
+
+    while improved:
+        improved = False
+        for i in range(n - 1):
+            for j in range(i + 2, n):
+                candidate = best[:i] + list(reversed(best[i:j + 1])) + best[j + 1:]
+                d = total_dist(candidate)
+                if d < best_d - 1e-9:
+                    best = candidate
+                    best_d = d
+                    improved = True
+                    break
+            if improved:
+                break
+
+    result = ([depot] if depot else []) + best
+    return validate_and_repair_route(result)

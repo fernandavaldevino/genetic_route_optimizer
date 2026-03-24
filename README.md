@@ -156,20 +156,24 @@ Documentação completa: [`README_LLM.md`](docs/README_LLM.md)
   - Integração com rotas otimizadas
   - Envio de mapas e resultados
 
-- ✅ **Deploy em Cloud**:
+- ✅ **Deploy em Cloud (Google Cloud Platform)**:
+  
+  Documentação completa: [`ARQUITETURA_GCP.md`](docs/ARQUITETURA_GCP.md)
+  
   - Google Cloud Run (serverless)
   - Google Artifact Registry para imagens Docker
   - Terraform para infraestrutura como código (IaC)
   - Google Cloud Build para CI/CD
   - Configuração de variáveis de ambiente
   - Escalabilidade automática
+  - Diagrama de arquitetura completo
 
 ### 🧪 Testes e Qualidade
 
 Documentação completa: [`README_TESTS.md`](docs/README_TESTS.md)
 
 - ✅ **Cobertura de Testes Abrangente**:
-  - **263 testes automatizados**
+  - **265 testes automatizados**
   - **Cobertura geral: ~55%**
   - **Cobertura de módulos críticos: ~75%**
 
@@ -664,6 +668,7 @@ start htmlcov/index.html     # Windows
 tests/
 ├── conftest.py                    # Fixtures compartilhadas
 ├── test_genetic_algorithm.py      # Testes do algoritmo genético (95%+)
+├── test_elitism_verification.py   # Testes de verificação do elitismo dinâmico
 ├── test_service_points.py         # Testes de pontos de serviço (95%+)
 ├── test_api.py                    # Testes da API REST (90%+)
 ├── test_api_advanced.py           # Testes avançados da API
@@ -697,8 +702,8 @@ tests/
 
 ### Estatísticas de Testes
 
-- **Total de Testes:** 263
-- **Total de Arquivos de Teste:** 15+
+- **Total de Testes:** 265
+- **Total de Arquivos de Teste:** 16
 - **Total de Classes de Teste:** 70+
 - **Cobertura Geral:** ~55%
 - **Cobertura de Módulos Críticos:** ~75%
@@ -708,6 +713,7 @@ tests/
 ### Documentos Disponíveis
 
 - [README.md](README.md) - Este arquivo
+- [ARQUITETURA_GCP.md](docs/ARQUITETURA_GCP.md) - **Arquitetura completa da solução em Google Cloud Platform**
 - [README_LLM.md](docs/README_LLM.md) - Integração com LLMs
 - [README_RESTRICOES.md](docs/README_RESTRICOES.md) - Restrições do algoritmo
 - [README_STREAMLIT.md](docs/README_STREAMLIT.md) - Dashboard Streamlit

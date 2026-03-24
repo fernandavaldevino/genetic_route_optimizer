@@ -16,7 +16,9 @@ from src.core.genetic_algorithm import (
     sort_population_by_fitness,
     constrained_order_crossover,
     constrained_mutate,
-    calculate_route_time_and_distance
+    calculate_route_time_and_distance,
+    two_opt_global,
+    perturb_route
 )
 from src.core.service_points import create_service_point, ServicePriority
 from src.constants import (
@@ -28,7 +30,13 @@ from src.constants import (
     N_POINTS, POPULATION_SIZE, MUTATION_PROBABILITY, MAX_GENERATIONS, VEHICLE_SPEED,
     MAP_COORD_MIN_X, MAP_COORD_MAX_X, MAP_COORD_MIN_Y, MAP_COORD_MAX_Y,
     GUARANTEED_SERVICE_TYPES, VIOLENCE_TIME_WINDOW, POSTPARTUM_TIME_WINDOW,
-    PRIORITY_ABBREVIATIONS, MINUTES_PER_DAY, WORK_START_TIME, WORK_END_TIME
+    PRIORITY_ABBREVIATIONS, MINUTES_PER_DAY, WORK_START_TIME, WORK_END_TIME,
+    STAGNATION_THRESHOLD, DIVERSITY_INJECTION_MIN, DIVERSITY_INJECTION_MAX,
+    MUTATION_RATE_INITIAL, MUTATION_RATE_FINAL,
+    TOURNAMENT_SIZE_EARLY, TOURNAMENT_SIZE_MID, TOURNAMENT_SIZE_LATE,
+    TOURNAMENT_EARLY_THRESHOLD, TOURNAMENT_MID_THRESHOLD,
+    OPT2_INTERVAL_EARLY, OPT2_INTERVAL_MID, OPT2_INTERVAL_LATE,
+    OPT2_EARLY_THRESHOLD, OPT2_MID_THRESHOLD
 )
 
 def draw_service_points(screen, service_points, radius, start_points_by_day=None):
@@ -601,6 +609,7 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
     y_pos += 70
     
     # Informações gerais
+    # No modo infinito, generation contém o número real de gerações executadas
     info_texts = [
         (f"Gerações: {generation}", BLACK),
         (f"Fitness: {best_fitness:.2f}", BLACK),
@@ -960,13 +969,16 @@ def main():
     # Criar pontos de atendimento
     service_points = create_random_service_points(N_POINTS)
     
-    # Criar população inicial
+    # Criar população inicial completamente diversa (sem 2-opt).
+    # A pressão seletiva baixa + crossover OX por grupo exploram o espaço
+    # amplamente; o 2-opt periódico durante a evolução polirá as melhores soluções.
     population = generate_priority_aware_population(service_points, POPULATION_SIZE)
-    
+
     best_fitness_history = []
     generation = 0
     optimization_complete = False
     last_improvement_generation = 0
+    generations_without_improvement = 0   # contador de estagnação
     start_time = pygame.time.get_ticks() / 1000.0  # Tempo em segundos
     
     # Loop principal
@@ -986,19 +998,36 @@ def main():
                     generation = 0
                     optimization_complete = False
                     last_improvement_generation = 0
+                    generations_without_improvement = 0
                     start_time = pygame.time.get_ticks() / 1000.0
         
         # Verificar se atingiu o critério de parada
-        if generation > MAX_GENERATIONS and not optimization_complete:
+        # Modo normal: generation > MAX_GENERATIONS
+        # Modo infinito (MAX_GENERATIONS == -1): 5000 gerações sem melhoria
+        stop_condition = False
+        stop_message = ""
+        
+        if MAX_GENERATIONS == -1:
+            # Modo infinito: parar após 5000 gerações sem melhoria
+            stop_condition = (generation - last_improvement_generation) >= 5000
+            if stop_condition:
+                stop_message = f"5000 gerações sem melhoria (última melhoria na geração {last_improvement_generation})"
+        else:
+            # Modo normal: parar após MAX_GENERATIONS
+            stop_condition = generation > MAX_GENERATIONS
+            if stop_condition:
+                stop_message = f"{MAX_GENERATIONS} gerações"
+        
+        if stop_condition and not optimization_complete:
             optimization_complete = True
             print(f"\n{'='*60}")
-            print(f"OTIMIZAÇÃO CONCLUÍDA EM {MAX_GENERATIONS} GERAÇÕES!")
+            print(f"OTIMIZAÇÃO CONCLUÍDA: {stop_message}")
             print(f"Fitness final: {best_fitness:.2f}")
             print(f"{'='*60}\n")
         
         # Se otimização completa, mostrar tela de conclusão
         if optimization_complete:
-            draw_completion_screen(screen, MAX_GENERATIONS, best_fitness, best_route, arrival_times, service_points)
+            draw_completion_screen(screen, generation, best_fitness, best_route, arrival_times, service_points)
             pygame.display.flip()
             clock.tick(FPS)
             
@@ -1017,6 +1046,7 @@ def main():
                         generation = 0
                         optimization_complete = False
                         last_improvement_generation = 0
+                        generations_without_improvement = 0
                         start_time = pygame.time.get_ticks() / 1000.0
             continue
         
@@ -1038,15 +1068,16 @@ def main():
             best_route = copy.deepcopy(current_best_route)
             best_fitness = current_best_fitness
             last_improvement_generation = 0
+            generations_without_improvement = 0
         else:
-            # Se encontrou solução melhor, atualizar
             if current_best_fitness < best_fitness:
                 best_route = copy.deepcopy(current_best_route)
                 best_fitness = current_best_fitness
-                
-                # Detectar melhoria significativa (0.1% melhor)
+                generations_without_improvement = 0
                 if best_fitness < best_fitness_history[-1] * 0.999:
                     last_improvement_generation = generation
+            else:
+                generations_without_improvement += 1
         
         # SEMPRE adicionar a MELHOR solução global ao histórico (não a atual da população)
         best_fitness_history.append(best_fitness)
@@ -1129,43 +1160,112 @@ def main():
         # ============================================================================
         # ELITISMO DINÂMICO: aumenta ao longo das gerações (1 -> 2)
         # ============================================================================
+        # ── Parâmetros adaptativos ──────────────────────────────────────
         if MAX_GENERATIONS > 0:
             progress = generation / MAX_GENERATIONS
-            # Para 1 veículo: elitismo cresce de 1 para 2
-            elite_size = 1 if progress < 0.5 else 2
         else:
-            # Modo infinito: usar elitismo médio
-            elite_size = 1
-        
-        # Criar nova população com elitismo dinâmico
+            # Modo infinito: usar número de gerações sem melhoria como proxy
+            progress = min(generations_without_improvement / 300.0, 1.0)
+
+        # Elitismo mínimo: preservar apenas o melhor global.
+        # Múltiplas cópias de elite aceleram a convergência prematura.
+        elite_size = 1
+
+        # Taxa de mutação: decai de alta (exploração) para baixa (refinamento)
+        adaptive_mutation = (
+            MUTATION_RATE_INITIAL * (1.0 - progress)
+            + MUTATION_RATE_FINAL * progress
+        )
+
+        # Torneio adaptativo: maior pressão no início, mais diversidade no final
+        if progress < TOURNAMENT_EARLY_THRESHOLD:
+            tournament_size = TOURNAMENT_SIZE_EARLY
+        elif progress < TOURNAMENT_MID_THRESHOLD:
+            tournament_size = TOURNAMENT_SIZE_MID
+        else:
+            tournament_size = TOURNAMENT_SIZE_LATE
+
+        # Intervalo 2-opt adaptativo (mais frequente no início, menos no final)
+        if generation < OPT2_EARLY_THRESHOLD:
+            opt2_interval = OPT2_INTERVAL_EARLY
+        elif generation < OPT2_MID_THRESHOLD:
+            opt2_interval = OPT2_INTERVAL_MID
+        else:
+            opt2_interval = OPT2_INTERVAL_LATE
+
+        # ── 2-opt periódico apenas na melhor solução global ───────────
+        # Aplicado raramente para não forçar convergência; polirá a melhor
+        # solução encontrada pelo crossover sem contaminar a diversidade da população.
+        if generation > 0 and generation % opt2_interval == 0:
+            optimized = two_opt_global(best_route)
+            opt_fitness = calculate_constrained_fitness(
+                optimized, speed=VEHICLE_SPEED, priority_deadline=MINUTES_PER_DAY
+            )
+            if opt_fitness < best_fitness:
+                best_route = copy.deepcopy(optimized)
+                best_fitness = opt_fitness
+                generations_without_improvement = 0
+                last_improvement_generation = generation
+
+        # ── Detecção de estagnação e resposta ──────────────────────────
+        if generations_without_improvement >= STAGNATION_THRESHOLD:
+            if generations_without_improvement >= STAGNATION_THRESHOLD * 2:
+                # Estagnação severa: reinício quase total da população.
+                # Mantém apenas o melhor global + 4 perturbações dele.
+                # Injeção parcial não funciona — a metade stagnada contamina tudo.
+                survivors = [copy.deepcopy(best_route)]
+                for _ in range(4):
+                    p = perturb_route(best_route)
+                    survivors.append(p)
+                fresh = generate_priority_aware_population(
+                    service_points, POPULATION_SIZE - len(survivors)
+                )
+                population = survivors + fresh
+                fitness_values = [
+                    calculate_constrained_fitness(r, speed=VEHICLE_SPEED, priority_deadline=MINUTES_PER_DAY)
+                    for r in population
+                ]
+            else:
+                # Estagnação leve: injeção de 30% da população
+                n_inject = int(POPULATION_SIZE * DIVERSITY_INJECTION_MIN) + 10
+                fresh = generate_priority_aware_population(service_points, n_inject)
+                population = population[: POPULATION_SIZE - n_inject] + fresh
+                fitness_values = fitness_values[: POPULATION_SIZE - n_inject] + [
+                    calculate_constrained_fitness(r, speed=VEHICLE_SPEED, priority_deadline=MINUTES_PER_DAY)
+                    for r in fresh
+                ]
+
+            population, fitness_values = sort_population_by_fitness(population, fitness_values)
+            # Reinício severo: zera o contador (ciclo recomeça do zero)
+            # Injeção leve: mantém no threshold para que em mais 20 gens sem melhoria
+            # o reinício severo seja disparado (sem isso o reinício severo nunca ocorre)
+            if generations_without_improvement >= STAGNATION_THRESHOLD * 2:
+                generations_without_improvement = 0
+            else:
+                generations_without_improvement = STAGNATION_THRESHOLD
+
+        # ── Criar nova geração ──────────────────────────────────────────
         new_population = []
-        
-        # PASSO 1: SEMPRE copiar a melhor solução global primeiro (elitismo garantido)
+
+        # Elite: preservar as melhores soluções
         new_population.append(copy.deepcopy(best_route))
-        
-        # PASSO 2: Copiar elite adicional da população ordenada (se elite_size > 1)
-        for i in range(1, elite_size):
+        for i in range(1, min(elite_size, len(population))):
             new_population.append(copy.deepcopy(population[i]))
-        
-        # PASSO 3: Gerar resto da população
+
+        # Resto da população: seleção → crossover → mutação
         while len(new_population) < POPULATION_SIZE:
-            # Seleção por torneio
-            tournament_size = 5
-            tournament_indices = random.sample(range(len(population)), tournament_size)
+            t_size = min(tournament_size, len(population))
+            tournament_indices = random.sample(range(len(population)), t_size)
             tournament = [(population[i], fitness_values[i]) for i in tournament_indices]
             tournament.sort(key=lambda x: x[1])
-            
+
             parent1 = tournament[0][0]
             parent2 = tournament[1][0]
-            
-            # Crossover
+
             child = constrained_order_crossover(parent1, parent2)
-            
-            # Mutação
-            child = constrained_mutate(child, MUTATION_PROBABILITY)
-            
+            child = constrained_mutate(child, adaptive_mutation)
             new_population.append(child)
-        
+
         population = new_population
         generation += 1
         
