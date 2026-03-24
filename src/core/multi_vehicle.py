@@ -926,15 +926,92 @@ def multi_vehicle_crossover(parent1: MultiVehicleSolution,
     return child
 
 
+def validate_and_repair_multi_vehicle_solution(solution: MultiVehicleSolution,
+                                                 all_service_points: List[ServicePoint]) -> MultiVehicleSolution:
+    """ Valida e repara solução multi-veículo para garantir que seja válida
+    Garante:
+    1. Todos os pontos estão presentes sem duplicação
+    2. Ordem de prioridades é respeitada em cada veículo (EME → VIO → MED → POS → REG)
+    3. Cada veículo tem uma rota válida
+    """
+    # Coletar todos os pontos da solução
+    all_points_in_solution = solution.get_all_points()
+    point_ids_in_solution = {p.id for p in all_points_in_solution}
+    expected_point_ids = {p.id for p in all_service_points}
+    
+    # Verificar se há pontos faltando ou duplicados
+    missing_points = expected_point_ids - point_ids_in_solution
+    
+    # Se há pontos faltando, redistribuir todos os pontos
+    if missing_points:
+        # Criar mapeamento de ID para ponto
+        id_to_point = {p.id: p for p in all_service_points}
+        
+        # Redistribuir pontos igualmente entre veículos
+        num_vehicles = len(solution.vehicles)
+        points_per_vehicle = len(all_service_points) // num_vehicles
+        
+        # Embaralhar pontos para redistribuição aleatória
+        shuffled_points = list(all_service_points)
+        random.shuffle(shuffled_points)
+        
+        # Criar novas rotas
+        for i, vehicle in enumerate(solution.vehicles):
+            start_idx = i * points_per_vehicle
+            end_idx = start_idx + points_per_vehicle if i < num_vehicles - 1 else len(shuffled_points)
+            vehicle.route = shuffled_points[start_idx:end_idx]
+    
+    # Reorganizar cada veículo para respeitar prioridades
+    for vehicle in solution.vehicles:
+        # Remover duplicatas mantendo ordem
+        seen = set()
+        unique_route = []
+        for point in vehicle.route:
+            if point.id not in seen:
+                seen.add(point.id)
+                unique_route.append(point)
+        
+        # Separar por prioridade
+        priority_points, regular_points = split_points_by_priority(unique_route)
+        
+        # Agrupar por nível de prioridade
+        priority_groups = {
+            ServicePriority.EMERGENCY_OBSTETRIC: [],
+            ServicePriority.DOMESTIC_VIOLENCE: [],
+            ServicePriority.HORMONAL_MEDICATION: [],
+            ServicePriority.POSTPARTUM_CARE: [],
+            ServicePriority.REGULAR: []
+        }
+        
+        for point in priority_points:
+            if point.priority in priority_groups:
+                priority_groups[point.priority].append(point)
+        
+        # Reconstruir rota na ordem correta
+        repaired_route = []
+        priority_order = [
+            ServicePriority.EMERGENCY_OBSTETRIC,
+            ServicePriority.DOMESTIC_VIOLENCE,
+            ServicePriority.HORMONAL_MEDICATION,
+            ServicePriority.POSTPARTUM_CARE
+        ]
+        
+        for priority in priority_order:
+            repaired_route.extend(priority_groups[priority])
+        
+        repaired_route.extend(regular_points)
+        vehicle.route = repaired_route
+    
+    return solution
+
+
 def multi_vehicle_mutate(solution: MultiVehicleSolution,
                          depot_location: Tuple[float, float],
                          mutation_probability: float,
                          service_points: List[ServicePoint]) -> MultiVehicleSolution:
-    """
-    Mutação de solução multi-veículo
-    PERMITE trocas frequentes de pontos entre veículos (30% de chance)
-    Caso contrário, apenas reordena pontos dentro de cada veículo
-    """
+    """ Mutação de solução multi-veículo que sempre gera soluções válidas
+    Permite trocas frequentes de pontos entre veículos (30% de chance)
+    Caso contrário, apenas reordena pontos dentro de cada veículo """
     if random.random() >= mutation_probability:
         return solution
     
@@ -993,6 +1070,9 @@ def multi_vehicle_mutate(solution: MultiVehicleSolution,
             
             # Não aplicar 2-opt para permitir evolução gradual
             vehicle.route = priority_points + regular_points
+    
+    # Sempre validar e reparar após mutação
+    mutated = validate_and_repair_multi_vehicle_solution(mutated, service_points)
     
     # Recalcular fitness
     calculate_multi_vehicle_fitness(mutated, depot_location)

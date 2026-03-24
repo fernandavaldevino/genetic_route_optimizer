@@ -8,6 +8,7 @@ from pygame.locals import *
 import random
 import sys
 import copy
+import math
 import numpy as np
 from src.core.genetic_algorithm import (
     calculate_constrained_fitness,
@@ -64,8 +65,63 @@ def draw_service_points(screen, service_points, radius, start_points_by_day=None
         screen.blit(text, text_rect)
 
 
-def draw_route(screen, route, color=None, width=2, use_priority_colors=True):
-    """ Desenha a rota conectando os pontos """
+def draw_arrow(screen, color, start, end, width=3, arrow_size=12, node_radius=12):
+    """ Desenha uma seta de start para end, parando ANTES da borda dos círculos """
+    # Calcular vetor e distância
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    distance = math.sqrt(dx**2 + dy**2)
+    
+    if distance == 0:
+        return
+    
+    # Normalizar vetor
+    dx_norm = dx / distance
+    dy_norm = dy / distance
+    
+    # Margem extra para evitar sobreposição (2 pixels além do raio)
+    margin = 2
+    
+    # Ajustar pontos para parar antes da borda dos círculos
+    # Start: avançar pelo raio + margem
+    adjusted_start = (
+        start[0] + dx_norm * (node_radius + margin),
+        start[1] + dy_norm * (node_radius + margin)
+    )
+    
+    # End: recuar pelo raio + margem + tamanho da seta
+    adjusted_end = (
+        end[0] - dx_norm * (node_radius + margin + arrow_size),
+        end[1] - dy_norm * (node_radius + margin + arrow_size)
+    )
+    
+    # Desenhar linha ajustada (para antes da borda)
+    pygame.draw.line(screen, color, adjusted_start, adjusted_end, width)
+    
+    # Calcular ângulo da seta
+    angle = math.atan2(dy, dx)
+    
+    # Ponto da ponta da seta (logo antes da borda do círculo)
+    arrow_tip = (
+        end[0] - dx_norm * (node_radius + margin),
+        end[1] - dy_norm * (node_radius + margin)
+    )
+    
+    # Pontos da base do triângulo da seta
+    arrow_angle = math.pi / 5  # 36 graus (mais aberto)
+    left_x = arrow_tip[0] - arrow_size * math.cos(angle - arrow_angle)
+    left_y = arrow_tip[1] - arrow_size * math.sin(angle - arrow_angle)
+    right_x = arrow_tip[0] - arrow_size * math.cos(angle + arrow_angle)
+    right_y = arrow_tip[1] - arrow_size * math.sin(angle + arrow_angle)
+    
+    # Desenhar triângulo da seta preenchido
+    pygame.draw.polygon(screen, color, [arrow_tip, (left_x, left_y), (right_x, right_y)])
+    # Contorno preto para destacar
+    pygame.draw.polygon(screen, BLACK, [arrow_tip, (left_x, left_y), (right_x, right_y)], 1)
+
+
+def draw_route(screen, route, color=None, width=2, use_priority_colors=True, draw_arrows=False):
+    """ Desenha a rota conectando os pontos com ou sem setas """
     if len(route) < 2:
         return
     
@@ -85,7 +141,11 @@ def draw_route(screen, route, color=None, width=2, use_priority_colors=True):
             # Usar cor única
             line_color = color if color else GREEN
         
-        pygame.draw.line(screen, line_color, start_pos, end_pos, width)
+        # Desenhar com ou sem setas
+        if draw_arrows:
+            draw_arrow(screen, line_color, start_pos, end_pos, width=width, arrow_size=8, node_radius=NODE_RADIUS)
+        else:
+            pygame.draw.line(screen, line_color, start_pos, end_pos, width)
 
 
 def calculate_days_message(arrival_times):
@@ -788,7 +848,8 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
         y = map_y_start + margin + (location[1] - min_y) * scale
         return (int(x), int(y))
     
-    # Desenhar linhas da rota coloridas por prioridade
+    # Desenhar linhas da rota coloridas por prioridade COM SETAS
+    node_radius_small = 10  # Raio dos pontos na tela de conclusão
     for i in range(len(best_route) - 1):
         start_pos = transform_point(best_route[i].location)
         end_pos = transform_point(best_route[i+1].location)
@@ -813,13 +874,14 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
         else:
             line_color = PRIORITY_COLORS.get(dest_point.priority, GRAY)
         
-        pygame.draw.line(screen, line_color, start_pos, end_pos, 3)
+        # Desenhar com setas
+        draw_arrow(screen, line_color, start_pos, end_pos, width=3, arrow_size=6, node_radius=node_radius_small)
     
-    # Desenhar linha de retorno ao depósito em cinza
+    # Desenhar linha de retorno ao depósito em cinza COM SETA
     if len(best_route) > 0:
         last_point_pos = transform_point(best_route[-1].location)
         depot_pos = transform_point(best_route[0].location)
-        pygame.draw.line(screen, GRAY, last_point_pos, depot_pos, 3)
+        draw_arrow(screen, GRAY, last_point_pos, depot_pos, width=3, arrow_size=6, node_radius=node_radius_small)
     
     # Desenhar pontos
     for point in best_route:
@@ -1010,19 +1072,6 @@ def main():
                 last_improvement_generation
             )
         
-        # Desenhar segunda melhor rota primeiro (mais clara, sem cores de prioridade)
-        if len(population) > 1:
-            draw_route(screen, population[1], color=(200, 200, 200), width=1, use_priority_colors=False)
-        
-        # Desenhar melhor rota com cores de prioridade
-        draw_route(screen, best_route, width=4, use_priority_colors=True)
-        
-        # Desenhar linha de retorno ao depósito em cinza
-        if len(best_route) > 1:
-            last_point = best_route[-1]
-            depot = best_route[0]
-            pygame.draw.line(screen, GRAY, last_point.location, depot.location, 4)
-        
         # Identificar pontos iniciais de cada dia
         start_points_by_day = {}
         if best_route and arrival_times:
@@ -1035,7 +1084,36 @@ def main():
                     start_points_by_day[day] = best_route[i].id
                     current_day = day
         
-        # Desenhar pontos de atendimento POR ÚLTIMO para ficarem sobre as linhas
+        # ORDEM DE DESENHO:
+        # 1. Linhas cinzas (5 soluções aleatórias) - SEM setas
+        if len(population) > 1:
+            num_to_draw = min(5, len(population))
+            if num_to_draw > 1:
+                random_indices = random.sample(range(1, len(population)), min(num_to_draw - 1, len(population) - 1))
+                for i in random_indices:
+                    # Desenhar linhas cinzas simples (sem setas)
+                    for j in range(len(population[i]) - 1):
+                        pygame.draw.line(screen, (200, 200, 200), population[i][j].location, population[i][j+1].location, 1)
+        
+        # 2. Melhor rota COM SETAS (parâmetros do 2V: width=3, arrow_size=8)
+        for i in range(len(best_route) - 1):
+            start_pos = best_route[i].location
+            end_pos = best_route[i + 1].location
+            dest_point = best_route[i + 1]
+            
+            if dest_point.id == 0:
+                line_color = GREEN
+            else:
+                line_color = PRIORITY_COLORS.get(dest_point.priority, GRAY)
+            
+            # Desenhar seta com parâmetros do 2V
+            draw_arrow(screen, line_color, start_pos, end_pos, width=3, arrow_size=8, node_radius=NODE_RADIUS)
+        
+        # Seta de retorno ao depósito
+        if len(best_route) > 1:
+            draw_arrow(screen, GRAY, best_route[-1].location, best_route[0].location, width=3, arrow_size=8, node_radius=NODE_RADIUS)
+        
+        # 3. Pontos de atendimento POR ÚLTIMO (cobrem as linhas que entram nos círculos)
         draw_service_points(screen, service_points, NODE_RADIUS, start_points_by_day=start_points_by_day)
         
         # Imprimir informações no console a cada geração

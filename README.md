@@ -4,7 +4,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-green.svg)](https://fastapi.tiangolo.com/)
 [![Google Cloud](https://img.shields.io/badge/Google%20Cloud-Run-orange.svg)](https://cloud.google.com/run)
 [![Terraform](https://img.shields.io/badge/Terraform-IaC-purple.svg)](https://www.terraform.io/)
-[![Tests](https://img.shields.io/badge/Tests-140+-success.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-263-success.svg)](tests/)
 [![Coverage](https://img.shields.io/badge/Coverage-55%25-yellow.svg)](docs/COVERAGE_REPORT.md)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -17,7 +17,6 @@ Sistema inteligente de otimização de rotas para múltiplos veículos utilizand
 - [Tecnologias](#-tecnologias)
 - [Instalação](#-instalação)
 - [Uso](#-uso)
-- [Deploy no GCP](#-deploy-no-gcp)
 - [API](#-api)
 - [Telegram Bot](#-telegram-bot)
 - [Testes](#-testes)
@@ -170,7 +169,7 @@ Documentação completa: [`README_LLM.md`](docs/README_LLM.md)
 Documentação completa: [`README_TESTS.md`](docs/README_TESTS.md)
 
 - ✅ **Cobertura de Testes Abrangente**:
-  - **140+ testes automatizados**
+  - **263 testes automatizados**
   - **Cobertura geral: ~55%**
   - **Cobertura de módulos críticos: ~75%**
 
@@ -368,11 +367,14 @@ GOOGLE_APPLICATION_CREDENTIALS=./key.json
 ### 1. API Local
 
 ```bash
-# Iniciar servidor de desenvolvimento
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+# Iniciar servidor de desenvolvimento (obrigatório executar o comando abaixo antes de acessar a documentação)
+make start-api
 
-# Acessar documentação interativa
-# http://localhost:8000/docs
+# Ou diretamente com uvicorn
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8080
+
+# Acessar documentação interativa (após iniciar a API)
+# http://localhost:8080/docs
 ```
 
 ### 2. Streamlit Dashboard
@@ -430,72 +432,14 @@ print(f"Melhor rota: {best_route}")
 print(f"Distância total: {best_distance:.2f} km")
 ```
 
-## ☁️ Deploy no GCP
-
-### Pré-requisitos
-
-1. Conta Google Cloud Platform
-2. Projeto GCP criado
-3. Google Cloud SDK instalado
-4. Terraform instalado
-
-### Deploy Rápido
-
-```bash
-# 1. Autenticar no GCP
-gcloud auth login
-gcloud config set project project-1804e3ce-8509-46cd-b62
-
-# 2. Habilitar APIs necessárias
-gcloud services enable run.googleapis.com
-gcloud services enable artifactregistry.googleapis.com
-gcloud services enable cloudbuild.googleapis.com
-
-# 3. Criar Artifact Registry
-gcloud artifacts repositories create gro-repository \
-  --repository-format=docker \
-  --location=us-central1 \
-  --description="Genetic Route Optimizer Repository"
-
-# 4. Construir imagem com Cloud Build
-gcloud builds submit --config cloudbuild.yaml
-
-# 5. Obter digest da imagem
-gcloud artifacts docker images describe \
-  us-central1-docker.pkg.dev/project-1804e3ce-8509-46cd-b62/gro-repository/genetic-route-optimizer-api:latest
-
-# 6. Atualizar terraform/terraform.tfvars com o digest SHA256
-
-# 7. Deploy com Terraform
-cd terraform
-terraform init
-terraform plan
-terraform apply -auto-approve
-
-# 8. Obter URL da API
-terraform output api_url
-```
-
-### URL da API em Produção
-
-```
-https://genetic-route-optimizer-api-wzfyhoxurq-uc.a.run.app
-```
-
-### Endpoints Disponíveis
-
-- `GET /` - Informações da API
-- `GET /health` - Health check
-- `GET /docs` - Documentação Swagger
-- `POST /optimize` - Otimizar rota (em desenvolvimento)
-
-
 ## 📡 API
 
 ### Documentação Interativa
 
+**IMPORTANTE:** Antes de acessar a documentação local, inicie a API com `make start-api`
+
 Acesse a documentação Swagger em:
-- **Local**: http://localhost:8000/docs
+- **Local**: http://localhost:8080/docs (requer `make start-api`)
 - **Produção**: https://genetic-route-optimizer-api-wzfyhoxurq-uc.a.run.app/docs
 
 ### Exemplo de Requisição
@@ -713,7 +657,8 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 
 ## 👥 Autores
 
-- **Fernanda Valdevino** - *Desenvolvimento Inicial* - [GitHub](https://github.com/fernandavaldevino)
+- **Fernanda Valdevino** - [GitHub](https://github.com/fernandavaldevino)
+- **Marcos Câmara** - [GitHub](https://github.com/marcosvrc)
 
 ## 🎓 Projeto Acadêmico
 
@@ -763,4 +708,4 @@ Para dúvidas, sugestões ou feedback:
 
 ⭐ Se este projeto foi útil para você, considere dar uma estrela no GitHub!
 
-**Desenvolvido com ❤️ usando Python, FastAPI e Google Cloud**
+**Desenvolvido com ❤️ e ☕️ usando Python, FastAPI e Google Cloud Platform**

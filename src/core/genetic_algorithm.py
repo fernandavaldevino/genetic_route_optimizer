@@ -346,10 +346,71 @@ def constrained_order_crossover(parent1: List[ServicePoint],
     return child
 
 
+def validate_and_repair_route(route: List[ServicePoint]) -> List[ServicePoint]:
+    """ Valida e repara rota para garantir que seja válida
+    Garante:
+    1. Depósito (ID=0) está sempre na primeira posição
+    2. Ordem de prioridades é respeitada (EME → VIO → MED → POS → REG)
+    3. Todos os pontos estão presentes sem duplicação
+    """
+    if not route:
+        return route
+    
+    # 1. Separar depósito dos outros pontos
+    depot = None
+    other_points = []
+    seen_ids = set()
+    
+    for point in route:
+        # Evitar duplicação
+        if point.id in seen_ids:
+            continue
+        seen_ids.add(point.id)
+        
+        if point.id == 0:
+            depot = point
+        else:
+            other_points.append(point)
+    
+    # 2. Agrupar pontos por prioridade
+    priority_groups = {
+        ServicePriority.EMERGENCY_OBSTETRIC: [],
+        ServicePriority.DOMESTIC_VIOLENCE: [],
+        ServicePriority.HORMONAL_MEDICATION: [],
+        ServicePriority.POSTPARTUM_CARE: [],
+        ServicePriority.REGULAR: []
+    }
+    
+    for point in other_points:
+        if point.priority in priority_groups:
+            priority_groups[point.priority].append(point)
+    
+    # 3. Reconstruir rota na ordem correta de prioridades
+    priority_order = [
+        ServicePriority.EMERGENCY_OBSTETRIC,
+        ServicePriority.DOMESTIC_VIOLENCE,
+        ServicePriority.HORMONAL_MEDICATION,
+        ServicePriority.POSTPARTUM_CARE,
+        ServicePriority.REGULAR
+    ]
+    
+    repaired_route = []
+    
+    # Adicionar depósito no início
+    if depot:
+        repaired_route.append(depot)
+    
+    # Adicionar pontos na ordem de prioridade
+    for priority in priority_order:
+        repaired_route.extend(priority_groups[priority])
+    
+    return repaired_route
+
+
 def constrained_mutate(route: List[ServicePoint],
                        mutation_probability: float,
                        respect_priorities: bool = True) -> List[ServicePoint]:
-    """ Mutação que respeita ordem de prioridades
+    """ Mutação que respeita ordem de prioridades e SEMPRE gera indivíduos válidos
     Sempre mantém o depósito (ID=0) na primeira posição """
     if random.random() >= mutation_probability:
         return route
@@ -387,7 +448,8 @@ def constrained_mutate(route: List[ServicePoint],
             idx1, idx2 = random.sample(group, 2)
             mutated_route[idx1], mutated_route[idx2] = mutated_route[idx2], mutated_route[idx1]
         
-        return mutated_route
+        # Validar e reparar (garante que está válida)
+        return validate_and_repair_route(mutated_route)
     
     # 10% das vezes: mutação livre (para diversidade, exceto depósito)
     mutation_type = random.choice(['swap', 'inversion'])
@@ -404,7 +466,8 @@ def constrained_mutate(route: List[ServicePoint],
             idx2 = random.choice([i for i in valid_indices if i > idx1])
             mutated_route[idx1:idx2+1] = list(reversed(mutated_route[idx1:idx2+1]))
     
-    return mutated_route
+    # Sempre validar e reparar após mutação livre
+    return validate_and_repair_route(mutated_route)
 
 
 def sort_population_by_fitness(population: List[List[ServicePoint]],
