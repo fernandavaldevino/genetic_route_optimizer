@@ -30,15 +30,7 @@ from src.constants import (
 )
 
 def draw_service_points(screen, service_points, radius, start_points_by_day=None):
-    """
-    Desenha pontos de atendimento com cores baseadas na prioridade
-    
-    Args:
-        screen: Superfície do Pygame
-        service_points: Lista de todos os pontos
-        radius: Raio dos círculos
-        start_points_by_day: Dict {dia: point_id} para destacar pontos iniciais de cada dia
-    """
+    """ Desenha pontos de atendimento com cores baseadas na prioridade """
     for point in service_points:
         # Depósito (ID=0) é desenhado em amarelo
         if point.id == 0:
@@ -72,16 +64,7 @@ def draw_service_points(screen, service_points, radius, start_points_by_day=None
 
 
 def draw_route(screen, route, color=None, width=2, use_priority_colors=True):
-    """
-    Desenha a rota conectando os pontos
-    
-    Args:
-        screen: Superfície do Pygame
-        route: Lista de pontos da rota
-        color: Cor única para toda a rota (se None e use_priority_colors=False, usa verde)
-        width: Largura da linha
-        use_priority_colors: Se True, usa cores baseadas na prioridade do ponto de destino (default: True)
-    """
+    """ Desenha a rota conectando os pontos """
     if len(route) < 2:
         return
     
@@ -127,7 +110,7 @@ def calculate_days_message(arrival_times):
         return "calculando...", BLACK, "00:00"
 
 
-def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times):
+def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times, elapsed_time=0, last_improvement_gen=0):
     """ Desenha painel de informações no lado esquerdo """
     # Fundo do painel
     pygame.draw.rect(screen, LIGHT_GRAY, (0, 0, INFO_PANEL_WIDTH, HEIGHT))
@@ -145,17 +128,32 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
     screen.blit(title, (x_start, y_start))
     y_start += 35
     
-    # # Calcular mensagem de dias (sem horário)
-    # days_text, days_color, _ = calculate_days_message(arrival_times)
-    
     # Informações gerais
     info_texts = [
         f"Geração: {generation}",
+        f"Última otimização: {last_improvement_gen}",
         f"Fitness: {best_fitness:.2f}",
     ]
     
     for text in info_texts:
         rendered = font_text.render(text, True, BLACK)
+        screen.blit(rendered, (x_start, y_start))
+        y_start += line_height
+    
+    # Tempo total decorrido
+    if generation > 0:
+        hours = int(elapsed_time // 3600)
+        minutes = int((elapsed_time % 3600) // 60)
+        seconds = int(elapsed_time % 60)
+        
+        if hours > 0:
+            duration_text = f"Duração: {hours}h{minutes:02d}m{seconds:02d}s"
+        elif minutes > 0:
+            duration_text = f"Duração: {minutes}m{seconds:02d}s"
+        else:
+            duration_text = f"Duração: {seconds}s"
+        
+        rendered = font_text.render(duration_text, True, BLACK)
         screen.blit(rendered, (x_start, y_start))
         y_start += line_height
     
@@ -344,7 +342,7 @@ def draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
                 screen.blit(rendered_retorno, (x_pos + 20, y_pos + 12))
 
 
-def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None, arrival_times=None):
+def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None, arrival_times=None, last_improvement_gen=0):
     """ Desenha gráfico com eixos e valores """
     if len(x_data) < 2:
         return
@@ -381,6 +379,22 @@ def draw_simple_plot(screen, x_data, y_data, best_route=None, best_fitness=None,
     
     if len(points) > 1:
         pygame.draw.lines(screen, BLUE, False, points, 2)
+    
+    # Desenhar marcador vermelho na última otimização (círculo com centro branco)
+    if last_improvement_gen > 0 and last_improvement_gen < len(points):
+        marker_pos = points[last_improvement_gen]
+        # Círculo vermelho externo
+        pygame.draw.circle(screen, RED, marker_pos, 6)
+        # Círculo branco interno (centro)
+        pygame.draw.circle(screen, WHITE, marker_pos, 3)
+        # Borda preta
+        pygame.draw.circle(screen, BLACK, marker_pos, 6, 1)
+        
+        # Desenhar número da geração abaixo do marcador
+        font_gen = pygame.font.Font(None, 12)
+        gen_text = font_gen.render(str(last_improvement_gen), True, RED)
+        gen_rect = gen_text.get_rect(center=(marker_pos[0], marker_pos[1] + 15))
+        screen.blit(gen_text, gen_rect)
     
     # Fontes
     font_title = pygame.font.Font(None, 16)
@@ -889,6 +903,8 @@ def main():
     best_fitness_history = []
     generation = 0
     optimization_complete = False
+    last_improvement_generation = 0
+    start_time = pygame.time.get_ticks() / 1000.0  # Tempo em segundos
     
     # Loop principal
     running = True
@@ -906,18 +922,20 @@ def main():
                     best_fitness_history = []
                     generation = 0
                     optimization_complete = False
+                    last_improvement_generation = 0
+                    start_time = pygame.time.get_ticks() / 1000.0
         
         # Verificar se atingiu o critério de parada
-        if generation >= MAX_GENERATIONS and not optimization_complete:
+        if generation > MAX_GENERATIONS and not optimization_complete:
             optimization_complete = True
             print(f"\n{'='*60}")
-            print(f"OTIMIZAÇÃO CONCLUÍDA EM {generation} GERAÇÕES!")
+            print(f"OTIMIZAÇÃO CONCLUÍDA EM {MAX_GENERATIONS} GERAÇÕES!")
             print(f"Fitness final: {best_fitness:.2f}")
             print(f"{'='*60}\n")
         
         # Se otimização completa, mostrar tela de conclusão
         if optimization_complete:
-            draw_completion_screen(screen, generation, best_fitness, best_route, arrival_times, service_points)
+            draw_completion_screen(screen, MAX_GENERATIONS, best_fitness, best_route, arrival_times, service_points)
             pygame.display.flip()
             clock.tick(FPS)
             
@@ -935,6 +953,8 @@ def main():
                         best_fitness_history = []
                         generation = 0
                         optimization_complete = False
+                        last_improvement_generation = 0
+                        start_time = pygame.time.get_ticks() / 1000.0
             continue
         
         # Limpar tela
@@ -949,13 +969,24 @@ def main():
         best_fitness = fitness_values[0]
         best_route = population[0]
         
-        best_fitness_history.append(best_fitness)
+        # Detectar melhoria (considerar melhoria se for pelo menos 0.1% melhor)
+        if generation == 0:
+            best_fitness_history.append(best_fitness)
+            last_improvement_generation = 0
+        elif best_fitness < best_fitness_history[-1] * 0.999:
+            best_fitness_history.append(best_fitness)
+            last_improvement_generation = generation
+        else:
+            best_fitness_history.append(best_fitness)
         
         # Calcular tempos de chegada
         _, _, arrival_times = calculate_route_time_and_distance(best_route)
         
+        # Calcular tempo decorrido
+        elapsed_time = pygame.time.get_ticks() / 1000.0 - start_time
+        
         # Desenhar painel de informações (esquerda)
-        draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
+        draw_info_panel(screen, generation, best_fitness, best_route, arrival_times, elapsed_time, last_improvement_generation)
         
         # Desenhar gráfico de evolução (parte inferior esquerda)
         if len(best_fitness_history) > 1:
@@ -965,7 +996,8 @@ def main():
                 best_fitness_history,
                 best_route,
                 best_fitness,
-                arrival_times
+                arrival_times,
+                last_improvement_generation
             )
         
         # Desenhar segunda melhor rota primeiro (mais clara, sem cores de prioridade)

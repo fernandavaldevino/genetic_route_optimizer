@@ -21,10 +21,21 @@ def format_service_priority(priority: ServicePriority) -> str:
 
 
 def format_time_minutes(minutes: float) -> str:
-    """  Converte minutos para formato legível (HH:MM) """
-    hours = int(minutes // 60)
-    mins = int(minutes % 60)
-    return f"{hours:02d}:{mins:02d}"
+    """  Converte minutos para formato legível (HH:MM) com indicação de dia se necessário """
+    # Calcular dia (1440 minutos = 24 horas = 1 dia)
+    day = int(minutes // 1440) + 1
+    
+    # Calcular horário do dia (0-1439 minutos)
+    time_of_day = minutes % 1440
+    hours = int(time_of_day // 60)
+    mins = int(time_of_day % 60)
+    
+    # Se for dia 1, retornar apenas o horário
+    if day == 1:
+        return f"{hours:02d}:{mins:02d}"
+    else:
+        # Se for dia 2+, adicionar indicação do dia
+        return f"{hours:02d}:{mins:02d} do dia {day}"
 
 
 def format_duration(minutes: float) -> str:
