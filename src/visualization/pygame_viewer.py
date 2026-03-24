@@ -7,6 +7,7 @@ import pygame
 from pygame.locals import *
 import random
 import sys
+import copy
 import numpy as np
 from src.core.genetic_algorithm import (
     calculate_constrained_fitness,
@@ -966,18 +967,27 @@ def main():
         # Ordenar população
         population, fitness_values = sort_population_by_fitness(population, fitness_values)
         
-        best_fitness = fitness_values[0]
-        best_route = population[0]
+        # Extrair melhor solução atual da população
+        current_best_route = population[0]
+        current_best_fitness = fitness_values[0]
         
-        # Detectar melhoria (considerar melhoria se for pelo menos 0.1% melhor)
+        # Preservar melhor solução global (nunca perde a melhor já encontrada)
         if generation == 0:
-            best_fitness_history.append(best_fitness)
+            best_route = copy.deepcopy(current_best_route)
+            best_fitness = current_best_fitness
             last_improvement_generation = 0
-        elif best_fitness < best_fitness_history[-1] * 0.999:
-            best_fitness_history.append(best_fitness)
-            last_improvement_generation = generation
         else:
-            best_fitness_history.append(best_fitness)
+            # Se encontrou solução melhor, atualizar
+            if current_best_fitness < best_fitness:
+                best_route = copy.deepcopy(current_best_route)
+                best_fitness = current_best_fitness
+                
+                # Detectar melhoria significativa (0.1% melhor)
+                if best_fitness < best_fitness_history[-1] * 0.999:
+                    last_improvement_generation = generation
+        
+        # SEMPRE adicionar a MELHOR solução global ao histórico (não a atual da população)
+        best_fitness_history.append(best_fitness)
         
         # Calcular tempos de chegada
         _, _, arrival_times = calculate_route_time_and_distance(best_route)
@@ -1038,9 +1048,28 @@ def main():
             if route_ids != all_ids:
                 print(f"  AVISO: Pontos faltando na rota! Esperados: {all_ids}, Na rota: {route_ids}")
         
-        # Criar nova população
-        new_population = [population[0]]  # Elitismo
+        # ============================================================================
+        # ELITISMO DINÂMICO: aumenta ao longo das gerações (1 -> 2)
+        # ============================================================================
+        if MAX_GENERATIONS > 0:
+            progress = generation / MAX_GENERATIONS
+            # Para 1 veículo: elitismo cresce de 1 para 2
+            elite_size = 1 if progress < 0.5 else 2
+        else:
+            # Modo infinito: usar elitismo médio
+            elite_size = 1
         
+        # Criar nova população com elitismo dinâmico
+        new_population = []
+        
+        # PASSO 1: SEMPRE copiar a melhor solução global primeiro (elitismo garantido)
+        new_population.append(copy.deepcopy(best_route))
+        
+        # PASSO 2: Copiar elite adicional da população ordenada (se elite_size > 1)
+        for i in range(1, elite_size):
+            new_population.append(copy.deepcopy(population[i]))
+        
+        # PASSO 3: Gerar resto da população
         while len(new_population) < POPULATION_SIZE:
             # Seleção por torneio
             tournament_size = 5
