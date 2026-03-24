@@ -1,11 +1,39 @@
 # Sistema de Roteamento com Restrições e Prioridades
 
+## 📑 Índice
+
+- [Visão Geral](#visão-geral)
+- [Estrutura de Arquivos](#estrutura-de-arquivos)
+  - [1. src/core/service_points.py](#1-srccoreservice_pointspy)
+  - [2. src/core/genetic_algorithm.py](#2-srccoregenetic_algorithmpy)
+  - [3. src/visualization/pygame_viewer.py](#3-srcvisualizationpygame_viewerpy)
+- [Como Usar](#como-usar)
+  - [Instalação](#instalação)
+  - [Execução](#execução)
+  - [Exemplo Básico](#exemplo-básico)
+- [Restrições Implementadas](#restrições-implementadas)
+  - [1. Ordem de Prioridade](#1-ordem-de-prioridade)
+  - [2. Casos de Violência Doméstica](#2-casos-de-violência-doméstica)
+  - [3. Medicamentos Hormonais](#3-medicamentos-hormonais)
+  - [4. Atendimento Pós-Parto](#4-atendimento-pós-parto)
+- [Função de Fitness](#função-de-fitness)
+  - [Pesos das Penalidades](#pesos-das-penalidades)
+- [Parâmetros Configuráveis](#parâmetros-configuráveis)
+  - [Em src/core/service_points.py](#em-srccoreservice_pointspy)
+  - [Em src/core/genetic_algorithm.py](#em-srccoregenetic_algorithmpy)
+- [Executando os Testes](#executando-os-testes)
+- [Saída Esperada](#saída-esperada)
+- [Integração com Interface Gráfica](#integração-com-interface-gráfica)
+- [Referências](#referências)
+
+---
+
 ## Visão Geral
 
 Este sistema estende o algoritmo genético para TSP (Traveling Salesman Problem) para incluir restrições específicas de atendimento em saúde da mulher, considerando:
 
 - **Ordem de prioridade** para diferentes pontos de atendimento
-- **Janelas de tempo** específicas para cada tipo de atendimento
+- **Janelas de tempo específicas** para cada tipo de atendimento
 - **Requisitos especiais** como temperatura controlada e protocolos de segurança
 - **Penalizações** por violação de restrições
 
@@ -37,7 +65,7 @@ Implementa o algoritmo genético com restrições:
 Interface gráfica com Pygame:
 
 - Visualização em tempo real da evolução
-- Gráfico de fitness
+- Gráfico de Evolução do Fitness com marcador da última geração em que ocorreu otimização
 - Mapa de rotas colorido por prioridade
 - Painel de informações detalhadas
 
@@ -138,13 +166,28 @@ best_fitness = fitness_values[0]
 
 ### 1. Ordem de Prioridade
 
-As emergências obstétricas têm **prioridade máxima** e devem ser atendidas primeiro:
+O sistema segue uma ordem estrita de prioridades na hora de montar a rota: **EME → VIO → MED → POS → REG**
 
 ```python
-# Penalidade por posição na rota
-if point.priority == ServicePriority.EMERGENCY_OBSTETRIC:
-    priority_penalty += position_factor * 10000  # Penalidade muito alta
+# Ordem de prioridades (do mais urgente ao menos urgente)
+priority_order = [
+    ServicePriority.EMERGENCY_OBSTETRIC,      # Prioridade 1
+    ServicePriority.DOMESTIC_VIOLENCE,        # Prioridade 2
+    ServicePriority.HORMONAL_MEDICATION,      # Prioridade 3
+    ServicePriority.POSTPARTUM_CARE,          # Prioridade 4
+    ServicePriority.REGULAR                   # Prioridade 5
+]
+
+# Penalidade por violação de ordem: 5.000 pontos por posição violada
+if min_next < max_current:
+    violation_size = max_current - min_next
+    priority_order_penalty += violation_size * 5000
 ```
+
+**Características:**
+- Permite até **1 parada** entre pontos da mesma prioridade para otimizar distância
+- Penalidade moderada por violação de ordem (5.000 pontos/posição)
+- Penalidade leve por gaps maiores que 1 (1.000 pontos por parada extra)
 
 ### 2. Casos de Violência Doméstica
 
@@ -152,27 +195,50 @@ Requerem **protocolos especiais** com tempo adequado:
 
 ```python
 create_service_point(
-    id=2, 
-    location=(300, 400), 
+    id=2,
+    location=(300, 400),
     service_type='violence',
     time_window=(480, 600)  # 8h às 10h
 )
 # Duração automática: 45 minutos (mais tempo para atendimento cuidadoso)
+# Requer protocolo especial
 ```
+
+**Validações:**
+- Tempo mínimo de serviço: 30 minutos (validado automaticamente)
+- Penalidade por violação de protocolo: **20.000 pontos**
+- Não é recomendado agrupar múltiplos casos consecutivamente
+
+**Janelas de tempo:**
+- **1 veículo**: 8h às 10h (480-600 min) + deadline prioritários até o fim do 1º dia (1440 min)
+- **2 veículos**: 8h às 10h (480-600 min) + deadline prioritários até 12h (720 min)
 
 ### 3. Medicamentos Hormonais
 
-Requerem **temperatura controlada**:
+Requerem **temperatura controlada** (2-8°C):
 
 ```python
-# Validação automática: medicamentos não podem ficar mais de 120 min sem controle
-is_valid, message = validate_temperature_control_route(route)
-# Se inválido: penalidade de 50.000 pontos no fitness
+create_service_point(
+    id=3,
+    location=(500, 100),
+    service_type='medication',
+    time_window=(480, 1080)  # Horário comercial: 8h às 18h
+)
+# Duração: 10 minutos (atendimento rápido)
+# Requer controle de temperatura
 ```
+
+**Validações:**
+- Tempo máximo sem controle de temperatura: **120 minutos**
+- Penalidade por violação: **50.000 pontos**
+
+**Janelas de tempo:**
+- **1 veículo**: Horário comercial 8h às 18h (480-1080 min) + deadline prioritários até o fim do 1º dia (1440 min)
+- **2 veículos**: Horário comercial 8h às 18h (480-1080 min) + deadline prioritários até 12h (720 min)
 
 ### 4. Atendimento Pós-Parto
 
-Têm **janelas de tempo específicas**:
+Têm **janelas de tempo específicas** respeitando horários de amamentação:
 
 ```python
 create_service_point(
@@ -181,29 +247,67 @@ create_service_point(
     service_type='postpartum',
     time_window=(540, 660)  # 9h às 11h
 )
-# Penalidade por atraso: 50x o tempo de atraso
+# Duração: 20 minutos
+# Penalidade por atraso: 5.000x o tempo de atraso (em minutos)
 ```
+
+**Características:**
+- Chegar cedo: sem penalidade (pode esperar)
+- Chegar atrasado: **5.000 pontos por minuto** de atraso
+
+**Janelas de tempo:**
+- **1 veículo**: 9h às 11h (540-660 min) ou padrão 8h às 12h (480-720 min) + deadline prioritários até o fim do 1º dia (1440 min)
+- **2 veículos**: 9h às 11h (540-660 min) ou padrão 8h às 12h (480-720 min) + deadline prioritários até 12h (720 min)
+
+### 5. Emergências Obstétricas
+
+**Prioridade máxima** - devem ser atendidas primeiro:
+
+```python
+create_service_point(
+    id=1,
+    location=(100, 200),
+    service_type='emergency'
+)
+# Duração: 30 minutos (atendimento mais longo)
+# Requer protocolo especial
+```
+
+**Características:**
+- Sempre no início da rota (após depósito)
+- Penalidade por atraso: **100x** o tempo base
+
+**Deadline de prioritários:**
+- **1 veículo**: Até o fim do º dia (1440 min)
+- **2 veículos**: Até 12h (720 min)
 
 ## Função de Fitness
 
-A função de fitness considera múltiplos fatores:
+A função de fitness balanceia distância e restrições:
 
 ```
-fitness_total = distância_base 
-              + penalidade_janela_tempo
-              + penalidade_prioridade
-              + penalidade_temperatura
-              + penalidade_protocolo
-              + penalidade_hora_extra
+fitness_total = (distância_base × 10)           # Peso principal
+              + priority_order_penalty          # 5.000/posição violada
+              + gap_penalty                     # 1.000/parada extra
+              + time_window_penalty             # 5.000/min de atraso
+              + temperature_penalty             # 50.000 (se violado)
+              + protocol_penalty                # 20.000 (se violado)
+              + overtime_penalty                # 100/min extra
+              + priority_deadline_penalty       # 10.000/min após deadline
 ```
 
 ### Pesos das Penalidades
 
-- **Violação de temperatura**: 50.000 pontos
-- **Violação de protocolo**: 20.000 pontos
-- **Emergência em posição tardia**: até 10.000 pontos
-- **Violência doméstica tardia**: até 5.000 pontos
-- **Atraso em janela de tempo**: 50x o tempo de atraso
+| Tipo de Violação | Penalidade | Observação |
+|------------------|------------|------------|
+| **Violação de temperatura** | 50.000 pontos | Medicamentos > 120 min sem controle |
+| **Violação de protocolo** | 20.000 pontos | Tempo insuficiente para protocolo especial |
+| **Violação de ordem de prioridade** | 5.000 pontos/posição | Por cada posição fora de ordem |
+| **Gap entre prioridades** | 1.000 pontos/parada | Por cada parada além de 1 |
+| **Atraso em janela de tempo** | 5.000 pontos/minuto | Multiplicado pelo tempo de atraso |
+| **Deadline de prioritários** | 10.000 pontos/minuto | Após 1º dia (1v) ou 12:00 (2v) |
+| **Hora extra** | 100 pontos/minuto | Após 8 horas de trabalho |
+| **Distância** | 10 pontos/unidade | Peso principal (distância × 10) |
 
 ## Parâmetros Configuráveis
 
@@ -214,7 +318,7 @@ fitness_total = distância_base
 max_time_without_control = 120.0
 
 # Velocidade média do veículo (km/h)
-speed = 40.0
+speed = 80.0
 
 # Tempo de início da jornada (minutos desde meia-noite)
 start_time = 480.0  # 8h da manhã
@@ -224,12 +328,12 @@ start_time = 480.0  # 8h da manhã
 
 ```python
 # Viés para ordem de prioridade na população inicial
-priority_bias = 0.7  # 70% das rotas iniciais seguem prioridades
+priority_bias = 0.9  # 90% das rotas iniciais seguem prioridades
 
-# Preservar blocos de prioridade no crossover
+# Preservar blocos de prioridade no crossover (80% das vezes)
 preserve_priority_blocks = True
 
-# Respeitar prioridades na mutação
+# Respeitar prioridades na mutação (90% das vezes)
 respect_priorities = True
 ```
 
@@ -302,13 +406,6 @@ A interface mostra:
 - Painel de informações detalhadas
 - Ordem de atendimento em 2 colunas
 
-## Extensões Futuras
-
-1. **Múltiplos veículos**: Dividir rotas entre vários profissionais
-2. **Prioridades dinâmicas**: Ajustar prioridades em tempo real
-3. **Otimização multi-objetivo**: Balancear tempo, distância e satisfação
-4. **Restrições de capacidade**: Limitar quantidade de medicamentos por veículo
-5. **Zonas de risco**: Evitar áreas perigosas em casos de violência doméstica
 
 ## Referências
 

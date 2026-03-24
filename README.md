@@ -1,12 +1,12 @@
 # 🚗 Sistema de Otimização de Rotas com Algoritmo Genético
 
-[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-green.svg)](https://fastapi.tiangolo.com/)
-[![Google Cloud](https://img.shields.io/badge/Google%20Cloud-Run-orange.svg)](https://cloud.google.com/run)
-[![Terraform](https://img.shields.io/badge/Terraform-IaC-purple.svg)](https://www.terraform.io/)
-[![Tests](https://img.shields.io/badge/Tests-263-success.svg)](tests/)
-[![Coverage](https://img.shields.io/badge/Coverage-55%25-yellow.svg)](docs/COVERAGE_REPORT.md)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Google Cloud](https://img.shields.io/badge/Google%20Cloud-Run-4285F4?style=flat&logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
+[![Terraform](https://img.shields.io/badge/Terraform-1.x-7B42BC?style=flat&logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![Pytest](https://img.shields.io/badge/Pytest-7.4+-0A9EDC?style=flat&logo=pytest&logoColor=white)](https://docs.pytest.org/)
+[![Coverage](https://img.shields.io/badge/Coverage-55%25-yellow?style=flat)](docs/README_TESTS.md)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat)](LICENSE)
 
 Sistema inteligente de otimização de rotas para múltiplos veículos utilizando Algoritmo Genético, com integração de LLM (Large Language Models) para geração de relatórios e análises. Desenvolvido como projeto da Pós-Tech FIAP.
 
@@ -19,10 +19,10 @@ Sistema inteligente de otimização de rotas para múltiplos veículos utilizand
 - [Uso](#-uso)
 - [API](#-api)
 - [Telegram Bot](#-telegram-bot)
-- [Testes](#-testes)
+- [Execução de Testes](#-execução-de-testes)
 - [Documentação](#-documentação)
-- [Troubleshooting](#-troubleshooting)
-- [Contribuindo](#-contribuindo)
+- [Licença](#-licença)
+- [Contato](#-contato)
 
 ## 🎯 Características
 
@@ -294,34 +294,72 @@ genetic_route_optimizer/
 
 ### Pré-requisitos
 
-- Python 3.11 ou superior
-- pip (gerenciador de pacotes Python)
-- Docker (opcional, para containerização)
-- Google Cloud SDK (para deploy no GCP)
-- Terraform (para IaC)
+- **Python 3.11+**: Linguagem principal do projeto
+- **pip**: Gerenciador de pacotes Python (incluído com Python)
+- **Git**: Para clonar o repositório
+- **Docker** (opcional): Para containerização
+- **Google Cloud SDK** (opcional): Para deploy no GCP
+- **Terraform** (opcional): Para infraestrutura como código
 
-### Instalação Local
+### Início Rápido (Recomendado)
+
+A forma mais rápida de começar é usando o comando [`make app`](Makefile:653), que automatiza todo o processo:
 
 ```bash
 # 1. Clonar o repositório
 git clone https://github.com/seu-usuario/genetic_route_optimizer.git
 cd genetic_route_optimizer
 
-# 2. Criar ambiente virtual
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# ou
-venv\Scripts\activate  # Windows
+# 2. Editar .env com suas credenciais (⚠️ Fazer antes do comando make app)
+#    Verificar seção "Configuração do Arquivo `.env`" abaixo
+.env
 
-# 3. Instalar dependências
-pip install -r requirements.txt
-
-# 4. Configurar variáveis de ambiente
-cp .env.example .env
-# Editar .env com suas credenciais
+# 3. Executar setup completo e iniciar aplicação
+make app
 ```
 
-### Configuração do `.env`
+O comando [`make app`](Makefile:653) automaticamente:
+- ✅ Cria o ambiente virtual (`.ga_routes`)
+- ✅ Instala todas as dependências do [`requirements.txt`](requirements.txt)
+- ✅ Verifica e inicia o Ollama (se instalado)
+- ✅ Inicia a API FastAPI em background (porta 8080)
+- ✅ Inicia o Bot do Telegram (se configurado)
+- ✅ Abre o Dashboard Streamlit no navegador
+
+### Instalação Manual (Alternativa ao make app)
+
+Se preferir executar cada etapa de instalação manualmente:
+
+```bash
+# 1. Clonar o repositório
+git clone https://github.com/seu-usuario/genetic_route_optimizer.git
+cd genetic_route_optimizer
+
+# 2. Configurar variáveis de ambiente com suas credenciais (⚠️ Fazer antes de executar a aplicação)
+#    Verificar seção "Configuração do Arquivo `.env`" abaixo
+.env 
+
+# 3. Criar ambiente virtual
+python3 -m venv .ga_routes
+
+# 4. Ativar ambiente virtual
+source .ga_routes/bin/activate  # Linux/Mac
+# ou
+.ga_routes\Scripts\activate  # Windows
+
+# 5. Instalar dependências
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# 6. Iniciar serviços manualmente
+make start-api      # API FastAPI (porta 8080)
+make start-bot      # Bot do Telegram (opcional)
+make streamlit      # Dashboard Streamlit (porta 8501)
+```
+
+### Configuração do Arquivo `.env`
+
+**⚠️ IMPORTANTE:** Configure o arquivo `.env` ANTES de executar [`make app`](Makefile:653), pois ele contém variáveis essenciais para o funcionamento da aplicação.
 
 ```bash
 # ===== PROVEDOR PRINCIPAL =====
@@ -331,7 +369,6 @@ LLM_PROVIDER=openai
 # ===== CONFIGURAÇÃO OPENAI =====
 # Obtenha sua API Key em: https://platform.openai.com/api-keys
 # IMPORTANTE: Cole apenas a chave, sem aspas ou texto adicional
-# Formato correto: sk-proj-abc123...
 OPENAI_API_KEY=sua-chave-aqui
 
 # Modelos disponíveis: gpt-3.5-turbo, gpt-4, gpt-4-turbo
@@ -364,42 +401,75 @@ GOOGLE_APPLICATION_CREDENTIALS=./key.json
 
 ## 🚀 Uso
 
-### 1. API Local
+### Início Automático
+
+O comando [`make app`](Makefile:653) é a forma mais simples de iniciar todos os serviços:
 
 ```bash
-# Iniciar servidor de desenvolvimento (obrigatório executar o comando abaixo antes de acessar a documentação)
+make app
+```
+
+Este comando executa automaticamente:
+- Cria o ambiente virtual
+- Instala todas as dependências
+- Inicia a API FastAPI em background
+- Inicia o Bot do Telegram (se configurado)
+- Abre o Dashboard Streamlit
+
+### Execução Individual de Serviços
+
+Após a instalação, você pode iniciar cada serviço **individualmente** conforme necessário:
+
+#### 1. API REST (FastAPI)
+
+```bash
+# Usando Makefile (recomendado)
 make start-api
 
 # Ou diretamente com uvicorn
 uvicorn api.main:app --reload --host 0.0.0.0 --port 8080
 
-# Acessar documentação interativa (após iniciar a API)
-# http://localhost:8080/docs
+# Parar a API
+make stop-api
 ```
 
-### 2. Streamlit Dashboard
+**Acesso:**
+- Documentação Swagger: http://localhost:8080/docs
+- Documentação ReDoc: http://localhost:8080/redoc
+- Health Check: http://localhost:8080/health
+
+#### 2. Dashboard Streamlit
 
 ```bash
-# Iniciar dashboard
+# Usando Makefile (recomendado)
+make streamlit
+
+# Ou diretamente
 streamlit run streamlit/app_streamlit.py
-
-# Acessar em http://localhost:8501
 ```
 
-### 3. Telegram Bot
+**Acesso:** http://localhost:8501
+
+#### 3. Bot do Telegram
 
 ```bash
-# Iniciar bot (polling mode)
+# Usando Makefile (recomendado)
+make start-bot
+
+# Ou diretamente (modo polling)
 python telegram_bot/bot.py
 
-# Ou configurar webhook (produção)
-python scripts/setup_telegram_webhook.py
+# Parar o bot
+make stop-bot
 ```
 
-### 4. Visualização Pygame
+#### 4. Visualização Pygame (Sistema Principal)
 
 ```bash
-# Executar otimização com visualização
+# Usando Makefile (recomendado)
+make run
+
+# Ou diretamente
 python app/main.py
 ```
 
@@ -482,10 +552,12 @@ class OptimizationRequest(BaseModel):
 
 ### Comandos Disponíveis
 
-- `/start` - Iniciar bot
-- `/help` - Ajuda
-- `/optimize` - Otimizar rota
-- `/status` - Status do sistema
+- `/start` - Iniciar o bot e exibir mensagem de boas-vindas
+- `/help` - Exibir ajuda e lista de comandos disponíveis
+- `/optimize` - Iniciar processo de otimização de rotas
+- `/status` - Verificar status do sistema e serviços
+- `/routes` - Listar rotas salvas
+- `/info` - Informações sobre o algoritmo genético
 
 ### Exemplo de Uso
 
@@ -504,11 +576,55 @@ Bot: ✅ Rota otimizada!
      [Mapa da rota]
 ```
 
-## 🧪 Testes
+## 🧪 Execução de Testes
 
-### Executar Todos os Testes
+### Comandos do Makefile (Recomendado)
+
+O projeto possui comandos [`make`](Makefile) preparados para facilitar a execução de testes:
 
 ```bash
+# Executar testes (pergunta se inclui testes pagos)
+make test
+
+# Executar TODOS os testes (incluindo testes pagos sem perguntar)
+make all-tests
+
+# Executar teste específico
+make test-specific FILE=test_service_points.py
+
+# Testes por categoria
+make test-api                 # Todos os testes da API
+make test-api-unit            # Apenas testes unitários da API
+make test-api-integration     # Apenas testes de integração da API
+make test-telegram            # Testes do Bot do Telegram
+make test-cloud               # Testes de Cloud/Deployment
+
+# Testes LLM - OpenAI
+make test-openai              # Todos os testes OpenAI
+make test-openai-basic        # Testes básicos (sem gastar tokens)
+make test-openai-integration  # Testes de integração (gasta tokens)
+
+# Testes LLM - Ollama
+make test-ollama              # Todos os testes Ollama
+make test-ollama-basic        # Testes básicos (sem conexão)
+make test-ollama-integration  # Testes de integração (requer Ollama)
+
+# Relatórios de cobertura
+make test-cov                 # Mostra cobertura de código
+make test-html                # Gera relatório HTML
+make test-coverage-report     # Relatório completo (HTML + Terminal)
+```
+
+### Execução Manual com Pytest
+
+Se preferir executar os testes diretamente com [`pytest`](pytest.ini):
+
+```bash
+# Ativar ambiente virtual
+source .ga_routes/bin/activate  # Linux/Mac
+# ou
+.ga_routes\Scripts\activate  # Windows
+
 # Executar todos os testes
 pytest
 
@@ -526,7 +642,21 @@ pytest -m "not integration"
 
 # Executar apenas testes de integração
 pytest -m integration
+
+# Gerar relatório HTML de cobertura
+pytest --cov=src --cov=api --cov=telegram_bot --cov-report=html --cov-report=term
+
+# Abrir relatório no navegador
+open htmlcov/index.html      # macOS
+xdg-open htmlcov/index.html  # Linux
+start htmlcov/index.html     # Windows
 ```
+
+**⚠️ Nota sobre Testes de Integração:**
+- Testes marcados como `integration` fazem chamadas reais às APIs de LLM
+- Estes testes consomem tokens da sua conta OpenAI
+- Use [`make test`](Makefile:266) para ser perguntado antes de executá-los
+- Use [`make test-openai-basic`](Makefile:387) para testes sem gastar tokens
 
 ### Estrutura de Testes
 
@@ -536,9 +666,9 @@ tests/
 ├── test_genetic_algorithm.py      # Testes do algoritmo genético (95%+)
 ├── test_service_points.py         # Testes de pontos de serviço (95%+)
 ├── test_api.py                    # Testes da API REST (90%+)
-├── test_api_advanced.py           # Testes avançados da API (NOVO)
+├── test_api_advanced.py           # Testes avançados da API
 ├── test_api_integration.py        # Testes de integração da API
-├── test_cloud_deployment.py       # Testes de Cloud/Deploy (NOVO)
+├── test_cloud_deployment.py       # Testes de Cloud/Deploy
 ├── test_integration.py            # Testes de integração end-to-end
 ├── test_restrictions.py           # Testes de restrições
 ├── test_telegram_bot.py           # Testes do bot do Telegram
@@ -554,84 +684,24 @@ tests/
 ### Cobertura de Testes por Módulo
 
 | Módulo | Cobertura | Arquivos de Teste | Status |
-|--------|-----------|-------------------|--------|
-| **Core - Algoritmo Genético** | 95%+ | `test_genetic_algorithm.py` | ✅ Excelente |
-| **Core - Service Points** | 95%+ | `test_service_points.py` | ✅ Excelente |
-| **Core - Multi-Vehicle** | 0% | ⚠️ Pendente | ❌ Crítico |
-| **API REST** | 90%+ | `test_api.py`, `test_api_advanced.py` | ✅ Excelente |
-| **Cloud/Deployment** | 85%+ | `test_cloud_deployment.py` | ✅ Muito Bom |
-| **Telegram Bot** | 60%+ | `test_telegram_bot.py` | ⚠️ Bom |
-| **LLM Integration** | 70%+ | `test_llm/*` | ✅ Bom |
-| **Visualization** | 5% | ⚠️ Limitado | ⚠️ Baixo |
-| **Streamlit** | 20% | `test_streamlit_utils.py` | ⚠️ Baixo |
+|:-------|:---------:|:------------------|:------:|
+| **🧬 Core - Algoritmo Genético** | `95%+` | [`test_genetic_algorithm.py`](tests/test_genetic_algorithm.py) | 🟢 Excelente |
+| **📍 Core - Service Points** | `95%+` | [`test_service_points.py`](tests/test_service_points.py) | 🟢 Excelente |
+| **🚗 Core - Multi-Vehicle** | `0%` | ⚠️ Pendente | 🔴 Crítico |
+| **🌐 API REST** | `90%+` | [`test_api.py`](tests/test_api.py), [`test_api_advanced.py`](tests/test_api_advanced.py) | 🟢 Excelente |
+| **☁️ Cloud/Deployment** | `85%+` | [`test_cloud_deployment.py`](tests/test_cloud_deployment.py) | 🟢 Muito Bom |
+| **💬 Telegram Bot** | `60%+` | [`test_telegram_bot.py`](tests/test_telegram_bot.py) | 🟡 Bom |
+| **🤖 LLM Integration** | `70%+` | [`test_llm/*`](tests/test_llm/) | 🟢 Bom |
+| **🎨 Visualization** | `5%` | ⚠️ Limitado | 🟠 Baixo |
+| **📊 Streamlit** | `20%` | [`test_streamlit_utils.py`](tests/test_streamlit_utils.py) | 🟠 Baixo |
 
 ### Estatísticas de Testes
 
+- **Total de Testes:** 263
 - **Total de Arquivos de Teste:** 15+
 - **Total de Classes de Teste:** 70+
-- **Cobertura Geral Estimada:** ~55%
+- **Cobertura Geral:** ~55%
 - **Cobertura de Módulos Críticos:** ~75%
-
-### Novos Testes Adicionados (2026-03-18)
-
-#### 1. **test_cloud_deployment.py** (NOVO)
-Testes completos para infraestrutura e deployment:
-- ✅ Configuração do Cloud Build (cloudbuild.yaml)
-- ✅ Configuração do Terraform (main.tf, variables.tf, outputs.tf)
-- ✅ Dockerfile e configuração Docker
-- ✅ Variáveis de ambiente (.env.example)
-- ✅ Documentação de deployment GCP
-- ✅ Makefile e targets
-- ✅ Cloud Run deployment
-- ✅ Integração Cloud Build
-
-**Classes de Teste:**
-- `TestCloudBuildConfiguration` (7 testes)
-- `TestTerraformConfiguration` (9 testes)
-- `TestDockerConfiguration` (7 testes)
-- `TestEnvironmentConfiguration` (3 testes)
-- `TestGCPDeploymentDocumentation` (3 testes)
-- `TestMakefile` (2 testes)
-- `TestCloudRunDeployment` (5 testes)
-- `TestCloudBuildIntegration` (2 testes)
-
-#### 2. **test_api_advanced.py** (NOVO)
-Testes avançados para funcionalidades específicas da API:
-- ✅ Webhook do Telegram (recebimento, validação, erros)
-- ✅ Inicialização do bot do Telegram
-- ✅ Integração de rotas (conversão, salvamento)
-- ✅ Metadados da API (título, versão, tags)
-- ✅ Otimização com diferentes parâmetros (2 veículos, depot customizado)
-- ✅ Validação de tipos de serviço (todos os tipos)
-- ✅ Validação de janelas de tempo
-- ✅ Estrutura de resposta (execution_time, vehicles array)
-- ✅ Tratador global de exceções
-- ✅ Middleware CORS
-
-**Classes de Teste:**
-- `TestTelegramWebhook` (4 testes)
-- `TestTelegramBotInitialization` (2 testes)
-- `TestRouteIntegration` (1 teste)
-- `TestAPIMetadata` (2 testes)
-- `TestOptimizationWithDifferentParameters` (4 testes)
-- `TestServiceTypeValidation` (1 teste)
-- `TestTimeWindowValidation` (2 testes)
-- `TestResponseStructure` (2 testes)
-- `TestGlobalExceptionHandler` (1 teste)
-- `TestCORSMiddleware` (2 testes)
-
-
-### Executar Testes com Relatório de Cobertura
-
-```bash
-# Gerar relatório HTML de cobertura
-pytest --cov=src --cov=api --cov=telegram_bot --cov-report=html --cov-report=term
-
-# Abrir relatório no navegador
-open htmlcov/index.html  # macOS
-xdg-open htmlcov/index.html  # Linux
-start htmlcov/index.html  # Windows
-```
 
 ## 📚 Documentação
 
@@ -654,7 +724,19 @@ A documentação completa da API está disponível em:
 
 ## 📄 Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+Este projeto está licenciado sob a **Licença MIT** - uma licença de software livre permissiva que permite uso comercial, modificação, distribuição e uso privado, com a única exigência de manter o aviso de copyright e a licença em todas as cópias ou partes substanciais do software.
+
+**Em resumo, a Licença MIT permite:**
+- ✅ Uso comercial
+- ✅ Modificação do código
+- ✅ Distribuição
+- ✅ Uso privado
+
+**Requisitos:**
+- Incluir o aviso de copyright original
+- Incluir a licença MIT
+
+Consulte o arquivo [`LICENSE`](LICENSE) para o texto completo da licença.
 
 ## 👥 Autores
 
@@ -698,12 +780,12 @@ Este projeto foi desenvolvido como parte do curso de Pós-Tech da FIAP.
 - ✅ **Documentação**: Completa
 
 
-## 📞 Contato
+## 📧 Contato
 
 Para dúvidas, sugestões ou feedback:
 
-- **Email**: fernandavaldevino.gcp@gmail.com
-- **GitHub Issues**: [Criar Issue](https://github.com/seu-usuario/genetic_route_optimizer/issues)
+- **📧 Email**: fernandavaldevino.gcp@gmail.com
+- **🐛 GitHub Issues**: [Criar Issue](https://github.com/seu-usuario/genetic_route_optimizer/issues)
 
 ---
 
