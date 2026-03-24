@@ -18,7 +18,7 @@ class RouteGenerator:
     """ Gera roteiros detalhados de visitas """
     
     def __init__(self, llm_provider: BaseLLMProvider):
-        """Inicializa gerador de roteiros """
+        """ Inicializa gerador de roteiros """
         self.provider = llm_provider
     
     def generate_route_description(self,

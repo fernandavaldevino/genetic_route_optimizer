@@ -173,7 +173,7 @@ Documentação completa: [`README_LLM.md`](docs/README_LLM.md)
 Documentação completa: [`README_TESTS.md`](docs/README_TESTS.md)
 
 - ✅ **Cobertura de Testes Abrangente**:
-  - **263 testes automatizados**
+  - **265 testes automatizados**
   - **Cobertura geral: ~55%**
   - **Cobertura de módulos críticos: ~75%**
 
@@ -668,6 +668,7 @@ start htmlcov/index.html     # Windows
 tests/
 ├── conftest.py                    # Fixtures compartilhadas
 ├── test_genetic_algorithm.py      # Testes do algoritmo genético (95%+)
+├── test_elitism_verification.py   # Testes de verificação do elitismo dinâmico
 ├── test_service_points.py         # Testes de pontos de serviço (95%+)
 ├── test_api.py                    # Testes da API REST (90%+)
 ├── test_api_advanced.py           # Testes avançados da API
@@ -701,8 +702,8 @@ tests/
 
 ### Estatísticas de Testes
 
-- **Total de Testes:** 263
-- **Total de Arquivos de Teste:** 15+
+- **Total de Testes:** 265
+- **Total de Arquivos de Teste:** 16
 - **Total de Classes de Teste:** 70+
 - **Cobertura Geral:** ~55%
 - **Cobertura de Módulos Críticos:** ~75%

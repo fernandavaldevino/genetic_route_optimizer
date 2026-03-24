@@ -70,11 +70,9 @@ graph TB
 
         subgraph CloudRun["🚀 CLOUD RUN - Serverless"]
             Service["⚙️ Service: genetic-route-optimizer-api"]
-            subgraph Instances["Auto-Scaling Instances (0-10)"]
-                Instance1["📦 Container 1<br/>2 vCPU | 2GB RAM"]
-                Instance2["📦 Container 2<br/>2 vCPU | 2GB RAM"]
-                InstanceN["📦 Container N<br/>2 vCPU | 2GB RAM"]
-            end
+            Instance1["📦 Container 1<br/>2 vCPU | 2GB RAM"]
+            Instance2["📦 Container 2<br/>2 vCPU | 2GB RAM"]
+            InstanceN["📦 Container N<br/>2 vCPU | 2GB RAM"]
             Components["🔧 Components:<br/>• FastAPI<br/>• Genetic Algorithm<br/>• LLM Integration<br/>• Telegram Webhook"]
         end
 
@@ -117,18 +115,21 @@ graph TB
     Code -->|Push to main| Build
     Build -->|Success| Test
     Test -->|Pass| Push
-    Push -->|Upload| ArtifactRegistry
-    ArtifactRegistry -->|Pull Image| Deploy
+    Push -->|Upload| ImageLatest
+    ImageLatest -->|Pull Image| Deploy
     Deploy -->|Update| Service
 
-    %% Artifact Registry
-    Push -.->|Store| ImageLatest
+    %% Artifact Registry Images
     Push -.->|Store| ImageV1
     Push -.->|Store| ImageSHA
 
-    %% Cloud Run
-    Service -->|Manages| Instances
-    Instances -.->|Contains| Components
+    %% Cloud Run Instances
+    Service -->|Manages| Instance1
+    Service -->|Manages| Instance2
+    Service -->|Manages| InstanceN
+    Instance1 -.->|Contains| Components
+    Instance2 -.->|Contains| Components
+    InstanceN -.->|Contains| Components
     LoadBalancer -->|Routes Traffic| Service
 
     %% External Services
@@ -138,9 +139,9 @@ graph TB
     TelegramAPI -->|Webhook| Components
 
     %% Infrastructure
-    Terraform -.->|Provisions| CloudRun
-    Terraform -.->|Provisions| LoadBalancer
-    Terraform -.->|Provisions| Security
+    Terraform -.->|Provisions| Service
+    Terraform -.->|Provisions| HTTPS
+    Terraform -.->|Provisions| SecretManager
 
     %% Security
     SecretManager -.->|Provides Secrets| Components
@@ -151,14 +152,27 @@ graph TB
     Service -->|Sends Logs| CloudLogging
     Service -->|Sends Traces| CloudTrace
 
-    %% Styling
+    %% Styling for nodes
     classDef gcpService fill:#4285F4,stroke:#1967D2,stroke-width:2px,color:#fff
     classDef external fill:#34A853,stroke:#0F9D58,stroke-width:2px,color:#fff
     classDef user fill:#FBBC04,stroke:#F9AB00,stroke-width:2px,color:#000
     classDef security fill:#EA4335,stroke:#C5221F,stroke-width:2px,color:#fff
     classDef monitoring fill:#9334E6,stroke:#7627BB,stroke-width:2px,color:#fff
+    
+    %% Styling for subgraphs
+    style Users fill:#FFF9E6,stroke:#F9AB00,stroke-width:3px
+    style GCP fill:#E8F0FE,stroke:#1967D2,stroke-width:3px
+    style GitHub fill:#F0F4FF,stroke:#4285F4,stroke-width:2px
+    style CloudBuild fill:#E3F2FD,stroke:#1967D2,stroke-width:2px
+    style ArtifactRegistry fill:#E3F2FD,stroke:#1967D2,stroke-width:2px
+    style CloudRun fill:#E3F2FD,stroke:#1967D2,stroke-width:2px
+    style LoadBalancer fill:#E3F2FD,stroke:#1967D2,stroke-width:2px
+    style Terraform fill:#E3F2FD,stroke:#1967D2,stroke-width:2px
+    style Monitoring fill:#F3E5F5,stroke:#7627BB,stroke-width:2px
+    style Security fill:#FFEBEE,stroke:#C5221F,stroke-width:2px
+    style External fill:#E8F5E9,stroke:#0F9D58,stroke-width:3px
 
-    class CloudBuild,ArtifactRegistry,CloudRun,LoadBalancer,Terraform gcpService
+    class Build,Test,Push,Deploy,ImageLatest,ImageV1,ImageSHA,Service,Instance1,Instance2,InstanceN,Components,HTTPS,SSL,Global,TFMain,TFVars,TFOutputs gcpService
     class OpenAI,TelegramAPI,Ollama external
     class Browser,TelegramUser,APIClient user
     class SecretManager,IAM security
