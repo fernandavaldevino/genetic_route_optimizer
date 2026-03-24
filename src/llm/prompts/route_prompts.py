@@ -429,34 +429,68 @@ def build_qa_context_prompt(route_data: Dict[str, Any], question: str) -> str:
     total_distance = route_data.get('total_distance', 0)
     total_time = route_data.get('total_time', 0)
     
+    # Filtrar apenas pontos de atendimento (excluir depósito ID=0)
+    service_points = [(i, p, arrival_times[i]) for i, p in enumerate(route) if p.id != 0 and i < len(arrival_times)]
+    
+    # Identificar o último ponto de atendimento baseado no MAIOR horário de chegada
+    last_service_point = None
+    last_service_time = None
+    last_service_idx = None
+    
+    if service_points:
+        # Encontrar o ponto com maior horário de chegada (último atendimento real)
+        max_arrival_time = -1
+        for idx, (i, point, arrival_time) in enumerate(service_points):
+            if arrival_time > max_arrival_time:
+                max_arrival_time = arrival_time
+                last_service_point = point
+                last_service_time = arrival_time
+                last_service_idx = idx
+    
     # Construir contexto da rota
     route_context = f"""
 INFORMAÇÕES DA ROTA OTIMIZADA:
-- Total de pontos: {len([p for p in route if p.id != 0])}
+- Total de pontos de atendimento: {len(service_points)}
 - Distância total: {total_distance:.1f} km
 - Tempo total: {int(total_time // 60)}h{int(total_time % 60):02d}
 
-SEQUÊNCIA DE ATENDIMENTOS:
+IMPORTANTE: O(s) veículo(s) parte(m) do depósito (Ponto 0), realiza(m) os atendimentos e retorna(m) ao depósito.
+O ÚLTIMO PONTO é o último atendimento ANTES de retornar ao depósito (baseado no horário de chegada mais tardio).
+
+SEQUÊNCIA DE ATENDIMENTOS (excluindo depósito):
 """
     
-    for i, point in enumerate(route):
-        if point.id == 0:
-            continue
-            
-        arrival_time = arrival_times[i] if i < len(arrival_times) else 0
-        hours = int(arrival_time // 60)
-        minutes = int(arrival_time % 60)
+    for idx, (i, point, arrival_time) in enumerate(service_points, 1):
+        # Calcular dia e horário normalizado
+        day = int(arrival_time // 1440) + 1  # 1440 minutos = 1 dia
+        time_of_day = arrival_time % 1440
+        hours = int(time_of_day // 60)
+        minutes = int(time_of_day % 60)
+        
+        # Formatar horário com dia se necessário
+        if day == 1:
+            time_str = f"{hours:02d}:{minutes:02d}"
+        else:
+            time_str = f"{hours:02d}:{minutes:02d} do dia {day}"
+        
+        # Marcar se é o último ponto (baseado no maior horário de chegada)
+        is_last = (last_service_point and point.id == last_service_point.id and arrival_time == last_service_time)
+        last_marker = " ← ÚLTIMO PONTO (antes de retornar ao depósito)" if is_last else ""
         
         route_context += f"""
-Ponto {point.id}:
-- Posição na rota: {i}
+Ponto {point.id}:{last_marker}
+- Ordem de atendimento: {idx}º de {len(service_points)}
 - Tipo: {get_priority_description(point.priority)}
-- Chegada prevista: {hours:02d}:{minutes:02d}
+- Chegada prevista: {time_str}
 - Tempo de atendimento: {point.service_duration} min
 """
         
         if point.time_window:
-            route_context += f"- Janela de tempo: {int(point.time_window.start_time//60):02d}:{int(point.time_window.start_time%60):02d} - {int(point.time_window.end_time//60):02d}:{int(point.time_window.end_time%60):02d}\n"
+            tw_start_day = int(point.time_window.start_time // 1440) + 1
+            tw_end_day = int(point.time_window.end_time // 1440) + 1
+            tw_start_time = point.time_window.start_time % 1440
+            tw_end_time = point.time_window.end_time % 1440
+            route_context += f"- Janela de tempo: {int(tw_start_time//60):02d}:{int(tw_start_time%60):02d} - {int(tw_end_time//60):02d}:{int(tw_end_time%60):02d}\n"
     
     prompt = f"""
 {route_context}

@@ -1704,13 +1704,13 @@ def main():
                 vehicles_data = prepare_route_data_multi_vehicle(st.session_state.best_solution)
                 
                 # Para Q&A: combinar todos os veículos em uma única rota
+                # IMPORTANTE: Usar arrival_times reais de cada veículo (não recalcular)
                 all_points = []
                 all_arrival_times = []
                 for vehicle in st.session_state.best_solution.vehicles:
                     all_points.extend(vehicle.route)
-                    vehicle_speed = st.session_state.get('vehicle_speed', 60)
-                    _, _, v_arrival_times = calculate_route_time_and_distance(vehicle.route, speed=vehicle_speed)
-                    all_arrival_times.extend(v_arrival_times)
+                    # Usar arrival_times reais do veículo (já calculados corretamente)
+                    all_arrival_times.extend(vehicle.arrival_times)
                 
                 route = all_points
                 arrival_times = all_arrival_times
