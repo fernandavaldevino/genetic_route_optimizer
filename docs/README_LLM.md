@@ -1,5 +1,46 @@
 # 🤖 Integração com LLMs - Assistente Inteligente
 
+## 📑 Índice
+
+- [Visão Geral](#visão-geral)
+- [📋 Funcionalidades](#-funcionalidades)
+  - [1. Manual de Instruções para Equipe de Transporte](#1-manual-de-instruções-para-equipe-de-transporte)
+  - [2. Roteiro Detalhado de Visitas](#2-roteiro-detalhado-de-visitas)
+  - [3. Sistema de Perguntas em Linguagem Natural](#3-sistema-de-perguntas-em-linguagem-natural)
+- [⚙️ Configuração](#️-configuração)
+  - [Opção 1: Configuração via Arquivo .env](#opção-1-configuração-via-arquivo-env)
+    - [1.1. Configuração para OpenAI (Nuvem)](#11-configuração-para-openai-nuvem)
+    - [1.2. Configuração para Ollama (Local)](#12-configuração-para-ollama-local)
+    - [1.3. Parâmetros de Temperatura](#13-parâmetros-de-temperatura)
+  - [Opção 2: Ollama (Local)](#opção-2-ollama-local)
+    - [2.1. Instalar Ollama](#21-instalar-ollama)
+    - [2.2. Iniciar Serviço](#22-iniciar-serviço)
+    - [2.3. Baixar Modelo](#23-baixar-modelo)
+    - [2.4. Configurar no .env](#24-configurar-no-env)
+    - [2.5. Vantagens do Ollama](#25-vantagens-do-ollama)
+    - [2.6. Comparação de Modelos Ollama](#26-comparação-de-modelos-ollama)
+- [🏗️ Arquitetura](#️-arquitetura)
+  - [Estrutura de Módulos](#estrutura-de-módulos)
+  - [Fluxo de Dados](#fluxo-de-dados)
+- [🎯 Uso no Streamlit](#-uso-no-streamlit)
+  - [Aba 1: 📋 Manual de Instruções](#aba-1--manual-de-instruções)
+  - [Aba 2: 🗺️ Roteiro Detalhado](#aba-2-️-roteiro-detalhado)
+  - [Aba 3: 💬 Perguntas & Respostas](#aba-3--perguntas--respostas)
+  - [Aba 4: 🤖 Telegram Bot](#aba-4--telegram-bot)
+- [📊 Contexto de Saúde da Mulher](#-contexto-de-saúde-da-mulher)
+  - [Tipos de Atendimento](#tipos-de-atendimento)
+  - [Restrições Consideradas](#restrições-consideradas)
+- [🧪 Testes](#-testes)
+  - [Testes OpenAI](#testes-openai)
+  - [Testes Ollama](#testes-ollama)
+  - [Teste Manual Rápido](#teste-manual-rápido)
+- [💡 Dicas de Uso](#-dicas-de-uso)
+- [🔒 Segurança](#-segurança)
+- [📚 Referências](#-referências)
+- [🆘 Troubleshooting](#-troubleshooting)
+
+---
+
 ## Visão Geral
 
 O sistema de otimização de rotas agora conta com um **Assistente Inteligente** baseado em LLMs (Large Language Models) que gera automaticamente:
@@ -7,6 +48,7 @@ O sistema de otimização de rotas agora conta com um **Assistente Inteligente**
 1. **Manual de Instruções** para equipe de transporte
 2. **Roteiro Detalhado** de visitas para motoristas
 3. **Sistema de Perguntas e Respostas** em linguagem natural
+4. **Bot Telegram** para guiar os motoristas de forma dinâmica com todas as informações sobre a rota.
 
 ## 📋 Funcionalidades
 
@@ -111,32 +153,64 @@ O sistema suporta dois provedores de LLM:
 1. **OpenAI** - Modelos em nuvem (GPT-3.5, GPT-4)
 2. **Ollama** - Modelos locais (Llama2, Mistral, CodeLlama)
 
-### Opção 1: OpenAI (Nuvem)
+### Opção 1: Configuração via Arquivo .env
 
-#### 1.1. Configurar API Key
+Edite o arquivo `.env` na raiz do projeto com as configurações do provedor escolhido:
 
-Edite o arquivo `.env` na raiz do projeto:
+#### 1.1. Configuração para OpenAI (Nuvem)
 
 ```env
+# ===== PROVEDOR PRINCIPAL =====
 LLM_PROVIDER=openai
+
+# ===== CONFIGURAÇÃO OPENAI =====
+# Obtenha sua API Key em: https://platform.openai.com/api-keys
 OPENAI_API_KEY=sk-proj-sua-chave-aqui
 OPENAI_MODEL=gpt-3.5-turbo
 OPENAI_TEMPERATURE=0.7
 ```
 
-#### 1.2. Modelos Disponíveis
-
+**Modelos Disponíveis:**
 - `gpt-3.5-turbo` (recomendado para custo-benefício)
 - `gpt-4` (maior qualidade, maior custo)
 - `gpt-4-turbo` (equilíbrio entre qualidade e velocidade)
 
-#### 1.3. Obter API Key
-
+**Como Obter API Key:**
 1. Acesse [OpenAI Platform](https://platform.openai.com)
 2. Crie uma conta ou faça login
 3. Vá em "API Keys"
 4. Clique em "Create new secret key"
 5. Copie a chave e adicione no `.env`
+
+#### 1.2. Configuração para Ollama (Local)
+
+```env
+# ===== PROVEDOR PRINCIPAL =====
+LLM_PROVIDER=ollama
+
+# ===== CONFIGURAÇÃO OLLAMA (LOCAL) =====
+# Certifique-se de que o Ollama está instalado e rodando
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama2
+OLLAMA_TEMPERATURE=0.7
+```
+
+**Modelos Disponíveis:**
+- `llama2` (uso geral, ~3.8GB)
+- `mistral` (tarefas complexas, ~4.1GB)
+- `codellama` (geração de código, ~3.8GB)
+- `llama2:7b` (testes rápidos, ~1.9GB)
+
+**Pré-requisitos:**
+- Ollama instalado (veja Opção 2 abaixo)
+- Serviço Ollama rodando (`ollama serve`)
+- Modelo baixado (`ollama pull llama2`)
+
+#### 1.3. Parâmetros de Temperatura
+
+- `0.0` - Mais determinístico e consistente
+- `0.7` - Balanceado (padrão recomendado)
+- `2.0` - Mais criativo e variado
 
 ### Opção 2: Ollama (Local)
 
@@ -225,16 +299,16 @@ OLLAMA_BASE_URL=http://localhost:11434
 
 ```
 src/llm/
-├── providers/          # Provedores de LLM
-│   ├── base.py        # Interface base
+├── providers/                     # Provedores de LLM
+│   ├── base.py                    # Interface base
 │   └── openai_provider.py
-├── prompts/           # Templates de prompts
+├── prompts/                       # Templates de prompts
 │   └── route_prompts.py
-├── generators/        # Geradores de conteúdo
+├── generators/                    # Geradores de conteúdo
 │   ├── manual_generator.py
 │   ├── itinerary_generator.py
 │   └── qa_generator.py
-└── utils/            # Utilitários
+└── utils/                         # Utilitários
     └── streamlit_integration.py
 ```
 
@@ -254,7 +328,7 @@ Formatação e Exibição (Streamlit)
 
 ## 🎯 Uso no Streamlit
 
-Após executar a otimização de rotas, a seção **"🤖 Assistente Inteligente com IA"** aparece com três abas:
+Após executar a otimização de rotas, a seção **"🤖 Assistente Inteligente com IA"** aparece com quatro abas:
 
 ### Aba 1: 📋 Manual de Instruções
 - Botão "Gerar Manual" - Cria manual completo
@@ -269,6 +343,11 @@ Após executar a otimização de rotas, a seção **"🤖 Assistente Inteligente
 - Campo de texto para perguntas personalizadas
 - Histórico de conversação
 - Botão para limpar histórico
+
+### Aba 4: 🤖 Telegram Bot
+- **QR Code** para acesso rápido ao bot pelo celular com todas as informações da rota
+- **Link direto** para abrir o bot no Telegram
+- Instruções de uso do bot
 
 ## 📊 Contexto de Saúde da Mulher
 
@@ -432,27 +511,8 @@ if provider.validate_connection():
 2. Customize os prompts em `route_prompts.py`
 3. Forneça mais contexto nos prompts
 
-## 🚀 Próximos Passos
 
-- [ ] Suporte para Ollama (LLMs locais)
-- [ ] Cache de respostas frequentes
-- [ ] Exportação de documentos em PDF
-- [ ] Tradução multilíngue
-- [ ] Integração com WhatsApp/Telegram
-- [ ] Análise de sentimento em feedback
-- [ ] Geração de relatórios automáticos
-
-## 📝 Changelog
-
-### v1.0.0 (2026-03-06)
-- ✨ Implementação inicial da integração LLM
-- ✨ Gerador de manual de instruções
-- ✨ Gerador de roteiro detalhado
-- ✨ Sistema de Q&A em linguagem natural
-- ✨ Suporte para OpenAI GPT-3.5/GPT-4
-- ✨ Interface integrada no Streamlit
-- 📚 Documentação completa
 
 ---
 
-**Desenvolvido com ❤️ para otimização de rotas em saúde da mulher**
+**Desenvolvido com ❤️ e ☕️ para otimização de rotas em saúde da mulher**

@@ -3,15 +3,15 @@
 ## 📋 Índice
 
 1. [Visão Geral](#-visão-geral)
-2. [Arquitetura de Alto Nível](#-arquitetura-de-alto-nível)
+2. [Arquitetura de Alto Nível](#️-arquitetura-de-alto-nível)
 3. [Componentes da Infraestrutura](#-componentes-da-infraestrutura)
 4. [Fluxo de Deploy (CI/CD)](#-fluxo-de-deploy-cicd)
-5. [Infraestrutura como Código (IaC)](#-infraestrutura-como-código-iac)
-6. [Segurança e Boas Práticas](#-segurança-e-boas-práticas)
-7. [Escalabilidade e Performance](#-escalabilidade-e-performance)
-8. [Monitoramento e Observabilidade](#-monitoramento-e-observabilidade)
-9. [Custos e Otimização](#-custos-e-otimização)
-10. [Disaster Recovery](#-disaster-recovery)
+5. [Segurança e Boas Práticas](#-segurança-e-boas-práticas)
+6. [Escalabilidade e Performance](#-escalabilidade-e-performance)
+7. [Monitoramento e Observabilidade](#-monitoramento-e-observabilidade)
+8. [Custos e Otimização](#-custos-e-otimização)
+9. [Disaster Recovery](#-disaster-recovery)
+10. [Conclusão](#-conclusão)
 
 ---
 
@@ -34,67 +34,200 @@ Sistema de otimização de rotas para múltiplos veículos utilizando Algoritmo 
 
 ## 🏛️ Arquitetura de Alto Nível
 
+### Diagrama em Mermaid
+
+> **💡 Como visualizar interativamente:**
+> - Visualize este arquivo no **GitHub** ou **GitLab** para ver o diagrama renderizado e interativo
+> - Use a extensão **Markdown Preview Mermaid Support** no VS Code
+> - Acesse [Mermaid Live Editor](https://mermaid.live/) e cole o código do diagrama
+> - O diagrama abaixo pode aparecer pequeno no VS Code - use as opções acima para melhor visualização
+
+```mermaid
+graph TB
+    subgraph Users["👥 END USERS"]
+        Browser["🌐 Web Browser<br/>(Swagger UI)"]
+        TelegramUser["💬 Telegram Users"]
+        APIClient["🔧 API Clients<br/>(curl, Postman)"]
+    end
+
+    subgraph GCP["☁️ GOOGLE CLOUD PLATFORM"]
+        subgraph GitHub["📦 GITHUB REPOSITORY"]
+            Code["📝 Source Code<br/>(main branch)"]
+        end
+
+        subgraph CloudBuild["🔨 CLOUD BUILD - CI/CD Pipeline"]
+            Build["1️⃣ Build Image<br/>Docker Build"]
+            Test["2️⃣ Run Tests<br/>pytest"]
+            Push["3️⃣ Push Image<br/>to Registry"]
+            Deploy["4️⃣ Deploy<br/>to Cloud Run"]
+        end
+
+        subgraph ArtifactRegistry["📦 ARTIFACT REGISTRY"]
+            ImageLatest["🐳 genetic-route-optimizer:latest"]
+            ImageV1["🐳 genetic-route-optimizer:v1.0.0"]
+            ImageSHA["🐳 genetic-route-optimizer:SHA"]
+        end
+
+        subgraph CloudRun["🚀 CLOUD RUN - Serverless"]
+            Service["⚙️ Service: genetic-route-optimizer-api"]
+            subgraph Instances["Auto-Scaling Instances (0-10)"]
+                Instance1["📦 Container 1<br/>2 vCPU | 2GB RAM"]
+                Instance2["📦 Container 2<br/>2 vCPU | 2GB RAM"]
+                InstanceN["📦 Container N<br/>2 vCPU | 2GB RAM"]
+            end
+            Components["🔧 Components:<br/>• FastAPI<br/>• Genetic Algorithm<br/>• LLM Integration<br/>• Telegram Webhook"]
+        end
+
+        subgraph LoadBalancer["⚖️ CLOUD LOAD BALANCER"]
+            HTTPS["🔒 HTTPS Termination"]
+            SSL["🔐 SSL/TLS Certificates"]
+            Global["🌍 Global Distribution"]
+        end
+
+        subgraph Terraform["🏗️ TERRAFORM - IaC"]
+            TFMain["main.tf"]
+            TFVars["variables.tf"]
+            TFOutputs["outputs.tf"]
+        end
+
+        subgraph Monitoring["📊 MONITORING & LOGGING"]
+            CloudMonitoring["📈 Cloud Monitoring<br/>(Metrics & Dashboards)"]
+            CloudLogging["📝 Cloud Logging<br/>(Structured Logs)"]
+            CloudTrace["🔍 Cloud Trace<br/>(Distributed Tracing)"]
+        end
+
+        subgraph Security["🔒 SECURITY"]
+            SecretManager["🔑 Secret Manager<br/>(API Keys)"]
+            IAM["👤 IAM & Service Accounts"]
+        end
+    end
+
+    subgraph External["🌐 EXTERNAL SERVICES"]
+        OpenAI["🤖 OpenAI API<br/>(GPT-3.5/GPT-4)"]
+        TelegramAPI["💬 Telegram Bot API"]
+        Ollama["🦙 Ollama<br/>(Local LLM)"]
+    end
+
+    %% User Connections
+    Browser -->|HTTPS| LoadBalancer
+    TelegramUser -->|Messages| TelegramAPI
+    APIClient -->|REST API| LoadBalancer
+
+    %% CI/CD Flow
+    Code -->|Push to main| Build
+    Build -->|Success| Test
+    Test -->|Pass| Push
+    Push -->|Upload| ArtifactRegistry
+    ArtifactRegistry -->|Pull Image| Deploy
+    Deploy -->|Update| Service
+
+    %% Artifact Registry
+    Push -.->|Store| ImageLatest
+    Push -.->|Store| ImageV1
+    Push -.->|Store| ImageSHA
+
+    %% Cloud Run
+    Service -->|Manages| Instances
+    Instances -.->|Contains| Components
+    LoadBalancer -->|Routes Traffic| Service
+
+    %% External Services
+    Components -->|API Calls| OpenAI
+    Components -->|Webhook| TelegramAPI
+    Components -.->|Optional| Ollama
+    TelegramAPI -->|Webhook| Components
+
+    %% Infrastructure
+    Terraform -.->|Provisions| CloudRun
+    Terraform -.->|Provisions| LoadBalancer
+    Terraform -.->|Provisions| Security
+
+    %% Security
+    SecretManager -.->|Provides Secrets| Components
+    IAM -.->|Controls Access| Service
+
+    %% Monitoring
+    Service -->|Sends Metrics| CloudMonitoring
+    Service -->|Sends Logs| CloudLogging
+    Service -->|Sends Traces| CloudTrace
+
+    %% Styling
+    classDef gcpService fill:#4285F4,stroke:#1967D2,stroke-width:2px,color:#fff
+    classDef external fill:#34A853,stroke:#0F9D58,stroke-width:2px,color:#fff
+    classDef user fill:#FBBC04,stroke:#F9AB00,stroke-width:2px,color:#000
+    classDef security fill:#EA4335,stroke:#C5221F,stroke-width:2px,color:#fff
+    classDef monitoring fill:#9334E6,stroke:#7627BB,stroke-width:2px,color:#fff
+
+    class CloudBuild,ArtifactRegistry,CloudRun,LoadBalancer,Terraform gcpService
+    class OpenAI,TelegramAPI,Ollama external
+    class Browser,TelegramUser,APIClient user
+    class SecretManager,IAM security
+    class CloudMonitoring,CloudLogging,CloudTrace monitoring
+```
+
+### Diagrama ASCII (Texto)
+
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        GOOGLE CLOUD PLATFORM                         │
+│                        GOOGLE CLOUD PLATFORM                        │
 ├─────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                    CLOUD BUILD (CI/CD)                        │  │
-│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐             │  │
-│  │  │   Build    │→ │   Test     │→ │   Deploy   │             │  │
-│  │  │   Image    │  │   (pytest) │  │   to Run   │             │  │
-│  │  └────────────┘  └────────────┘  └────────────┘             │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│                              ↓                                       │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │              ARTIFACT REGISTRY (Container Images)             │  │
-│  │  ┌────────────────────────────────────────────────────────┐  │  │
-│  │  │  genetic-route-optimizer:latest                         │  │  │
-│  │  │  genetic-route-optimizer:v1.0.0                         │  │  │
-│  │  └────────────────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│                              ↓                                       │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                    CLOUD RUN (Serverless)                     │  │
-│  │  ┌────────────────────────────────────────────────────────┐  │  │
-│  │  │  Service: genetic-route-optimizer-api                   │  │  │
-│  │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐             │  │  │
-│  │  │  │Container │  │Container │  │Container │  (Auto-scale)│  │  │
-│  │  │  │Instance 1│  │Instance 2│  │Instance N│             │  │  │
-│  │  │  └──────────┘  └──────────┘  └──────────┘             │  │  │
-│  │  │  • FastAPI Application                                  │  │  │
-│  │  │  • Genetic Algorithm Engine                             │  │  │
-│  │  │  • LLM Integration (OpenAI/Ollama)                      │  │  │
-│  │  │  • Telegram Bot Webhook Handler                         │  │  │
-│  │  └────────────────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│                              ↓                                       │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                    CLOUD LOAD BALANCER                        │  │
-│  │  • HTTPS Termination                                          │  │
-│  │  • SSL/TLS Certificates                                       │  │
-│  │  • Global Distribution                                        │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│                              ↓                                       │
+│                                                                     │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                    CLOUD BUILD (CI/CD)                       │   │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐              │   │
+│  │  │   Build    │→ │   Test     │→ │   Deploy   │              │   │
+│  │  │   Image    │  │   (pytest) │  │   to Run   │              │   │
+│  │  └────────────┘  └────────────┘  └────────────┘              │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                              ↓                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │              ARTIFACT REGISTRY (Container Images)            │   │
+│  │  ┌────────────────────────────────────────────────────────┐  │   │
+│  │  │  genetic-route-optimizer:latest                        │  │   │
+│  │  │  genetic-route-optimizer:v1.0.0                        │  │   │
+│  │  └────────────────────────────────────────────────────────┘  │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                              ↓                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                    CLOUD RUN (Serverless)                    │   │
+│  │  ┌────────────────────────────────────────────────────────┐  │   │
+│  │  │  Service: genetic-route-optimizer-api                  │  │   │
+│  │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │  │   │
+│  │  │  │Container │  │Container │  │Container │  (Auto-scale)│  │   │
+│  │  │  │Instance 1│  │Instance 2│  │Instance N│              │  │   │
+│  │  │  └──────────┘  └──────────┘  └──────────┘              │  │   │
+│  │  │  • FastAPI Application                                 │  │   │
+│  │  │  • Genetic Algorithm Engine                            │  │   │
+│  │  │  • LLM Integration (OpenAI/Ollama)                     │  │   │
+│  │  │  • Telegram Bot Webhook Handler                        │  │   │
+│  │  └────────────────────────────────────────────────────────┘  │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                              ↓                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                    CLOUD LOAD BALANCER                       │   │
+│  │  • HTTPS Termination                                         │   │
+│  │  • SSL/TLS Certificates                                      │   │
+│  │  • Global Distribution                                       │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                              ↓                                      │
 └─────────────────────────────────────────────────────────────────────┘
                                ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         EXTERNAL SERVICES                            │
+│                         EXTERNAL SERVICES                           │
 ├─────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐             │
-│  │   OpenAI     │  │   Telegram   │  │   Ollama     │             │
-│  │   API        │  │   Bot API    │  │   (Local)    │             │
-│  └──────────────┘  └──────────────┘  └──────────────┘             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │   OpenAI     │  │   Telegram   │  │   Ollama     │               │
+│  │   API        │  │   Bot API    │  │   (Local)    │               │
+│  └──────────────┘  └──────────────┘  └──────────────┘               │
 └─────────────────────────────────────────────────────────────────────┘
                                ↑
 ┌─────────────────────────────────────────────────────────────────────┐
-│                            END USERS                                 │
+│                            END USERS                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐             │
-│  │  Web Browser │  │  Telegram    │  │  API Clients │             │
-│  │  (Swagger)   │  │  Users       │  │  (curl, etc) │             │
-│  └──────────────┘  └──────────────┘  └──────────────┘             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │  Web Browser │  │  Telegram    │  │  API Clients │               │
+│  │  (Swagger)   │  │  Users       │  │  (curl, etc) │               │
+│  └──────────────┘  └──────────────┘  └──────────────┘               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -146,7 +279,7 @@ resource "google_cloud_run_service" "genetic_route_optimizer" {
       }
 
       container_concurrency = 80
-      timeout_seconds      = 300  # 5 minutos
+      timeout_seconds       = 300  # 5 minutos
     }
 
     metadata {
@@ -352,46 +485,46 @@ terraform destroy
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    DESENVOLVIMENTO LOCAL                         │
+│                    DESENVOLVIMENTO LOCAL                        │
 ├─────────────────────────────────────────────────────────────────┤
 │  1. Desenvolvedor faz commit no código                          │
 │  2. Push para branch main no GitHub                             │
 └─────────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                    GOOGLE CLOUD BUILD                            │
+│                    GOOGLE CLOUD BUILD                           │
 ├─────────────────────────────────────────────────────────────────┤
 │  3. Trigger automático detecta push                             │
-│  4. Clone do repositório                                         │
-│  5. Build da imagem Docker                                       │
+│  4. Clone do repositório                                        │
+│  5. Build da imagem Docker                                      │
 │     └─ Dockerfile → Container Image                             │
 │  6. (Opcional) Execução de testes                               │
 │     └─ pytest tests/ -v                                         │
 │  7. Push da imagem para Artifact Registry                       │
-│     └─ gcr.io/PROJECT_ID/genetic-route-optimizer:latest        │
+│     └─ gcr.io/PROJECT_ID/genetic-route-optimizer:latest         │
 └─────────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                    ARTIFACT REGISTRY                             │
+│                    ARTIFACT REGISTRY                            │
 ├─────────────────────────────────────────────────────────────────┤
 │  8. Armazenamento da imagem                                     │
 │  9. Versionamento (latest, SHA, v1.0.0)                         │
-│  10. Scan de vulnerabilidades                                    │
+│  10. Scan de vulnerabilidades                                   │
 └─────────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                    GOOGLE CLOUD RUN                              │
+│                    GOOGLE CLOUD RUN                             │
 ├─────────────────────────────────────────────────────────────────┤
-│  11. Deploy da nova revisão                                      │
-│  12. Health check da aplicação                                   │
+│  11. Deploy da nova revisão                                     │
+│  12. Health check da aplicação                                  │
 │  13. Migração gradual de tráfego (Blue/Green)                   │
 │  14. Rollback automático se falhar                              │
 └─────────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                    PRODUÇÃO                                      │
+│                    PRODUÇÃO                                     │
 ├─────────────────────────────────────────────────────────────────┤
-│  15. Aplicação disponível em:                                    │
+│  15. Aplicação disponível em:                                   │
 │      https://genetic-route-optimizer-api-[HASH].a.run.app       │
 │  16. Swagger UI acessível em /docs                              │
 │  17. Webhook do Telegram configurado                            │
@@ -473,7 +606,7 @@ resource "google_project_iam_member" "cloud_run_permissions" {
 - ✅ **Certificados Gerenciados**: Renovação automática
 - ✅ **TLS 1.2+**: Protocolos seguros apenas
 
-### 4. **Proteção contra DDoS**
+### 4. **Proteção contra DDoS (Distributed Denial of Service)**
 
 ```hcl
 metadata {
