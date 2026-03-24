@@ -1235,31 +1235,42 @@ def main(max_generations=10):
         # Calcular tempo decorrido
         elapsed_time = time.time() - start_time
         
+        # ORDENAR POPULAÇÃO ANTES DE QUALQUER COISA
         population = sort_multi_vehicle_population(population)
         
-        best_solution = population[0]
-        best_fitness = best_solution.total_fitness
+        # EXTRAIR MELHOR SOLUÇÃO ATUAL DA POPULAÇÃO
+        current_best = population[0]
+        current_fitness = current_best.total_fitness
         
-        # Debug: mostrar melhoria e atualizar contadores
+        # PRESERVAR MELHOR SOLUÇÃO GLOBAL (nunca perde a melhor já encontrada)
         if generation == 0:
+            best_solution = copy.deepcopy(current_best)
+            best_fitness = current_fitness
+            best_fitness_ever = best_fitness
             print(f"\n{'='*60}")
             print(f"FITNESS INICIAL: {best_fitness:.2f}")
             print(f"{'='*60}\n")
-            best_fitness_ever = best_fitness
-        elif generation > 0 and best_fitness < best_fitness_history[-1] * 0.999:
-            # Considerar melhoria se for pelo menos 0.1% melhor
-            improvement = best_fitness_history[-1] - best_fitness
-            last_improvement_generation = generation  # Atualizar última melhoria
-            stagnation_counter = 0  # Resetar contador de estagnação
-            print(f"✓ Geração {generation}: MELHORIA de {improvement:.2f} (Fitness: {best_fitness:.2f})")
-            
-            # Atualizar melhor fitness ever
-            if best_fitness < best_fitness_ever:
-                best_fitness_ever = best_fitness
         else:
-            # Sem melhoria: incrementar contador de estagnação
-            stagnation_counter += 1
+            # Se encontrou solução melhor, atualizar
+            if current_fitness < best_fitness:
+                best_solution = copy.deepcopy(current_best)
+                best_fitness = current_fitness
+                
+                # Considerar melhoria se for pelo menos 0.1% melhor que o histórico
+                if best_fitness < best_fitness_history[-1] * 0.999:
+                    improvement = best_fitness_history[-1] - best_fitness
+                    last_improvement_generation = generation
+                    stagnation_counter = 0
+                    print(f"✓ Geração {generation}: MELHORIA de {improvement:.2f} (Fitness: {best_fitness:.2f})")
+                
+                # Atualizar melhor fitness ever
+                if best_fitness < best_fitness_ever:
+                    best_fitness_ever = best_fitness
+            else:
+                # Se não houve melhoria: incrementar estagnação
+                stagnation_counter += 1
         
+        # SEMPRE adicionar a MELHOR solução global ao histórico (não a atual da população)
         best_fitness_history.append(best_fitness)
         
         # ============================================================================
@@ -1269,23 +1280,33 @@ def main(max_generations=10):
         if num_crossings > 0:
             print(f"⚠️  Geração {generation}: {num_crossings} cruzamentos detectados! Aplicando 2-opt agressivo...")
             
+            # Criar CÓPIA da melhor solução para otimizar
+            optimized_solution = copy.deepcopy(best_solution)
+            
             # Aplicar 2-opt agressivo em TODOS os veículos
-            for vehicle in best_solution.vehicles:
+            for vehicle in optimized_solution.vehicles:
                 if vehicle.route:
                     vehicle.route = two_opt_optimize(vehicle.route, depot_location, max_passes=FORCED_OPT_PASSES)
             
             # Recalcular fitness
-            calculate_multi_vehicle_fitness(best_solution, depot_location)
-            
-            # Atualizar população com solução otimizada
-            population[0] = best_solution
+            calculate_multi_vehicle_fitness(optimized_solution, depot_location)
             
             # Verificar se eliminou cruzamentos
-            new_crossings = count_route_crossings(best_solution.vehicles)
+            new_crossings = count_route_crossings(optimized_solution.vehicles)
             if new_crossings == 0:
-                print(f"✓ Cruzamentos eliminados! Novo fitness: {best_solution.total_fitness:.2f}")
+                print(f"✓ Cruzamentos eliminados! Novo fitness: {optimized_solution.total_fitness:.2f}")
             else:
                 print(f"⚠️  Ainda restam {new_crossings} cruzamentos após otimização")
+            
+            # Atualizar população com solução otimizada
+            population[0] = optimized_solution
+            
+            # Se a solução otimizada for MELHOR que a melhor global, atualizar
+            if optimized_solution.total_fitness < best_fitness:
+                best_solution = copy.deepcopy(optimized_solution)
+                best_fitness = optimized_solution.total_fitness
+                last_improvement_generation = generation
+                stagnation_counter = 0
         
         # ============================================================================
         # OTIMIZAÇÃO 2-OPT ADAPTATIVA: Aplicar periodicamente baseado na geração
@@ -1314,8 +1335,13 @@ def main(max_generations=10):
             
             # Reordenar população
             population = sort_multi_vehicle_population(population)
-            best_solution = population[0]
-            best_fitness = best_solution.total_fitness
+            
+            # Se a melhor da população for MELHOR que a melhor global, atualizar
+            if population[0].total_fitness < best_fitness:
+                best_solution = copy.deepcopy(population[0])
+                best_fitness = population[0].total_fitness
+                last_improvement_generation = generation
+                stagnation_counter = 0
         
         # ============================================================================
         # REINJEÇÃO DE DIVERSIDADE PROGRESSIVA: Detectar estagnação
@@ -1462,11 +1488,14 @@ def main(max_generations=10):
         # ============================================================================
         new_population = []
         
-        # PASSO 1: Copiar elite (SEMPRE preservar as melhores soluções)
-        for i in range(elite_size):
+        # PASSO 1: SEMPRE copiar a melhor solução global primeiro (elitismo garantido)
+        new_population.append(copy.deepcopy(best_solution))
+        
+        # PASSO 2: Copiar elite adicional da população ordenada (se elite_size > 1)
+        for i in range(1, elite_size):
             new_population.append(copy.deepcopy(population[i]))
         
-        # PASSO 2: Aplicar Simulated Annealing em cópias da elite (não substitui a elite)
+        # PASSO 3: Aplicar Simulated Annealing em cópias da elite (não substitui a elite)
         num_annealing = max(1, elite_size // 5)
         for i in range(num_annealing):
             annealed = apply_simulated_annealing(copy.deepcopy(population[i]), temperature, depot_location)
