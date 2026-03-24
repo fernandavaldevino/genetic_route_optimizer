@@ -45,6 +45,7 @@ tests/
 ├── conftest.py                    # Configuração e fixtures compartilhadas
 ├── test_service_points.py         # Testes unitários para pontos de serviço
 ├── test_genetic_algorithm.py      # Testes para algoritmo genético (unitários + edge cases)
+├── test_elitism_verification.py   # Testes de verificação do elitismo dinâmico (1V e 2V)
 ├── test_streamlit_utils.py        # Testes para utilitários do Streamlit
 ├── test_integration.py            # Testes de integração end-to-end
 ├── test_restrictions.py           # Testes de integração legados
@@ -86,6 +87,16 @@ Testa o módulo [`src/core/genetic_algorithm.py`](../src/core/genetic_algorithm.
 - **TestPopulationSorting**: Ordenação de população por fitness
 - **TestGeneticOperators**: Crossover e mutação
 - **TestRouteCalculations**: Cálculos de tempo e distância de rotas
+
+### 3.1. `test_elitism_verification.py`
+Testa a implementação do elitismo dinâmico para 1 e 2 veículos:
+- **test_elitism_1v**: Verifica elitismo dinâmico para 1 veículo
+  - Elite size cresce de 1 para 2 indivíduos (50% das gerações)
+  - Validação de progresso e tamanho da elite
+- **test_elitism_2v**: Verifica elitismo dinâmico para 2 veículos
+  - Elite size cresce de 5 para 10 indivíduos (linearmente)
+  - Validação em diferentes estágios (início, meio, fim)
+- **Execução**: Pode ser executado diretamente com `python tests/test_elitism_verification.py`
 
 ### 4. `test_streamlit_utils.py`
 Testa funções utilitárias do [`streamlit/app_streamlit.py`](../streamlit/app_streamlit.py):
@@ -240,8 +251,8 @@ pytest tests/ -s
 
 ### Estatísticas Gerais
 
-- **Total de Testes:** 263
-- **Total de Arquivos de Teste:** 15+
+- **Total de Testes:** 265
+- **Total de Arquivos de Teste:** 16
 - **Total de Classes de Teste:** 70+
 - **Cobertura Geral:** ~55%
 - **Cobertura de Módulos Críticos:** ~75%
@@ -262,7 +273,7 @@ pytest tests/ -s
 
 ### Testes por Categoria
 
-#### Testes Unitários (64 testes)
+#### Testes Unitários (66 testes)
 - ✅ **Pontos de Serviço** (25 testes): Criação, validação, ordenação por prioridade
 - ✅ **Janelas de Tempo** (4 testes): Validação e penalidades
 - ✅ **Controle de Temperatura** (3 testes): Validação de rotas com medicamentos
@@ -272,6 +283,9 @@ pytest tests/ -s
   - Geração de população com viés (4 testes + edge cases)
   - Operadores genéticos: crossover e mutação (10 testes + edge cases)
   - Cálculos de tempo e distância (5 testes + edge cases)
+- ✅ **Elitismo Dinâmico** (2 testes):
+  - Verificação de elitismo para 1 veículo (1 teste)
+  - Verificação de elitismo para 2 veículos (1 teste)
 
 #### Testes de Interface (13 testes)
 - ✅ **Streamlit Utils**: Formatação de tempo, cálculo de dias, criação de pontos

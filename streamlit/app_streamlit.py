@@ -204,7 +204,15 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
     
     # Criar população inicial
     population = generate_priority_aware_population(service_points, POPULATION_SIZE)
-    
+
+    # Calcular fitness inicial e definir best_route ANTES do loop
+    # para que nunca haja UnboundLocalError ao verificar critério de parada
+    initial_fitness = [calculate_constrained_fitness(r, speed=vehicle_speed) for r in population]
+    population, initial_fitness = sort_population_by_fitness(population, initial_fitness)
+    best_route = population[0]
+    best_fitness = initial_fitness[0]
+    _, _, arrival_times = calculate_route_time_and_distance(best_route, speed=vehicle_speed)
+
     best_fitness_history = []
     generation = 0
     optimization_complete = False
@@ -223,13 +231,27 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
                     running = False
         
         # Verificar se atingiu o critério de parada
-        if generation > max_generations and not optimization_complete:
+        # Modo normal: generation > max_generations
+        # Modo infinito (max_generations == -1): 5000 gerações sem melhoria
+        stop_condition = False
+        if max_generations == -1:
+            # Modo infinito: parar após 5000 gerações sem melhoria
+            stop_condition = (generation - last_improvement_generation) >= 5000
+        else:
+            # Modo normal: parar após max_generations
+            stop_condition = generation > max_generations
+        
+        if stop_condition and not optimization_complete:
             optimization_complete = True
             
             # Print final
             print()
             print("="*60)
-            print(f"CRITÉRIO DE PARADA ATINGIDO: {max_generations} gerações")
+            if max_generations == -1:
+                print(f"CRITÉRIO DE PARADA ATINGIDO: 5000 gerações sem melhoria")
+                print(f"Última melhoria na geração {last_improvement_generation}")
+            else:
+                print(f"CRITÉRIO DE PARADA ATINGIDO: {max_generations} gerações")
             print("="*60)
             
             # Calcular métricas finais
@@ -253,7 +275,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         if optimization_complete:
             # Desenhar tela de conclusão
             from src.visualization.pygame_viewer import draw_completion_screen
-            draw_completion_screen(screen, max_generations, best_fitness, best_route, arrival_times, service_points)
+            draw_completion_screen(screen, generation, best_fitness, best_route, arrival_times, service_points)
             pygame.display.flip()
             
             # Salvar screenshot final
@@ -1121,21 +1143,32 @@ def main():
         
         st.markdown("### 🧬 Parâmetros do Algoritmo Genético")
         
-        # Obter número de gerações atual
+        # Obter número de gerações e veículos atuais
         max_generations = st.session_state.get('max_generations', 10)
+        num_vehicles = st.session_state.get('num_vehicles', 1)
         
-        # Formatar exibição de gerações
+        # Formatar exibição de gerações (sempre em laranja)
         if max_generations == -1:
-            generations_display = "∞ (para após 5000 sem melhoria)"
+            generations_display = ":orange[**∞**]"
         else:
-            generations_display = f"{max_generations:,}".replace(',', '.')
+            generations_display = f":orange[**{max_generations:,}**]".replace(',', '.')
+        
+        # Valores que mudam conforme número de veículos
+        if num_vehicles == 1:
+            population_size = "100"
+            mutation_prob = "30%"
+            tournament_info = "Torneio (tamanho 5)"
+        else:  # 2 veículos
+            population_size = "150"
+            mutation_prob = "50%"
+            tournament_info = "Torneio :orange[**adaptativo**] (2-3)"
         
         st.markdown(f"""
         - **Pontos de Atendimento:** 20
-        - **Tamanho da População:** 100
+        - **Tamanho da População:** :orange[**{population_size}**]
         - **Gerações Máximas:** {generations_display}
-        - **Probabilidade de Mutação:** 50%
-        - **Seleção:** Torneio (tamanho 5)
+        - **Probabilidade de Mutação:** :orange[**{mutation_prob}**]
+        - **Seleção:** {tournament_info}
         - **Elitismo:** Ativo
         """)
         
@@ -1154,9 +1187,6 @@ def main():
         st.divider()
         
         st.markdown("### ⏰ Restrições")
-        
-        # Obter número de veículos atual
-        num_vehicles = st.session_state.get('num_vehicles', 1)
         
         # Texto de restrição de medicamentos prioritários e janelas de tempo dependem do número de veículos
         if num_vehicles == 1:

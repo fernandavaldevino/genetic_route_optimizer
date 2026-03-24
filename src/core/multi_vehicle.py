@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import copy
 import random
 from .service_points import ServicePoint, ServicePriority, calculate_distance, calculate_travel_time
+from ..constants import N_POINTS
 
 # Ponto de partida/depósito (será definido dinamicamente)
 DEPOT_LOCATION: Optional[Tuple[float, float]] = None
@@ -58,19 +59,8 @@ def calculate_vehicle_route_time_and_distance(route: List[ServicePoint],
                                               work_start: float = 450.0,  # 7:30h      # 1080.0 = 18h
                                               work_end: float = 1080.0) -> Tuple[float, float, List[float]]:
     """
-    Calcula tempo total e distância de uma rota de veículo
+    Calcula tempo total e distância da rota de um veículo
     Inclui viagem do depósito ao primeiro ponto e do último ponto ao depósito
-    
-    Args:
-        route: Lista de pontos de atendimento na ordem
-        depot_location: Localização do depósito (ponto de partida/retorno)
-        start_time: Tempo de início em minutos (default: 7:30h = 450 min)
-        speed: Velocidade média em km/h
-        work_start: Início do horário comercial em minutos (default: 7:30h = 450 min)
-        work_end: Fim do horário comercial em minutos (default: 18h = 1080 min)
-    
-    Returns:
-        Tupla (distância_total, tempo_total, lista_de_tempos_de_chegada)
     """
     if not route:
         return 0.0, 0.0, []
@@ -124,12 +114,7 @@ def calculate_vehicle_route_time_and_distance(route: List[ServicePoint],
 
 
 def split_points_by_priority(service_points: List[ServicePoint]) -> Tuple[List[ServicePoint], List[ServicePoint]]:
-    """
-    Divide pontos em prioritários e regulares
-    
-    Returns:
-        Tupla (pontos_prioritários, pontos_regulares)
-    """
+    """ Divide pontos em prioritários e regulares """
     priority_types = [
         ServicePriority.EMERGENCY_OBSTETRIC,
         ServicePriority.DOMESTIC_VIOLENCE,
@@ -143,175 +128,124 @@ def split_points_by_priority(service_points: List[ServicePoint]) -> Tuple[List[S
     return priority_points, regular_points
 
 
+def _compute_kmeans_clusters(
+    points: List[ServicePoint],
+    depot_location: Tuple[float, float],
+    num_clusters: int = 2
+) -> Tuple["np.ndarray", List[List[ServicePoint]]]:
+    """
+    Executa K-means clustering nos pontos fornecidos
+    Inicialização inteligente:
+      - Centroide 1: ponto mais distante do depósito
+      - Centroide 2: ponto mais distante do centroide 1
+    Balanceia clusters com diferença máxima de 2 pontos.
+    Returns:
+        (centroids, clusters) — centroides finais e lista de listas de pontos
+    """
+    import numpy as np
+
+    if not points:
+        return np.zeros((num_clusters, 2)), [[] for _ in range(num_clusters)]
+
+    if len(points) <= num_clusters:
+        result: List[List[ServicePoint]] = [[] for _ in range(num_clusters)]
+        for i, point in enumerate(points):
+            result[i % num_clusters].append(point)
+        coords_fallback = np.array([p.location for p in points])
+        centroids_fallback = np.zeros((num_clusters, 2))
+        for i in range(min(len(points), num_clusters)):
+            centroids_fallback[i] = coords_fallback[i]
+        return centroids_fallback, result
+
+    coords = np.array([p.location for p in points])
+
+    # Inicialização inteligente dos centróides
+    distances_from_depot = [calculate_distance(depot_location, p.location) for p in points]
+    farthest_idx = int(np.argmax(distances_from_depot))
+    centroid1 = coords[farthest_idx]
+
+    distances_from_c1 = [calculate_distance(tuple(centroid1), p.location) for p in points]
+    farthest_from_c1_idx = int(np.argmax(distances_from_c1))
+    centroid2 = coords[farthest_from_c1_idx]
+
+    centroids = np.array([centroid1, centroid2])
+
+    # Iteração K-means até convergência (máximo 20 iterações)
+    max_iterations = 20
+    clusters: List[List[ServicePoint]] = [[] for _ in range(num_clusters)]
+    for _ in range(max_iterations):
+        clusters = [[] for _ in range(num_clusters)]
+        cluster_indices: List[List[int]] = [[] for _ in range(num_clusters)]
+
+        for idx, point in enumerate(points):
+            distances = [calculate_distance(tuple(centroids[k]), point.location)
+                         for k in range(num_clusters)]
+            closest = int(np.argmin(distances))
+            clusters[closest].append(point)
+            cluster_indices[closest].append(idx)
+
+        new_centroids = []
+        for k in range(num_clusters):
+            if cluster_indices[k]:
+                cluster_coords = coords[cluster_indices[k]]
+                new_centroids.append(np.mean(cluster_coords, axis=0))
+            else:
+                new_centroids.append(centroids[k])
+
+        new_centroids_arr = np.array(new_centroids)
+        if np.allclose(centroids, new_centroids_arr, atol=1.0):
+            break
+        centroids = new_centroids_arr
+
+    # Balancear clusters: diferença máxima de 2 pontos
+    while len(clusters[0]) > len(clusters[1]) + 2:
+        dists = [calculate_distance(tuple(centroids[1]), p.location) for p in clusters[0]]
+        idx = int(np.argmin(dists))
+        clusters[1].append(clusters[0].pop(idx))
+
+    while len(clusters[1]) > len(clusters[0]) + 2:
+        dists = [calculate_distance(tuple(centroids[0]), p.location) for p in clusters[1]]
+        idx = int(np.argmin(dists))
+        clusters[0].append(clusters[1].pop(idx))
+
+    return centroids, clusters
+
+
 def divide_priority_points_geographically(priority_points: List[ServicePoint],
                                           depot_location: Tuple[float, float],
                                           num_vehicles: int = 2) -> List[List[ServicePoint]]:
-    """
-    Divide pontos prioritários geograficamente entre veículos usando K-means clustering
-    Divisão inteligente que minimiza distâncias e cruzamentos
-    
-    Args:
-        priority_points: Lista de pontos prioritários
-        depot_location: Localização do depósito
-        num_vehicles: Número de veículos (default: 2)
-    
-    Returns:
-        Lista de listas, uma para cada veículo
-    """
+    """ Divide pontos prioritários geograficamente entre veículos usando K-means clustering - minimiza distâncias e cruzamentos """
     if not priority_points:
         return [[] for _ in range(num_vehicles)]
-    
-    if len(priority_points) <= num_vehicles:
-        result = [[] for _ in range(num_vehicles)]
-        for i, point in enumerate(priority_points):
-            result[i % num_vehicles].append(point)
-        return result
-    
-    # Usar K-means clustering para divisão inteligente
-    import numpy as np
-    
-    # Extrair coordenadas dos pontos
-    coords = np.array([p.location for p in priority_points])
-    
-    # Inicializar centroides de forma inteligente
-    # Centroide 1: ponto mais distante do depósito
-    distances_from_depot = [calculate_distance(depot_location, p.location) for p in priority_points]
-    farthest_idx = np.argmax(distances_from_depot)
-    centroid1 = coords[farthest_idx]
-    
-    # Centroide 2: ponto mais distante do centroide 1
-    distances_from_c1 = [calculate_distance(tuple(centroid1), p.location) for p in priority_points]
-    farthest_from_c1_idx = np.argmax(distances_from_c1)
-    centroid2 = coords[farthest_from_c1_idx]
-    
-    centroids = np.array([centroid1, centroid2])
-    
-    # K-means: iterar até convergência (máximo 20 iterações)
-    max_iterations = 20
-    for iteration in range(max_iterations):
-        # Atribuir cada ponto ao centroide mais próximo
-        clusters = [[] for _ in range(num_vehicles)]
-        cluster_indices = [[] for _ in range(num_vehicles)]
-        
-        for idx, point in enumerate(priority_points):
-            distances = [calculate_distance(tuple(centroids[i]), point.location) for i in range(num_vehicles)]
-            closest_cluster = np.argmin(distances)
-            clusters[closest_cluster].append(point)
-            cluster_indices[closest_cluster].append(idx)
-        
-        # Recalcular centroides
-        new_centroids = []
-        for i in range(num_vehicles):
-            if cluster_indices[i]:
-                cluster_coords = coords[cluster_indices[i]]
-                new_centroid = np.mean(cluster_coords, axis=0)
-                new_centroids.append(new_centroid)
-            else:
-                # Se cluster vazio, manter centroide anterior
-                new_centroids.append(centroids[i])
-        
-        new_centroids = np.array(new_centroids)
-        
-        # Verificar convergência
-        if np.allclose(centroids, new_centroids, atol=1.0):
-            break
-        
-        centroids = new_centroids
-    
-    # Balancear clusters se muito desiguais (diferença máxima de 2 pontos)
-    while len(clusters[0]) > len(clusters[1]) + 2:
-        # Mover ponto de clusters[0] mais próximo do centroide de clusters[1]
-        distances_to_c2 = [calculate_distance(tuple(centroids[1]), p.location) for p in clusters[0]]
-        closest_idx = np.argmin(distances_to_c2)
-        point_to_move = clusters[0].pop(closest_idx)
-        clusters[1].append(point_to_move)
-    
-    while len(clusters[1]) > len(clusters[0]) + 2:
-        distances_to_c1 = [calculate_distance(tuple(centroids[0]), p.location) for p in clusters[1]]
-        closest_idx = np.argmin(distances_to_c1)
-        point_to_move = clusters[1].pop(closest_idx)
-        clusters[0].append(point_to_move)
-    
+
+    _, clusters = _compute_kmeans_clusters(priority_points, depot_location, num_vehicles)
     return clusters
 
 
 def get_division_line_for_visualization(service_points: List[ServicePoint],
                                         depot_location: Tuple[float, float]) -> Optional[Dict]:
-    """
-    Retorna dados da linha divisória baseada em K-MEANS CLUSTERING
-    Mostra linha que passa pelo DEPÓSITO e pelo ponto médio entre os 2 centroides
-    
-    Args:
-        service_points: Lista de todos os pontos de atendimento
-        depot_location: Localização do depósito
-    
-    Returns:
-        Dicionário com dados da linha e centroides ou None se não houver pontos suficientes
-    """
+    """ Retorna dados da linha divisória baseada em K-Means Clustering - mostra linha que passa pelo Depósito e pelo ponto médio entre os 2 centróides """
     if len(service_points) <= 2:
         return None
-    
+
     import numpy as np
-    
-    # Usar K-means para encontrar 2 clusters
-    coords = np.array([p.location for p in service_points])
-    
-    # Inicializar centroides
-    distances_from_depot = [calculate_distance(depot_location, p.location) for p in service_points]
-    farthest_idx = np.argmax(distances_from_depot)
-    centroid1 = coords[farthest_idx]
-    
-    distances_from_c1 = [calculate_distance(tuple(centroid1), p.location) for p in service_points]
-    farthest_from_c1_idx = np.argmax(distances_from_c1)
-    centroid2 = coords[farthest_from_c1_idx]
-    
-    centroids = np.array([centroid1, centroid2])
-    
-    # K-means: iterar até convergência
-    max_iterations = 20
-    for iteration in range(max_iterations):
-        cluster_indices = [[], []]
-        
-        for idx, point in enumerate(service_points):
-            distances = [calculate_distance(tuple(centroids[i]), point.location) for i in range(2)]
-            closest_cluster = np.argmin(distances)
-            cluster_indices[closest_cluster].append(idx)
-        
-        new_centroids = []
-        for i in range(2):
-            if cluster_indices[i]:
-                cluster_coords = coords[cluster_indices[i]]
-                new_centroid = np.mean(cluster_coords, axis=0)
-                new_centroids.append(new_centroid)
-            else:
-                new_centroids.append(centroids[i])
-        
-        new_centroids = np.array(new_centroids)
-        
-        if np.allclose(centroids, new_centroids, atol=1.0):
-            break
-        
-        centroids = new_centroids
-    
+
+    centroids, _ = _compute_kmeans_clusters(service_points, depot_location, 2)
+
     # Calcular ponto médio entre centroides
     midpoint = (centroids[0] + centroids[1]) / 2
-    
+
     # Criar linha que passa pelo DEPÓSITO e pelo PONTO MÉDIO entre centroides
     depot_array = np.array(depot_location)
-    
-    # Vetor do depósito ao ponto médio
     direction_vector = midpoint - depot_array
-    
-    # Normalizar vetor
     vector_length = np.linalg.norm(direction_vector)
     if vector_length > 0:
         direction_vector = direction_vector / vector_length
-    
-    # Criar linha que passa pelos dois pontos (depósito e midpoint)
+
     line_length = 2000
     p1 = tuple(depot_array - direction_vector * line_length)
     p2 = tuple(depot_array + direction_vector * line_length)
-    
+
     return {
         'center': tuple(midpoint),
         'depot': depot_location,
@@ -323,21 +257,17 @@ def get_division_line_for_visualization(service_points: List[ServicePoint],
 
 
 def count_route_crossings(vehicles: List[VehicleRoute]) -> int:
-    """
-    Conta número de cruzamentos entre rotas de diferentes veículos
-    Usa detecção de interseção de segmentos de linha
-    
-    Args:
-        vehicles: Lista de veículos com rotas
-    
-    Returns:
-        Número de cruzamentos detectados
-    """
+    """ Conta número de cruzamentos entre rotas de diferentes veículos, usando detecção de interseção de segmentos de linha """
     if len(vehicles) < 2:
         return 0
     
+    # Verifica se dois segmentos de reta se cruzam no plano 2D
     def segments_intersect(p1, p2, p3, p4):
-        """ Verifica se segmento p1-p2 cruza com p3-p4 """
+        """
+        Verifica se segmento p1-p2 cruza com p3-p4 
+        - p1, p2: Pontos extremos do primeiro segmento (tuplas (x, y))
+        - p3, p4: Pontos extremos do segundo segmento (tuplas (x, y))
+        """
         def ccw(A, B, C):
             return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
         
@@ -370,18 +300,9 @@ def count_route_crossings(vehicles: List[VehicleRoute]) -> int:
     return crossings
 
 
-def validate_solution(solution: MultiVehicleSolution, 
-                      expected_points: int = 20) -> Tuple[bool, str]:
-    """
-    Valida se solução tem exatamente os pontos esperados sem duplicação
-    
-    Args:
-        solution: Solução a validar
-        expected_points: Número esperado de pontos únicos (default: 20)
-    
-    Returns:
-        Tupla (é_válida, mensagem_erro)
-    """
+def validate_solution(solution: MultiVehicleSolution,
+                      expected_points: int = N_POINTS) -> Tuple[bool, str]:
+    """ Valida se solução tem exatamente os pontos esperados sem duplicação """
     point_ids = solution.get_point_ids()
     total_points = len(point_ids)
     
@@ -409,24 +330,14 @@ def calculate_multi_vehicle_fitness(solution: MultiVehicleSolution,
     
     Restrições:
     - Todos os 20 pontos devem estar presentes sem duplicação
-    - Pontos prioritários DEVEM ser atendidos até 12h (720 min)
+    - Pontos prioritários devem ser atendidos até 12h (720 min)
     - Todos os pontos devem ser atendidos em 1 dia (até 18h = 1080 min)
     - Minimizar distância total
     - Balancear carga entre veículos
     - Veículos partem e retornam ao depósito
-    
-    Args:
-        solution: Solução com múltiplos veículos
-        depot_location: Localização do depósito
-        start_time: Horário de início (7:30h = 450 min)
-        priority_deadline: Deadline para pontos prioritários (12h = 720 min)
-        speed: Velocidade média em km/h
-    
-    Returns:
-        Fitness (menor = melhor)
     """
     # VALIDAÇÃO CRÍTICA: Verificar unicidade de pontos
-    is_valid, error_msg = validate_solution(solution, expected_points=20)
+    is_valid, error_msg = validate_solution(solution, expected_points=N_POINTS)
     if not is_valid:
         # Penalidade forte para soluções inválidas
         return float('inf')
@@ -459,90 +370,104 @@ def calculate_multi_vehicle_fitness(solution: MultiVehicleSolution,
         vehicle.total_time = total_time
         vehicle.arrival_times = arrival_times
         
-        # Verificar restrições de tempo para pontos prioritários
+        # Penalidades de tempo em escala de "distância equivalente"
         for point, arrival_time in zip(vehicle.route, arrival_times):
-            if point.priority in priority_types:
-                # Pontos prioritários devem ser atendidos até 12h
-                if arrival_time > priority_deadline:
-                    # Penalidade forte por violar deadline de prioridade: 10000 por minuto de atraso
-                    overtime = arrival_time - priority_deadline
-                    fitness += overtime * 10000
-            
-            # Verificar se passou das 18h (fim do dia)
             time_of_day = arrival_time % 1440
-            if time_of_day >= 1080:  # 18h
-                # Penalidade pesada por passar das 18h: 500000 base + 10000 por minuto de atraso
+
+            # Passar das 18h é inaceitável: penalidade hard (~10x rota completa)
+            if time_of_day >= 1080:
                 overtime_18h = time_of_day - 1080
-                fitness += 500000 + (overtime_18h * 10000)
-        
-        # Penalidade por violação de janelas de tempo
-        for point, arrival_time in zip(vehicle.route, arrival_times):
-            if point.time_window:
-                penalty = point.time_window.get_penalty(arrival_time)
-                fitness += penalty
+                fitness += 5000 + (overtime_18h * 150)
+
+            if point.priority in priority_types:
+                # Pontos prioritários: apenas deadline de 12h
+                # (não aplicar também time_window para evitar dupla penalização)
+                if arrival_time > priority_deadline:
+                    overtime = arrival_time - priority_deadline
+                    fitness += overtime * 150  # 150 unidades/min — forte mas proporcional
+            else:
+                # Pontos regulares: penalidade por janela de tempo se definida
+                if point.time_window and arrival_time > point.time_window.end_time:
+                    minutes_late = arrival_time - point.time_window.end_time
+                    fitness += minutes_late * 30
     
-    # Fitness base: distância total (peso baixo para priorizar restrições)
-    fitness += total_distance * 1
+    # Fitness base: distância total sem multiplicador (referência de escala)
+    fitness += total_distance
     
-    # Penalidade forte por desbalanceamento entre veículos: 500 por minuto de diferença
+    # Desbalanceamento de tempo entre veículos: cada minuto de diferença ≈ 2 unidades de distância
+    # Incentiva rotas equilibradas sem dominar o landscape de fitness
     if len(vehicle_times) > 1:
         max_time = max(vehicle_times)
         min_time = min(vehicle_times)
         imbalance = max_time - min_time
-        fitness += imbalance * 500
-    
-    # Penalidade forte por desbalanceamento de número de pontos: 5000 por ponto de diferença
+        fitness += imbalance * 2
+
+    # Desbalanceamento de número de pontos: cada ponto extra ≈ 50 unidades de distância
     if len(solution.vehicles) >= 2:
         point_counts = [len(v.route) for v in solution.vehicles]
-        max_points = max(point_counts)
-        min_points = min(point_counts)
-        point_imbalance = max_points - min_points
-        fitness += point_imbalance * 5000 
-    
-    # Penalidade MASSIVA por cruzamento de rotas: 500000 por cruzamento
-    # Cruzamentos são INACEITÁVEIS e devem ser eliminados imediatamente
-    # Aumentado de 50000 para 500000 (10x mais forte)
+        point_imbalance = max(point_counts) - min(point_counts)
+        fitness += point_imbalance * 50
+
+    # Cruzamentos de rota: penalidade equivalente a ~10 rotas completas por cruzamento
+    # Forte o suficiente para eliminar cruzamentos, mas não tão dominante que
+    # o AG ignore a distância após removê-los (era 500.000 antes, razão era 500.000:1)
     if len(solution.vehicles) >= 2:
         crossings = count_route_crossings(solution.vehicles)
-        fitness += crossings * 500000
+        fitness += crossings * 5000
     
     solution.total_fitness = fitness
     return fitness
 
 
 def _build_nearest_neighbor_route(points: List[ServicePoint],
-                                   start_location: Tuple[float, float]) -> List[ServicePoint]:
+                                   start_location: Tuple[float, float],
+                                   depot_location: Optional[Tuple[float, float]] = None) -> List[ServicePoint]:
     """
-    Constrói rota usando algoritmo do vizinho mais próximo
-    Sempre escolhe o ponto não visitado mais próximo da posição atual """
+    Constrói rota usando vizinho mais próximo com lookahead de retorno ao depósito
+    Quando restam exatamente 2 pontos, escolhe a ordem que minimiza a distância de retorno ao depósito
+    Isso evita o problema clássico do nearest neighbor de deixar pontos
+    distantes do depósito para o final da rota.
+    """
     if not points:
         return []
-    
+
     if len(points) == 1:
         return points[:]
-    
-    route = []
+
+    route: List[ServicePoint] = []
     remaining = points[:]
     current_location = start_location
-    
-    while remaining:
-        # Encontrar ponto mais próximo da localização atual
-        nearest_point = None
-        nearest_distance = float('inf')
-        nearest_idx = -1
-        
-        for idx, point in enumerate(remaining):
-            distance = calculate_distance(current_location, point.location)
-            if distance < nearest_distance:
-                nearest_distance = distance
-                nearest_point = point
-                nearest_idx = idx
-        
-        # Adicionar ponto mais próximo à rota
-        route.append(nearest_point)
-        current_location = nearest_point.location
-        remaining.pop(nearest_idx)
-    
+
+    # Greedy nearest neighbor até restar 2 pontos
+    while len(remaining) > 2:
+        nearest = min(remaining, key=lambda p: calculate_distance(current_location, p.location))
+        route.append(nearest)
+        current_location = nearest.location
+        remaining.remove(nearest)
+
+    # Lookahead para os 2 últimos pontos: escolhe a ordem que minimiza custo total
+    if len(remaining) == 2 and depot_location is not None:
+        p_a, p_b = remaining[0], remaining[1]
+        # Opção A→B
+        cost_ab = (calculate_distance(current_location, p_a.location)
+                   + calculate_distance(p_a.location, p_b.location)
+                   + calculate_distance(p_b.location, depot_location))
+        # Opção B→A
+        cost_ba = (calculate_distance(current_location, p_b.location)
+                   + calculate_distance(p_b.location, p_a.location)
+                   + calculate_distance(p_a.location, depot_location))
+        if cost_ab <= cost_ba:
+            route.extend([p_a, p_b])
+        else:
+            route.extend([p_b, p_a])
+    else:
+        # Fallback: nearest neighbor puro para 1 ou 2 pontos sem depot
+        while remaining:
+            nearest = min(remaining, key=lambda p: calculate_distance(current_location, p.location))
+            route.append(nearest)
+            current_location = nearest.location
+            remaining.remove(nearest)
+
     return route
 
 
@@ -550,7 +475,8 @@ def fix_cluster_assignment(solution: MultiVehicleSolution,
                            service_points: List[ServicePoint]) -> MultiVehicleSolution:
     """
     Corrige atribuição de pontos aos veículos baseado no mapeamento K-means global
-    Garante que cada ponto permaneça no cluster correto durante toda a evolução """
+    Garante que cada ponto permaneça no cluster correto durante toda a evolução
+    """
     global POINT_TO_CLUSTER
     
     if not POINT_TO_CLUSTER:
@@ -597,104 +523,26 @@ def create_initial_multi_vehicle_solution(service_points: List[ServicePoint],
                                           num_vehicles: int = 2,
                                           apply_2opt: bool = False) -> MultiVehicleSolution:
     """
-    Cria solução inicial dividindo pontos entre veículos usando K-MEANS CLUSTERING
-    ARMAZENA mapeamento INICIAL de pontos para clusters (pode mudar durante evolução)
+    Cria solução inicial dividindo pontos entre veículos usando K-Means Clustering
+    Armazena mapeamento inicial de pontos para clusters (pode mudar durante evolução)
     
     Estratégia:
     1. Dividir pontos usando K-means clustering (divisão geográfica inteligente)
     2. Cada veículo atende um cluster de pontos próximos
     3. Cada veículo atende seus pontos prioritários primeiro, depois regulares
     4. Veículos partem e retornam ao depósito
-    5. ARMAZENA cluster inicial (pode ser ajustado pelo algoritmo genético)
-    
-    Args:
-        service_points: Lista de todos os pontos
-        depot_location: Localização do depósito
-        num_vehicles: Número de veículos (default: 2)
-        apply_2opt: Se True, aplica otimização 2-opt (default: False)
-    
-    Returns:
-        Solução inicial com múltiplos veículos
+    5. Armazena cluster inicial (pode ser ajustado pelo algoritmo genético)
     """
     global POINT_TO_CLUSTER
-    import numpy as np
-    
-    if len(service_points) <= num_vehicles:
-        # Poucos pontos: distribuir manualmente
-        all_points_groups = [[] for _ in range(num_vehicles)]
-        for i, point in enumerate(service_points):
-            all_points_groups[i % num_vehicles].append(point)
-            POINT_TO_CLUSTER[point.id] = i % num_vehicles  # Armazenar cluster
-    else:
-        # Usar K-means clustering para divisão inteligente
-        coords = np.array([p.location for p in service_points])
-        
-        # Inicializar centroides de forma inteligente
-        # Centroide 1: ponto mais distante do depósito
-        distances_from_depot = [calculate_distance(depot_location, p.location) for p in service_points]
-        farthest_idx = np.argmax(distances_from_depot)
-        centroid1 = coords[farthest_idx]
-        
-        # Centroide 2: ponto mais distante do centroide 1
-        distances_from_c1 = [calculate_distance(tuple(centroid1), p.location) for p in service_points]
-        farthest_from_c1_idx = np.argmax(distances_from_c1)
-        centroid2 = coords[farthest_from_c1_idx]
-        
-        centroids = np.array([centroid1, centroid2])
-        
-        # K-means: iterar até convergência (máximo 20 iterações)
-        max_iterations = 20
-        for iteration in range(max_iterations):
-            # Atribuir cada ponto ao centroide mais próximo
-            clusters = [[] for _ in range(num_vehicles)]
-            cluster_indices = [[] for _ in range(num_vehicles)]
-            
-            for idx, point in enumerate(service_points):
-                distances = [calculate_distance(tuple(centroids[i]), point.location) for i in range(num_vehicles)]
-                closest_cluster = np.argmin(distances)
-                clusters[closest_cluster].append(point)
-                cluster_indices[closest_cluster].append(idx)
-            
-            # Recalcular centroides
-            new_centroids = []
-            for i in range(num_vehicles):
-                if cluster_indices[i]:
-                    cluster_coords = coords[cluster_indices[i]]
-                    new_centroid = np.mean(cluster_coords, axis=0)
-                    new_centroids.append(new_centroid)
-                else:
-                    # Se cluster vazio, manter centroide anterior
-                    new_centroids.append(centroids[i])
-            
-            new_centroids = np.array(new_centroids)
-            
-            # Verificar convergência
-            if np.allclose(centroids, new_centroids, atol=1.0):
-                break
-            
-            centroids = new_centroids
-        
-        # Balancear clusters se muito desiguais (diferença máxima de 2 pontos)
-        while len(clusters[0]) > len(clusters[1]) + 2:
-            # Mover ponto de clusters[0] mais próximo do centroide de clusters[1]
-            distances_to_c2 = [calculate_distance(tuple(centroids[1]), p.location) for p in clusters[0]]
-            closest_idx = np.argmin(distances_to_c2)
-            point_to_move = clusters[0].pop(closest_idx)
-            clusters[1].append(point_to_move)
-        
-        while len(clusters[1]) > len(clusters[0]) + 2:
-            distances_to_c1 = [calculate_distance(tuple(centroids[0]), p.location) for p in clusters[1]]
-            closest_idx = np.argmin(distances_to_c1)
-            point_to_move = clusters[1].pop(closest_idx)
-            clusters[0].append(point_to_move)
-        
-        all_points_groups = clusters
-        
-        # ARMAZENAR mapeamento INICIAL de pontos para clusters
-        POINT_TO_CLUSTER.clear()
-        for cluster_id, group in enumerate(all_points_groups):
-            for point in group:
-                POINT_TO_CLUSTER[point.id] = cluster_id
+
+    # K-means executado via função centralizada (sem duplicação)
+    _, all_points_groups = _compute_kmeans_clusters(service_points, depot_location, num_vehicles)
+
+    # Armazenar mapeamento de pontos para clusters
+    POINT_TO_CLUSTER.clear()
+    for cluster_id, group in enumerate(all_points_groups):
+        for point in group:
+            POINT_TO_CLUSTER[point.id] = cluster_id
     
     # Para cada grupo, construir rota com ALTA DIVERSIDADE
     # Usar nearest neighbor APENAS se apply_2opt=True (soluções de qualidade)
@@ -765,62 +613,61 @@ def generate_multi_vehicle_population(service_points: List[ServicePoint],
                                       population_size: int,
                                       num_vehicles: int = 2) -> List[MultiVehicleSolution]:
     """
-    Gera população inicial de soluções com múltiplos veículos
-    ALTA DIVERSIDADE: Nenhuma solução usa 2-opt na criação inicial
-    Permite que o AG explore e evolua naturalmente
-    
-    Args:
-        service_points: Lista de todos os pontos
-        depot_location: Localização do depósito
-        population_size: Tamanho da população
-        num_vehicles: Número de veículos
-    
-    Returns:
-        Lista de soluções
+    Gera população inicial de soluções com múltiplos veículos.
+
+    K-means executado UMA ÚNICA VEZ para determinar os clusters geográficos.
+    A diversidade é gerada por embaralhamento dentro de cada cluster,
+    evitando re-executar K-means population_size várias vezes.
     """
+    global POINT_TO_CLUSTER
+
+    # K-means executado UMA VEZ — base fixa para toda a população inicial
+    _, clusters = _compute_kmeans_clusters(service_points, depot_location, num_vehicles)
+
+    # Armazenar mapeamento global de pontos para clusters
+    POINT_TO_CLUSTER.clear()
+    for cluster_id, group in enumerate(clusters):
+        for point in group:
+            POINT_TO_CLUSTER[point.id] = cluster_id
+
     population = []
-    
-    for i in range(population_size):
-        # NUNCA aplicar 2-opt na população inicial para máxima diversidade
-        # Deixar o AG evoluir naturalmente
-        apply_2opt = False
+
+    for _ in range(population_size):
+        vehicles = []
+        for v_idx in range(num_vehicles):
+            group_points = clusters[v_idx][:]  # cópia — não mutar os clusters originais
+
+            priority_points, regular_points = split_points_by_priority(group_points)
+
+            # Embaralhar dentro do mesmo nível de prioridade para diversidade
+            priority_dict: Dict[ServicePriority, List[ServicePoint]] = {}
+            for point in priority_points:
+                if point.priority not in priority_dict:
+                    priority_dict[point.priority] = []
+                priority_dict[point.priority].append(point)
+
+            priority_route: List[ServicePoint] = []
+            for priority in sorted(priority_dict.keys(), key=lambda p: p.value):
+                group = priority_dict[priority]
+                if len(group) > 1:
+                    random.shuffle(group)
+                priority_route.extend(group)
+
+            # Embaralhar regulares para máxima diversidade
+            if len(regular_points) > 1:
+                random.shuffle(regular_points)
+
+            route = priority_route + regular_points
+            vehicles.append(VehicleRoute(vehicle_id=v_idx + 1, route=route))
+
+        solution = MultiVehicleSolution(vehicles=vehicles)
         
-        solution = create_initial_multi_vehicle_solution(service_points, depot_location, num_vehicles, apply_2opt=apply_2opt)
+        # Validar e reparar solução inicial para garantir ordem de prioridades
+        solution = validate_and_repair_multi_vehicle_solution(solution, service_points)
         
-        # Adicionar ALTA variação para manter diversidade
-        for vehicle in solution.vehicles:
-            priority_points, regular_points = split_points_by_priority(vehicle.route)
-            
-            # Embaralhar pontos de mesma prioridade (90% das vezes para MÁXIMA diversidade)
-            if random.random() < 0.9:
-                priority_dict = {}
-                for point in priority_points:
-                    if point.priority not in priority_dict:
-                        priority_dict[point.priority] = []
-                    priority_dict[point.priority].append(point)
-                
-                # Reconstruir rota com ordem de prioridade
-                new_route = []
-                for priority in sorted(priority_dict.keys(), key=lambda p: p.value):
-                    group = priority_dict[priority]
-                    if len(group) > 1:
-                        random.shuffle(group)
-                    new_route.extend(group)
-                
-                # Embaralhar regulares 90% das vezes
-                if len(regular_points) > 1 and random.random() < 0.9:
-                    random.shuffle(regular_points)
-                new_route.extend(regular_points)
-                
-                vehicle.route = new_route
-            else:
-                # Manter rota como está
-                vehicle.route = priority_points + regular_points
-        
-        # Recalcular fitness
         calculate_multi_vehicle_fitness(solution, depot_location)
         population.append(solution)
-    
+
     return population
 
 
@@ -830,7 +677,7 @@ def multi_vehicle_crossover(parent1: MultiVehicleSolution,
                             service_points: List[ServicePoint]) -> MultiVehicleSolution:
     """
     Crossover entre duas soluções multi-veículo
-    PERMITE trocas frequentes de pontos entre veículos (40% de chance)
+    Permite trocas frequentes de pontos entre veículos (40% de chance)
     Garantia: Todos os 20 pontos são preservados sem duplicação
     """
     num_vehicles = len(parent1.vehicles)
@@ -875,6 +722,10 @@ def multi_vehicle_crossover(parent1: MultiVehicleSolution,
             child_vehicles.append(child_vehicle)
         
         child = MultiVehicleSolution(vehicles=child_vehicles)
+        
+        # Sempre validar e reparar após crossover
+        child = validate_and_repair_multi_vehicle_solution(child, service_points)
+        
         calculate_multi_vehicle_fitness(child, depot_location)
         return child
     
@@ -922,13 +773,18 @@ def multi_vehicle_crossover(parent1: MultiVehicleSolution,
         child_vehicles.append(child_vehicle)
     
     child = MultiVehicleSolution(vehicles=child_vehicles)
+    
+    # Sempre validar e reparar após crossover
+    child = validate_and_repair_multi_vehicle_solution(child, service_points)
+    
     calculate_multi_vehicle_fitness(child, depot_location)
     return child
 
 
 def validate_and_repair_multi_vehicle_solution(solution: MultiVehicleSolution,
                                                  all_service_points: List[ServicePoint]) -> MultiVehicleSolution:
-    """ Valida e repara solução multi-veículo para garantir que seja válida
+    """ 
+    Valida e repara solução multi-veículo para garantir que seja válida
     Garante:
     1. Todos os pontos estão presentes sem duplicação
     2. Ordem de prioridades é respeitada em cada veículo (EME → VIO → MED → POS → REG)
@@ -1009,9 +865,11 @@ def multi_vehicle_mutate(solution: MultiVehicleSolution,
                          depot_location: Tuple[float, float],
                          mutation_probability: float,
                          service_points: List[ServicePoint]) -> MultiVehicleSolution:
-    """ Mutação de solução multi-veículo que sempre gera soluções válidas
+    """
+    Mutação de solução multi-veículo que sempre gera soluções válidas
     Permite trocas frequentes de pontos entre veículos (30% de chance)
-    Caso contrário, apenas reordena pontos dentro de cada veículo """
+    Caso contrário, apenas reordena pontos dentro de cada veículo
+    """
     if random.random() >= mutation_probability:
         return solution
     
@@ -1082,17 +940,7 @@ def multi_vehicle_mutate(solution: MultiVehicleSolution,
 def _optimize_points_group(points: List[ServicePoint],
                            prev_location: Tuple[float, float],
                            next_location: Optional[Tuple[float, float]]) -> List[ServicePoint]:
-    """
-    Otimiza um grupo de pontos usando algoritmo 2-opt
-    
-    Args:
-        points: Lista de pontos a otimizar
-        prev_location: Localização do ponto anterior (ou depósito)
-        next_location: Localização do próximo ponto (ou None se for o último grupo)
-    
-    Returns:
-        Lista de pontos otimizada
-    """
+    """ Otimiza um grupo de pontos usando algoritmo 2-opt """
     if len(points) <= 2:
         return points
     
@@ -1139,137 +987,66 @@ def two_opt_optimize(route: List[ServicePoint],
                      depot_location: Tuple[float, float],
                      max_passes: int = 2) -> List[ServicePoint]:
     """
-    Otimização 2-opt AGRESSIVA para eliminar cruzamentos
-    Aplica 2-opt na rota COMPLETA ignorando prioridades temporariamente
+    Otimização 2-opt que SEMPRE respeita ordem de prioridades
     
     Estratégia:
-    1. Aplica 2-opt na rota completa para eliminar TODOS os cruzamentos
-    2. Reordena para respeitar prioridades (EME > VIO > MED > POS > REG)
-    3. Aplica 2-opt novamente dentro de cada grupo de prioridade
-    4. Repete até não haver mais melhoria
-    
-    Args:
-        route: Rota a otimizar
-        depot_location: Localização do depósito
-        max_passes: Número máximo de passadas completas (default: 2)
-    
-    Returns:
-        Rota otimizada
+    1. Separa pontos por prioridade (EME, VIO, MED, POS, REG)
+    2. Aplica 2-opt APENAS dentro de cada grupo de prioridade
+    3. Mantém ordem: EME → VIO → MED → POS → REG
+    4. Nunca mistura pontos de prioridades diferentes
     """
     if len(route) <= 3:
         return route
     
-    def calc_total_distance(r):
-        """Calcula distância total da rota incluindo depósito"""
-        if not r:
-            return 0
-        total = calculate_distance(depot_location, r[0].location)
-        for i in range(len(r) - 1):
-            total += calculate_distance(r[i].location, r[i + 1].location)
-        total += calculate_distance(r[-1].location, depot_location)
-        return total
+    # Separar por prioridade
+    priority_points, regular_points = split_points_by_priority(route)
     
-    def apply_2opt_full(r):
-        """Aplica 2-opt na rota completa sem respeitar prioridades"""
-        improved = True
-        max_iterations = 200  # Mais iterações para eliminar todos os cruzamentos
-        iteration = 0
-        optimized = r[:]
-        
-        while improved and iteration < max_iterations:
-            improved = False
-            iteration += 1
-            best_distance = calc_total_distance(optimized)
-            
-            for i in range(len(optimized) - 1):
-                for j in range(i + 2, len(optimized) + 1):
-                    # Tentar reverter segmento [i:j]
-                    new_route = optimized[:i] + list(reversed(optimized[i:j])) + optimized[j:]
-                    new_distance = calc_total_distance(new_route)
-                    
-                    if new_distance < best_distance - 0.01:
-                        optimized = new_route
-                        best_distance = new_distance
-                        improved = True
-                        break
-                
-                if improved:
-                    break
-        
-        return optimized
+    # Agrupar por nível de prioridade
+    priority_groups = {}
+    for point in priority_points:
+        if point.priority not in priority_groups:
+            priority_groups[point.priority] = []
+        priority_groups[point.priority].append(point)
     
-    current_route = route[:]
-    previous_distance = calc_total_distance(current_route)
+    # Ordenar prioridades (EME < VIO < MED < POS)
+    sorted_priorities = sorted(priority_groups.keys(), key=lambda p: p.value)
     
-    # Aplicar múltiplas passadas
-    for pass_num in range(max_passes):
-        # PASSO 1: Aplicar 2-opt na rota COMPLETA (ignora prioridades)
-        optimized_route = apply_2opt_full(current_route)
+    # Aplicar 2-opt dentro de cada grupo de prioridade
+    final_route = []
+    prev_location = depot_location
+    
+    for i, priority in enumerate(sorted_priorities):
+        group = priority_groups[priority]
         
-        # PASSO 2: Reordenar para respeitar prioridades
-        priority_points, regular_points = split_points_by_priority(optimized_route)
-        
-        # Agrupar por nível de prioridade
-        priority_groups = {}
-        for point in priority_points:
-            if point.priority not in priority_groups:
-                priority_groups[point.priority] = []
-            priority_groups[point.priority].append(point)
-        
-        # Reconstruir rota respeitando ordem de prioridades
-        reordered_route = []
-        sorted_priorities = sorted(priority_groups.keys(), key=lambda p: p.value)
-        
-        for priority in sorted_priorities:
-            reordered_route.extend(priority_groups[priority])
-        
-        reordered_route.extend(regular_points)
-        
-        # PASSO 3: Aplicar 2-opt dentro de cada grupo de prioridade
-        final_route = []
-        prev_location = depot_location
-        
-        for i, priority in enumerate(sorted_priorities):
-            group = priority_groups[priority]
-            
-            # Determinar próxima localização
-            if i < len(sorted_priorities) - 1:
-                next_priority = sorted_priorities[i + 1]
-                next_location = priority_groups[next_priority][0].location if priority_groups[next_priority] else None
-            elif regular_points:
-                next_location = regular_points[0].location
-            else:
-                next_location = depot_location
-            
-            # Otimizar grupo
-            optimized_group = _optimize_points_group(group, prev_location, next_location)
-            final_route.extend(optimized_group)
-            
-            if optimized_group:
-                prev_location = optimized_group[-1].location
-        
-        # Otimizar regulares
-        if len(regular_points) > 2:
-            if final_route:
-                prev_loc = final_route[-1].location
-            else:
-                prev_loc = depot_location
-            
-            optimized_regular = _optimize_points_group(regular_points, prev_loc, depot_location)
-            final_route.extend(optimized_regular)
+        # Determinar próxima localização
+        if i < len(sorted_priorities) - 1:
+            next_priority = sorted_priorities[i + 1]
+            next_location = priority_groups[next_priority][0].location if priority_groups[next_priority] else None
+        elif regular_points:
+            next_location = regular_points[0].location
         else:
-            final_route.extend(regular_points)
+            next_location = depot_location
         
-        # Verificar se houve melhoria
-        new_distance = calc_total_distance(final_route)
+        # Otimizar grupo (2-opt apenas dentro do grupo)
+        optimized_group = _optimize_points_group(group, prev_location, next_location)
+        final_route.extend(optimized_group)
         
-        if new_distance < previous_distance - 0.01:
-            current_route = final_route
-            previous_distance = new_distance
-        else:
-            break
+        if optimized_group:
+            prev_location = optimized_group[-1].location
     
-    return current_route
+    # Otimizar regulares
+    if len(regular_points) > 2:
+        if final_route:
+            prev_loc = final_route[-1].location
+        else:
+            prev_loc = depot_location
+        
+        optimized_regular = _optimize_points_group(regular_points, prev_loc, depot_location)
+        final_route.extend(optimized_regular)
+    else:
+        final_route.extend(regular_points)
+    
+    return final_route
 
 
 def calculate_population_diversity(population: List[MultiVehicleSolution]) -> float:

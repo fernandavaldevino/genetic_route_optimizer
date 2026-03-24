@@ -1033,6 +1033,10 @@ def inject_diversity(population: List[MultiVehicleSolution],
                 random.shuffle(regular_points)
                 vehicle.route = priority_points + regular_points
         
+        # Validar e reparar após perturbação
+        from src.core.multi_vehicle import validate_and_repair_multi_vehicle_solution
+        perturbed = validate_and_repair_multi_vehicle_solution(perturbed, service_points)
+        
         calculate_multi_vehicle_fitness(perturbed, depot_location)
         new_population.append(perturbed)
     
@@ -1085,6 +1089,10 @@ def generate_guided_solutions(top_solutions: List[MultiVehicleSolution],
                 
                 # Aplicar 2-opt para otimizar
                 vehicle.route = two_opt_optimize(vehicle.route, depot_location, max_passes=2)
+        
+        # Validar e reparar após 2-opt para garantir ordem de prioridades
+        from src.core.multi_vehicle import validate_and_repair_multi_vehicle_solution, calculate_multi_vehicle_fitness
+        base = validate_and_repair_multi_vehicle_solution(base, service_points)
         
         calculate_multi_vehicle_fitness(base, depot_location)
         guided_solutions.append(base)
@@ -1165,7 +1173,7 @@ def main(max_generations=10):
         # Critério de parada: número de gerações parametrizado
         # Modo infinito: MAX_GENERATIONS = -1 (para após 5000 gerações sem melhoria)
         if not finished:
-            if MAX_GENERATIONS > 0 and generation > MAX_GENERATIONS:
+            if MAX_GENERATIONS > 0 and generation >= MAX_GENERATIONS:
                 # Modo normal: parar ao atingir número de gerações
                 print(f"\n{'='*60}")
                 print(f"CRITÉRIO DE PARADA ATINGIDO: {MAX_GENERATIONS} gerações")
@@ -1179,7 +1187,7 @@ def main(max_generations=10):
                           f"Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
                 print(f"{'='*60}\n")
                 finished = True
-            elif MAX_GENERATIONS == -1 and stagnation_counter >= 5000:
+            elif MAX_GENERATIONS == -1 and (generation - last_improvement_generation) >= 5000:
                 # Modo infinito: parar após 5000 gerações sem melhoria
                 print(f"\n{'='*60}")
                 print(f"CRITÉRIO DE PARADA ATINGIDO: 5000 gerações sem melhoria")
@@ -1197,7 +1205,7 @@ def main(max_generations=10):
         # Se terminou, mostrar frame final, salvar dados e fechar após 2 segundos
         if finished:
             # Desenhar tela final
-            draw_final_solution_frame(screen, best_solution, best_fitness, MAX_GENERATIONS, depot_location, service_points)
+            draw_final_solution_frame(screen, best_solution, best_fitness, generation, depot_location, service_points)
             pygame.display.flip()
             
             # Salvar screenshot e dados apenas uma vez
@@ -1290,6 +1298,10 @@ def main(max_generations=10):
                 if vehicle.route:
                     vehicle.route = two_opt_optimize(vehicle.route, depot_location, max_passes=FORCED_OPT_PASSES)
             
+            # Validar e reparar após 2-opt para garantir ordem de prioridades
+            from src.core.multi_vehicle import validate_and_repair_multi_vehicle_solution
+            optimized_solution = validate_and_repair_multi_vehicle_solution(optimized_solution, service_points)
+            
             # Recalcular fitness
             calculate_multi_vehicle_fitness(optimized_solution, depot_location)
             
@@ -1329,10 +1341,14 @@ def main(max_generations=10):
             print(f"🔧 Geração {generation}: Aplicando otimização 2-opt nas top 3 soluções...")
             
             # Aplicar 2-opt nas 3 melhores soluções
+            from src.core.multi_vehicle import validate_and_repair_multi_vehicle_solution
             for i in range(min(3, len(population))):
                 for vehicle in population[i].vehicles:
                     if vehicle.route:
                         vehicle.route = two_opt_optimize(vehicle.route, depot_location, max_passes=2)
+                
+                # Validar e reparar após 2-opt para garantir ordem de prioridades
+                population[i] = validate_and_repair_multi_vehicle_solution(population[i], service_points)
                 calculate_multi_vehicle_fitness(population[i], depot_location)
             
             # Reordenar população
@@ -1500,6 +1516,11 @@ def main(max_generations=10):
         num_annealing = max(1, elite_size // 5)
         for i in range(num_annealing):
             annealed = apply_simulated_annealing(copy.deepcopy(population[i]), temperature, depot_location)
+            
+            # Validar e reparar após simulated annealing
+            from src.core.multi_vehicle import validate_and_repair_multi_vehicle_solution
+            annealed = validate_and_repair_multi_vehicle_solution(annealed, service_points)
+            
             new_population.append(annealed)
         
         # PASSO 3: Gerar resto da população por crossover e mutação
@@ -1528,6 +1549,10 @@ def main(max_generations=10):
             
             # Aplicar mutação com taxa DINÂMICA
             child = multi_vehicle_mutate(child, depot_location, mutation_rate, service_points)
+            
+            # VALIDAR E REPARAR após crossover e mutação para garantir ordem de prioridades
+            from src.core.multi_vehicle import validate_and_repair_multi_vehicle_solution
+            child = validate_and_repair_multi_vehicle_solution(child, service_points)
             
             new_population.append(child)
         
