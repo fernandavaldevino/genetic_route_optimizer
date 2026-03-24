@@ -638,6 +638,7 @@ start htmlcov/index.html  # Windows
 ### Documentos Disponíveis
 
 - [README.md](README.md) - Este arquivo
+- [ARQUITETURA_GCP.md](docs/ARQUITETURA_GCP.md) - **Arquitetura completa da solução em Google Cloud Platform**
 - [README_LLM.md](docs/README_LLM.md) - Integração com LLMs
 - [README_RESTRICOES.md](docs/README_RESTRICOES.md) - Restrições do algoritmo
 - [README_STREAMLIT.md](docs/README_STREAMLIT.md) - Dashboard Streamlit
