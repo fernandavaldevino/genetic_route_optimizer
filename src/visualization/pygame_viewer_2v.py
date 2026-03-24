@@ -1165,7 +1165,7 @@ def main(max_generations=10):
         # Critério de parada: número de gerações parametrizado
         # Modo infinito: MAX_GENERATIONS = -1 (para após 5000 gerações sem melhoria)
         if not finished:
-            if MAX_GENERATIONS > 0 and generation >= MAX_GENERATIONS:
+            if MAX_GENERATIONS > 0 and generation > MAX_GENERATIONS:
                 # Modo normal: parar ao atingir número de gerações
                 print(f"\n{'='*60}")
                 print(f"CRITÉRIO DE PARADA ATINGIDO: {MAX_GENERATIONS} gerações")
@@ -1197,7 +1197,7 @@ def main(max_generations=10):
         # Se terminou, mostrar frame final, salvar dados e fechar após 2 segundos
         if finished:
             # Desenhar tela final
-            draw_final_solution_frame(screen, best_solution, best_fitness, generation, depot_location, service_points)
+            draw_final_solution_frame(screen, best_solution, best_fitness, MAX_GENERATIONS, depot_location, service_points)
             pygame.display.flip()
             
             # Salvar screenshot e dados apenas uma vez

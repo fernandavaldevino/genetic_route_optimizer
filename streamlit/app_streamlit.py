@@ -55,7 +55,7 @@ st.set_page_config(
 )
 
 def create_random_service_points(n_points):
-    """Cria pontos de atendimento aleatórios com diferentes tipos"""
+    """ Cria pontos de atendimento aleatórios com diferentes tipos """
     service_points = []
     
     depot_location = (
@@ -92,17 +92,17 @@ def create_random_service_points(n_points):
     return service_points
 
 def format_time(minutes):
-    """Formata minutos em HH:MM"""
+    """ Formata minutos em HH:MM """
     hours = int(minutes // 60) % 24
     mins = int(minutes % 60)
     return f"{hours:02d}:{mins:02d}"
 
 def get_day_from_minutes(minutes):
-    """Retorna o dia a partir dos minutos"""
+    """ Retorna o dia a partir dos minutos """
     return int(minutes // MINUTES_PER_DAY) + 1
 
 def run_pygame_2_vehicles(service_points_file, progress_file, screenshot_file, depot_location, max_generations):
-    """Executa visualização com 2 veículos - chama main_2v.py integrado"""
+    """ Executa visualização com 2 veículos - chama main_2v.py integrado """
     import subprocess
     import sys
     
@@ -129,7 +129,7 @@ def run_pygame_2_vehicles(service_points_file, progress_file, screenshot_file, d
 
 
 def run_pygame_with_full_visualization(service_points_file, progress_file, screenshot_file, max_generations):
-    """Executa visualização completa do Pygame (1 veículo)"""
+    """ Executa visualização completa do Pygame (1 veículo) """
     import sys
     import os
     
@@ -208,6 +208,8 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
     best_fitness_history = []
     generation = 0
     optimization_complete = False
+    last_improvement_generation = 0
+    start_time = pygame.time.get_ticks() / 1000.0
     first_fitness_printed = False
     
     # Loop principal
@@ -221,7 +223,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
                     running = False
         
         # Verificar se atingiu o critério de parada
-        if generation >= max_generations and not optimization_complete:
+        if generation > max_generations and not optimization_complete:
             optimization_complete = True
             
             # Print final
@@ -251,7 +253,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         if optimization_complete:
             # Desenhar tela de conclusão
             from src.visualization.pygame_viewer import draw_completion_screen
-            draw_completion_screen(screen, generation, best_fitness, best_route, arrival_times, service_points)
+            draw_completion_screen(screen, max_generations, best_fitness, best_route, arrival_times, service_points)
             pygame.display.flip()
             
             # Salvar screenshot final
@@ -276,10 +278,21 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         best_fitness = fitness_values[0]
         best_route = population[0]
         
-        best_fitness_history.append(best_fitness)
+        # Detectar melhoria (considerar melhoria se for pelo menos 0.1% melhor)
+        if generation == 0:
+            best_fitness_history.append(best_fitness)
+            last_improvement_generation = 0
+        elif best_fitness < best_fitness_history[-1] * 0.999:
+            best_fitness_history.append(best_fitness)
+            last_improvement_generation = generation
+        else:
+            best_fitness_history.append(best_fitness)
         
         # Calcular tempos de chegada
         _, _, arrival_times = calculate_route_time_and_distance(best_route, speed=vehicle_speed)
+        
+        # Calcular tempo decorrido
+        elapsed_time = pygame.time.get_ticks() / 1000.0 - start_time
         
         # Print do fitness inicial (apenas uma vez)
         if not first_fitness_printed:
@@ -309,7 +322,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
         )
         
         # Desenhar painel de informações
-        draw_info_panel(screen, generation, best_fitness, best_route, arrival_times)
+        draw_info_panel(screen, generation, best_fitness, best_route, arrival_times, elapsed_time, last_improvement_generation)
         
         # Desenhar gráfico de evolução
         if len(best_fitness_history) > 1:
@@ -319,7 +332,8 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
                 best_fitness_history,
                 best_route,
                 best_fitness,
-                arrival_times
+                arrival_times,
+                last_improvement_generation
             )
         
         # Desenhar segunda melhor rota
@@ -395,7 +409,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
     pygame.quit()
 
 def display_results(best_route, best_fitness, arrival_times, route_json=None):
-    """Exibe os resultados da otimização"""
+    """ Exibe os resultados da otimização """
     
     from src.core.service_points import calculate_distance
     
@@ -602,7 +616,7 @@ def display_results(best_route, best_fitness, arrival_times, route_json=None):
     st.markdown(solution_html, unsafe_allow_html=True)
 
 def display_results_multi_vehicle(best_solution, best_fitness):
-    """Exibe os resultados da otimização com múltiplos veículos"""
+    """ Exibe os resultados da otimização com múltiplos veículos """
     
     # Verificar se best_solution é None (projeto 2V standalone)
     if best_solution is None:
@@ -870,7 +884,7 @@ def display_results_multi_vehicle(best_solution, best_fitness):
 
 
 def main():
-    """Função principal da aplicação Streamlit"""
+    """ Função principal da aplicação Streamlit """
     
     st.title("🚗 Sistema de Otimização de Rotas com Restrições")
     st.markdown("**Algoritmo Genético para Roteamento de Atendimentos em Saúde da Mulher**")
