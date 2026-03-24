@@ -331,8 +331,14 @@ LLM_PROVIDER=openai
 
 # ===== CONFIGURAÇÃO OPENAI =====
 # Obtenha sua API Key em: https://platform.openai.com/api-keys
-OPENAI_API_KEY=sk-proj-abc123...
+# IMPORTANTE: Cole apenas a chave, sem aspas ou texto adicional
+# Formato correto: sk-proj-abc123...
+OPENAI_API_KEY=sua-chave-aqui
+
+# Modelos disponíveis: gpt-3.5-turbo, gpt-4, gpt-4-turbo
 OPENAI_MODEL="gpt-3.5-turbo"
+
+# Temperatura (0.0 = mais determinístico, 2.0 = mais criativo)
 OPENAI_TEMPERATURE=0.7
 
 # ===== CONFIGURAÇÃO OLLAMA (LOCAL) =====
@@ -344,8 +350,12 @@ OLLAMA_TEMPERATURE=0.7
 
 # ===== CONFIGURAÇÃO BOT TELEGRAM =====
 # Obtenha o token do bot em: https://t.me/BotFather
-TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+TELEGRAM_BOT_TOKEN=seu-token-aqui
+
+# Nome de usuário do bot (sem @)
 TELEGRAM_BOT_USERNAME=SeuBotUsername
+
+# Nome do bot
 BOT_NAME=SeuBotName
 
 # ===== GOOGLE CLOUD (para deploy) =====
