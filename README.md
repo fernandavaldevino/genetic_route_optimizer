@@ -156,13 +156,17 @@ Documentação completa: [`README_LLM.md`](docs/README_LLM.md)
   - Integração com rotas otimizadas
   - Envio de mapas e resultados
 
-- ✅ **Deploy em Cloud**:
+- ✅ **Deploy em Cloud (Google Cloud Platform)**:
+  
+  Documentação completa: [`ARQUITETURA_GCP.md`](docs/ARQUITETURA_GCP.md)
+  
   - Google Cloud Run (serverless)
   - Google Artifact Registry para imagens Docker
   - Terraform para infraestrutura como código (IaC)
   - Google Cloud Build para CI/CD
   - Configuração de variáveis de ambiente
   - Escalabilidade automática
+  - Diagrama de arquitetura completo
 
 ### 🧪 Testes e Qualidade
 
