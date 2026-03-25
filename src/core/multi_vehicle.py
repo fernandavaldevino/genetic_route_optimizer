@@ -12,9 +12,6 @@ import copy
 import random
 from .service_points import ServicePoint, ServicePriority, calculate_distance, calculate_travel_time
 
-# Ponto de partida/depósito (será definido dinamicamente)
-DEPOT_LOCATION: Optional[Tuple[float, float]] = None
-
 
 @dataclass
 class VehicleRoute:
@@ -23,7 +20,7 @@ class VehicleRoute:
     route: List[ServicePoint]
     total_distance: float = 0.0
     total_time: float = 0.0
-    arrival_times: List[float] = field(default_factory=list)  # Bug #24: Usar field(default_factory)
+    arrival_times: List[float] = field(default_factory=list)
 
 
 @dataclass
@@ -31,7 +28,7 @@ class MultiVehicleSolution:
     """ Representa uma solução completa com múltiplos veículos """
     vehicles: List[VehicleRoute]
     total_fitness: float = float('inf')
-    point_to_cluster: Dict[int, int] = field(default_factory=dict)  # Bug #16: Remover estado global
+    point_to_cluster: Dict[int, int] = field(default_factory=dict)
     
     def get_all_points(self) -> List[ServicePoint]:
         """ Retorna todos os pontos de todas as rotas """
@@ -47,13 +44,17 @@ class MultiVehicleSolution:
 
 def calculate_vehicle_route_time_and_distance(route: List[ServicePoint],
                                               depot_location: Tuple[float, float],
-                                              start_time: float = 450.0,  # 7:30h (7*60 + 30 = 450 min)
+                                              start_time: float = 450.0,
                                               speed: float = 60.0,
-                                              work_start: float = 450.0,  # 7:30h      # 1080.0 = 18h
+                                              work_start: float = 450.0,
                                               work_end: float = 1080.0) -> Tuple[float, float, List[float]]:
     """
-    Calcula tempo total e distância da rota de um veículo
-    Inclui viagem do depósito ao primeiro ponto e do último ponto ao depósito
+    Calcula tempo total e distância da rota de um veículo.
+    Inclui viagem do depósito ao primeiro ponto e do último ponto ao depósito.
+    
+    Nota: Modo 2 veículos usa work_start=450 (7:30h) por padrão.
+    Os valores padrão são definidos centralmente em src/constants.py
+    (WORK_START_TIME_2V, WORK_END_TIME_2V).
     """
     if not route:
         return 0.0, 0.0, []
@@ -294,12 +295,9 @@ def count_route_crossings(vehicles: List[VehicleRoute]) -> int:
 
 
 def validate_solution(solution: MultiVehicleSolution,
-                      expected_points: Optional[int] = None) -> Tuple[bool, str]:
-    """ Valida se solução tem exatamente os pontos esperados sem duplicação """
-    # Tornar expected_points parametrizável
-    if expected_points is None:
-        expected_points = len(solution.get_all_points())
-    
+                      expected_points: int) -> Tuple[bool, str]:
+    """ Valida se solução tem exatamente os pontos esperados sem duplicação.
+    expected_points é obrigatório para evitar validação circular. """
     point_ids = solution.get_point_ids()
     total_points = len(point_ids)
     
@@ -828,10 +826,7 @@ def validate_and_repair_multi_vehicle_solution(solution: MultiVehicleSolution,
                 seen.add(point.id)
                 unique_route.append(point)
         
-        # Separar por prioridade
-        priority_points, regular_points = split_points_by_priority(unique_route)
-        
-        # Agrupar por nível de prioridade
+        # Agrupar por nível de prioridade (incluindo REGULAR)
         priority_groups = {
             ServicePriority.EMERGENCY_OBSTETRIC: [],
             ServicePriority.DOMESTIC_VIOLENCE: [],
@@ -840,23 +835,23 @@ def validate_and_repair_multi_vehicle_solution(solution: MultiVehicleSolution,
             ServicePriority.REGULAR: []
         }
         
-        for point in priority_points:
+        for point in unique_route:
             if point.priority in priority_groups:
                 priority_groups[point.priority].append(point)
         
-        # Reconstruir rota na ordem correta
+        # Reconstruir rota na ordem correta (incluindo REGULAR)
         repaired_route = []
         priority_order = [
             ServicePriority.EMERGENCY_OBSTETRIC,
             ServicePriority.DOMESTIC_VIOLENCE,
             ServicePriority.HORMONAL_MEDICATION,
-            ServicePriority.POSTPARTUM_CARE
+            ServicePriority.POSTPARTUM_CARE,
+            ServicePriority.REGULAR
         ]
         
         for priority in priority_order:
             repaired_route.extend(priority_groups[priority])
         
-        repaired_route.extend(regular_points)
         vehicle.route = repaired_route
     
     return solution

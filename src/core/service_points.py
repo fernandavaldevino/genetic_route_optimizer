@@ -146,7 +146,7 @@ def calculate_travel_time(point1: Tuple[float, float], point2: Tuple[float, floa
     
     Args:
         point1, point2: Coordenadas dos pontos
-        speed: Velocidade média em km/h (default: 80 km/h)
+        speed: Velocidade média em km/h (default: 60 km/h)
         scale_factor: Fator de escala para converter coordenadas em km (default: 0.1 = 1 unidade = 100m)
     
     Returns:

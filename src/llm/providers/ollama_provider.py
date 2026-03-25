@@ -18,7 +18,7 @@ class OllamaProvider(BaseLLMProvider):
 
 
     def __post_init__(self):
-        self.client = ollama.Client(host=self.base_url)
+        self.client = ollama.Client(host=self.base_url, timeout=60.0)
 
     
     def generate_text(self,

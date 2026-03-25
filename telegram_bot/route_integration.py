@@ -24,20 +24,20 @@ class RouteDataIntegration:
         
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.current_route = None
-        self._lock = threading.Lock()  # Bug #7: Proteção de concorrência
+        self._lock = threading.RLock()
     
     def load_latest_route(self) -> Optional[Dict]:
         """ Carrega a rota mais recente salva """
         try:
-            # Procura por arquivos JSON de rotas
-            route_files = sorted(self.data_dir.glob('route_*.json'), reverse=True)
-            
-            if route_files:
-                with open(route_files[0], 'r', encoding='utf-8') as f:
-                    self.current_route = json.load(f)
-                    return self.current_route
-            
-            return None
+            with self._lock:
+                route_files = sorted(self.data_dir.glob('route_*.json'), reverse=True)
+                
+                if route_files:
+                    with open(route_files[0], 'r', encoding='utf-8') as f:
+                        self.current_route = json.load(f)
+                        return self.current_route
+                
+                return None
         except Exception as e:
             print(f"Erro ao carregar rota: {e}")
             return None
@@ -63,40 +63,46 @@ class RouteDataIntegration:
     
     def get_route_summary(self) -> Optional[Dict]:
         """ Retorna resumo da rota atual """
+        with self._lock:
+            if not self.current_route:
+                pass  # Liberar lock implicitamente ao sair do with
+        
         if not self.current_route:
             self.load_latest_route()
         
-        if not self.current_route:
-            return None
-        
-        return {
-            'total_vehicles': len(self.current_route.get('vehicles', [])),
-            'total_stops': sum(
-                v.get('total_stops', 0) 
-                for v in self.current_route.get('vehicles', [])
-            ),
-            'total_distance': sum(
-                v.get('total_distance', 0) 
-                for v in self.current_route.get('vehicles', [])
-            ),
-            'optimization_date': self.current_route.get('date', 'N/A')
-        }
+        with self._lock:
+            if not self.current_route:
+                return None
+            
+            return {
+                'total_vehicles': len(self.current_route.get('vehicles', [])),
+                'total_stops': sum(
+                    v.get('total_stops', 0) 
+                    for v in self.current_route.get('vehicles', [])
+                ),
+                'total_distance': sum(
+                    v.get('total_distance', 0) 
+                    for v in self.current_route.get('vehicles', [])
+                ),
+                'optimization_date': self.current_route.get('date', 'N/A')
+            }
     
     def get_vehicle_data(self, vehicle_id: int = 1) -> Optional[Dict]:
         """ Retorna dados de um veículo específico """
         if not self.current_route:
             self.load_latest_route()
         
-        if not self.current_route:
+        with self._lock:
+            if not self.current_route:
+                return None
+            
+            vehicles = self.current_route.get('vehicles', [])
+            
+            for vehicle in vehicles:
+                if vehicle.get('id') == vehicle_id:
+                    return vehicle
+            
             return None
-        
-        vehicles = self.current_route.get('vehicles', [])
-        
-        for vehicle in vehicles:
-            if vehicle.get('id') == vehicle_id:
-                return vehicle
-        
-        return None
     
     def convert_from_optimization_result(self,
                                          best_route: List[int],
@@ -125,7 +131,10 @@ class RouteDataIntegration:
             last_stop_end_time = None
             
             for idx, point_id in enumerate(best_route, 1):
-                point = id_to_point[point_id]  # Usar mapeamento em vez de índice
+                point = id_to_point.get(point_id)
+                if point is None:
+                    print(f"⚠️ Ponto ID={point_id} não encontrado em service_points, ignorando.")
+                    continue
                 
                 # Guardar horário da primeira parada
                 if first_stop_time is None:
@@ -149,7 +158,10 @@ class RouteDataIntegration:
                 # Calcular tempo de viagem real
                 if idx < len(best_route):
                     next_point_id = best_route[idx]
-                    next_point = id_to_point[next_point_id]
+                    next_point = id_to_point.get(next_point_id)
+                    if next_point is None:
+                        current_time += point.service_duration
+                        continue
                     travel_time = calculate_travel_time(point.location, next_point.location, speed=60.0)
                     current_time += point.service_duration + travel_time
                 else:
@@ -226,7 +238,10 @@ class RouteDataIntegration:
                 current_time = 8 * 60
                 
                 for idx, point_id in enumerate(vehicle_route, 1):
-                    point = id_to_point[point_id]  # Usar mapeamento
+                    point = id_to_point.get(point_id)
+                    if point is None:
+                        print(f"⚠️ Ponto ID={point_id} não encontrado, ignorando.")
+                        continue
                     service_type = self._get_service_type_from_priority(point)
                     
                     stop = {
@@ -246,7 +261,10 @@ class RouteDataIntegration:
                     # Calcular tempo de viagem real
                     if idx < len(vehicle_route):
                         next_point_id = vehicle_route[idx]
-                        next_point = id_to_point[next_point_id]
+                        next_point = id_to_point.get(next_point_id)
+                        if next_point is None:
+                            current_time += point.service_duration
+                            continue
                         travel_time = calculate_travel_time(point.location, next_point.location, speed=60.0)
                         current_time += point.service_duration + travel_time
                     else:
@@ -295,8 +313,10 @@ class RouteDataIntegration:
                 # Calcular distância real por veículo
                 vehicle_distance = 0.0
                 for j in range(len(vehicle_route) - 1):
-                    p1 = id_to_point[vehicle_route[j]]
-                    p2 = id_to_point[vehicle_route[j + 1]]
+                    p1 = id_to_point.get(vehicle_route[j])
+                    p2 = id_to_point.get(vehicle_route[j + 1])
+                    if p1 is None or p2 is None:
+                        continue
                     vehicle_distance += calculate_distance(p1.location, p2.location) * 0.1
                 
                 vehicle_data = {
@@ -314,6 +334,70 @@ class RouteDataIntegration:
         
         return route_data
     
+    def convert_from_multi_vehicle_solution(self,
+                                             solution,
+                                             service_points: List,
+                                             fitness: float,
+                                             depot_location: tuple) -> Dict:
+        """
+        Converte MultiVehicleSolution para formato do bot.
+        Usa as rotas já divididas por veículo pelo AG multi-veículo.
+        """
+        from src.core.service_points import calculate_distance, calculate_travel_time
+
+        route_data = {
+            'date': datetime.now().isoformat(),
+            'fitness': fitness,
+            'num_vehicles': len(solution.vehicles),
+            'vehicles': []
+        }
+
+        for vehicle in solution.vehicles:
+            stops = []
+            current_time = 8 * 60  # 08:00
+
+            for idx, point in enumerate(vehicle.route, 1):
+                service_type = self._get_service_type_from_priority(point)
+                stop = {
+                    'id': idx,
+                    'type': service_type,
+                    'priority': point.priority.value,
+                    'address': f"Ponto {point.id} - {service_type}",
+                    'coordinates': {'x': point.location[0], 'y': point.location[1]},
+                    'time': f"{int(current_time // 60):02d}:{int(current_time % 60):02d}",
+                    'duration': f"{int(point.service_duration)} min",
+                    'instructions': self._get_instructions(service_type),
+                    'special_notes': self._get_special_notes(point)
+                }
+                stops.append(stop)
+
+                if idx < len(vehicle.route):
+                    next_point = vehicle.route[idx]
+                    travel_time = calculate_travel_time(
+                        point.location, next_point.location, speed=60.0
+                    )
+                    current_time += point.service_duration + travel_time
+                else:
+                    current_time += point.service_duration
+
+            total_time_minutes = max(0, int(current_time - 8 * 60))
+            vehicle_distance = vehicle.total_distance * 0.1  # Converter para km
+
+            vehicle_data = {
+                'id': vehicle.vehicle_id,
+                'driver': f'Motorista {vehicle.vehicle_id}',
+                'total_stops': len(stops),
+                'total_distance': round(vehicle_distance, 2),
+                'estimated_time': f"{total_time_minutes // 60}h {total_time_minutes % 60}min",
+                'start_time': '08:00',
+                'end_time': f"{int(current_time // 60):02d}:{int(current_time % 60):02d}",
+                'stops': stops
+            }
+
+            route_data['vehicles'].append(vehicle_data)
+
+        return route_data
+
     def _get_service_type_from_priority(self, point) -> str:
         """ Converte prioridade do ServicePoint para tipo de serviço """
         priority_map = {

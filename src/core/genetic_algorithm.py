@@ -328,8 +328,12 @@ def constrained_order_crossover(parent1: List[ServicePoint],
         inherited_ids = {pt.id for pt in inherited}
         # Usar seq1 como fallback para pontos não encontrados em seq2
         remainder = [pt for pt in seq2 if pt.id not in inherited_ids]
-        missing = [pt for pt in seq1 if pt.id not in inherited_ids and pt.id not in {r.id for r in remainder}]
+        remainder_ids = {pt.id for pt in remainder}
+        missing = [pt for pt in seq1 if pt.id not in inherited_ids and pt.id not in remainder_ids]
         remainder.extend(missing)
+        # Garantir que remainder tem exatamente n - len(inherited) elementos
+        expected_remainder_size = n - len(inherited)
+        remainder = remainder[:expected_remainder_size]
         return remainder[:a] + inherited + remainder[a:]
 
     child: List[ServicePoint] = []

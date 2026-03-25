@@ -40,6 +40,14 @@ from src.core.genetic_algorithm import (
     constrained_mutate,
     sort_population_by_fitness
 )
+from src.core.multi_vehicle import (
+    generate_multi_vehicle_population,
+    calculate_multi_vehicle_fitness,
+    multi_vehicle_crossover,
+    multi_vehicle_mutate,
+    sort_multi_vehicle_population,
+    validate_and_repair_multi_vehicle_solution
+)
 from src.constants import PRIORITY_DEADLINE_1V, PRIORITY_DEADLINE_2V
 from telegram_bot.route_integration import RouteDataIntegration
 
@@ -53,9 +61,11 @@ app = FastAPI(
 )
 
 # Configurar CORS
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:8501").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Em produção, especificar origens permitidas
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,14 +74,25 @@ app.add_middleware(
 # Instância de integração de rotas
 route_integration = RouteDataIntegration()
 
+import threading
+
 # Instância do bot do Telegram inicializada sob demanda
 telegram_bot = None
+_telegram_bot_lock = threading.Lock()
 
 
 def get_telegram_bot():
-    """ Obtém ou cria a instância do bot do Telegram """
+    """ Obtém ou cria a instância do bot do Telegram (thread-safe) """
     global telegram_bot
-    if telegram_bot is None:
+
+    if telegram_bot is not None:
+        return telegram_bot
+
+    with _telegram_bot_lock:
+        # Double-check após adquirir o lock
+        if telegram_bot is not None:
+            return telegram_bot
+
         try:
             from telegram import Bot
             token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -82,6 +103,7 @@ def get_telegram_bot():
                 print("⚠️ TELEGRAM_BOT_TOKEN não configurado")
         except Exception as e:
             print(f"⚠️ Erro ao inicializar bot: {e}")
+
     return telegram_bot
 
 
@@ -152,75 +174,99 @@ def _run_optimization(request: OptimizationRequest):
     # Usar constantes centralizadas para priority_deadline
     priority_deadline = PRIORITY_DEADLINE_1V if request.num_vehicles == 1 else PRIORITY_DEADLINE_2V
     
-    # Executar algoritmo genético
-    # Gerar população inicial
-    population = generate_priority_aware_population(
-        service_points,
-        request.population_size
-    )
-    
-    # Evoluir população
-    for generation in range(request.generations):
-        # Calcular fitness
+    if request.num_vehicles >= 2:
+        # ===== FLUXO MULTI-VEÍCULO =====
+        points_no_depot = [p for p in service_points if p.id != 0]
+        
+        population = generate_multi_vehicle_population(
+            points_no_depot, depot_loc, request.population_size, num_vehicles=2
+        )
+        
+        for generation in range(request.generations):
+            population = sort_multi_vehicle_population(population)
+            
+            elite_size = max(1, request.population_size // 5)
+            new_population = population[:elite_size]
+            
+            while len(new_population) < request.population_size:
+                tournament = random.sample(population, min(3, len(population)))
+                tournament = sort_multi_vehicle_population(tournament)
+                parent1 = tournament[0]
+                parent2 = tournament[1] if len(tournament) > 1 else tournament[0]
+                
+                child = multi_vehicle_crossover(parent1, parent2, depot_loc, points_no_depot)
+                child = multi_vehicle_mutate(child, depot_loc, 0.3, points_no_depot)
+                child = validate_and_repair_multi_vehicle_solution(child, points_no_depot)
+                new_population.append(child)
+            
+            population = new_population
+        
+        population = sort_multi_vehicle_population(population)
+        best_solution = population[0]
+        best_fitness = best_solution.total_fitness
+        
+        # Converter MultiVehicleSolution para formato do bot
+        route_data = route_integration.convert_from_multi_vehicle_solution(
+            solution=best_solution,
+            service_points=service_points,
+            fitness=best_fitness,
+            depot_location=depot_loc
+        )
+    else:
+        # ===== FLUXO 1 VEÍCULO =====
+        population = generate_priority_aware_population(
+            service_points,
+            request.population_size
+        )
+        
+        for generation in range(request.generations):
+            fitness_values = [
+                calculate_constrained_fitness(route, speed=60.0, priority_deadline=priority_deadline)
+                for route in population
+            ]
+            
+            population, fitness_values = sort_population_by_fitness(population, fitness_values)
+            
+            elite_size = max(1, request.population_size // 5)
+            new_population = population[:elite_size]
+            
+            while len(new_population) < request.population_size:
+                tournament_size = 3
+                tournament = random.sample(list(zip(population, fitness_values)), tournament_size)
+                parent1 = min(tournament, key=lambda x: x[1])[0]
+                
+                tournament = random.sample(list(zip(population, fitness_values)), tournament_size)
+                parent2 = min(tournament, key=lambda x: x[1])[0]
+                
+                child = constrained_order_crossover(parent1, parent2)
+                child = constrained_mutate(child, mutation_probability=0.1)
+                new_population.append(child)
+            
+            population = new_population
+        
         fitness_values = [
             calculate_constrained_fitness(route, speed=60.0, priority_deadline=priority_deadline)
             for route in population
         ]
+        best_idx = fitness_values.index(min(fitness_values))
+        best_route = population[best_idx]
+        best_fitness = fitness_values[best_idx]
         
-        # Ordenar por fitness
-        population, fitness_values = sort_population_by_fitness(population, fitness_values)
+        total_distance = 0.0
+        for i in range(len(best_route) - 1):
+            p1 = best_route[i]
+            p2 = best_route[i + 1]
+            total_distance += calculate_distance(p1.location, p2.location) * 0.1
         
-        # Elitismo: manter os 20% melhores
-        elite_size = max(1, request.population_size // 5)
-        new_population = population[:elite_size]
+        best_route_indices = [point.id for point in best_route[1:]]
         
-        # Gerar nova população
-        while len(new_population) < request.population_size:
-            # Seleção por torneio
-            tournament_size = 3
-            tournament = random.sample(list(zip(population, fitness_values)), tournament_size)
-            parent1 = min(tournament, key=lambda x: x[1])[0]
-            
-            tournament = random.sample(list(zip(population, fitness_values)), tournament_size)
-            parent2 = min(tournament, key=lambda x: x[1])[0]
-            
-            # Crossover
-            child = constrained_order_crossover(parent1, parent2)
-            
-            # Mutação
-            child = constrained_mutate(child, mutation_probability=0.1)
-            
-            new_population.append(child)
-        
-        population = new_population
-    
-    # Obter melhor solução
-    fitness_values = [
-        calculate_constrained_fitness(route, speed=60.0, priority_deadline=priority_deadline)
-        for route in population
-    ]
-    best_idx = fitness_values.index(min(fitness_values))
-    best_route = population[best_idx]
-    best_fitness = fitness_values[best_idx]
-    
-    # Calcular distância total
-    total_distance = 0.0
-    for i in range(len(best_route) - 1):
-        p1 = best_route[i]
-        p2 = best_route[i + 1]
-        total_distance += calculate_distance(p1.location, p2.location) * 0.1  # Converter para km
-    
-    # Converter rota de objetos para índices
-    best_route_indices = [point.id for point in best_route[1:]]  # Remover depósito
-    
-    # Converter para formato do bot
-    route_data = route_integration.convert_from_optimization_result(
-        best_route=best_route_indices,
-        service_points=service_points,
-        fitness=best_fitness,
-        distance_km=total_distance,
-        num_vehicles=request.num_vehicles
-    )
+        route_data = route_integration.convert_from_optimization_result(
+            best_route=best_route_indices,
+            service_points=service_points,
+            fitness=best_fitness,
+            distance_km=total_distance,
+            num_vehicles=1
+        )
     
     # Salvar rota
     route_integration.save_route(route_data)
@@ -420,7 +466,7 @@ async def telegram_webhook(request: Request):
         import traceback
         traceback.print_exc()
         # Retornar 200 mesmo com erro para evitar reenvios do Telegram
-        return {"ok": True, "error": str(e)}
+        return {"ok": True}
 
 
 @app.get(

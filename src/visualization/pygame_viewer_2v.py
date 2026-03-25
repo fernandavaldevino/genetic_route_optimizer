@@ -10,6 +10,7 @@ import random
 import sys
 import copy
 import math
+import time
 import numpy as np
 from typing import List, Tuple
 from src.core.multi_vehicle import (
@@ -215,8 +216,8 @@ def draw_info_panel(screen, generation, best_solution, elapsed_time=0, last_impr
     
     # Informações gerais
     info_texts = [
-        f"Geração: {generation}",
-        f"Última otimização: {last_improvement_gen}",
+        f"Geração: {generation + 1}",
+        f"Última otimização: {last_improvement_gen + 1 if last_improvement_gen > 0 else 1}",
         f"Fitness Total: {best_solution.total_fitness:.2f}",
     ]
     
@@ -1059,12 +1060,14 @@ def inject_diversity(population: List[MultiVehicleSolution],
 
 def generate_guided_solutions(top_solutions: List[MultiVehicleSolution],
                               depot_location: Tuple[float, float],
+                              service_points: List[ServicePoint],
                               num_solutions: int = 10) -> List[MultiVehicleSolution]:
     """ Gera novas soluções a partir das melhores, aplicando transformações graduais + 2-opt """
     from src.core.multi_vehicle import (
         calculate_multi_vehicle_fitness,
         two_opt_optimize,
-        split_points_by_priority
+        split_points_by_priority,
+        validate_and_repair_multi_vehicle_solution
     )
     
     guided_solutions = []
@@ -1092,7 +1095,6 @@ def generate_guided_solutions(top_solutions: List[MultiVehicleSolution],
                 vehicle.route = two_opt_optimize(vehicle.route, depot_location, max_passes=2)
         
         # Validar e reparar após 2-opt para garantir ordem de prioridades
-        from src.core.multi_vehicle import validate_and_repair_multi_vehicle_solution, calculate_multi_vehicle_fitness
         base = validate_and_repair_multi_vehicle_solution(base, service_points)
         
         calculate_multi_vehicle_fitness(base, depot_location)
@@ -1116,7 +1118,6 @@ def calculate_diversity_adjustment(diversity: float) -> float:
 
 def main(max_generations=10):
     import pickle
-    import time
     import os
     
     pygame.init()
@@ -1143,7 +1144,6 @@ def main(max_generations=10):
     screenshot_saved = False  # Flag para salvar screenshot apenas uma vez
     
     # Controle de tempo
-    import time
     start_time = time.time()
     elapsed_time = 0
     
@@ -1274,7 +1274,7 @@ def main(max_generations=10):
                     improvement = best_fitness_history[-1] - best_fitness
                     last_improvement_generation = generation
                     stagnation_counter = 0
-                    print(f"✓ Geração {generation}: MELHORIA de {improvement:.2f} (Fitness: {best_fitness:.2f})")
+                    print(f"✓ Geração {generation + 1}: MELHORIA de {improvement:.2f} (Fitness: {best_fitness:.2f})")
                 
                 # Atualizar melhor fitness ever
                 if best_fitness < best_fitness_ever:
@@ -1291,7 +1291,7 @@ def main(max_generations=10):
         # ============================================================================
         num_crossings = count_route_crossings(best_solution.vehicles)
         if num_crossings > 0:
-            print(f"⚠️  Geração {generation}: {num_crossings} cruzamentos detectados! Aplicando 2-opt agressivo...")
+            print(f"⚠️  Geração {generation + 1}: {num_crossings} cruzamentos detectados! Aplicando 2-opt agressivo...")
             
             # Criar CÓPIA da melhor solução para otimizar
             optimized_solution = copy.deepcopy(best_solution)
@@ -1341,7 +1341,7 @@ def main(max_generations=10):
             should_apply_2opt = (generation % OPT2_INTERVAL_LATE == 0)
         
         if should_apply_2opt and generation > 0:
-            print(f"🔧 Geração {generation}: Aplicando otimização 2-opt nas top 3 soluções...")
+            print(f"🔧 Geração {generation + 1}: Aplicando otimização 2-opt nas top 3 soluções...")
             
             # Aplicar 2-opt nas 3 melhores soluções
             from src.core.multi_vehicle import validate_and_repair_multi_vehicle_solution
@@ -1372,7 +1372,7 @@ def main(max_generations=10):
             stagnation_severity = min(stagnation_counter / (STAGNATION_THRESHOLD * 3), 1.0)
             injection_rate = DIVERSITY_INJECTION_MIN + (DIVERSITY_INJECTION_MAX - DIVERSITY_INJECTION_MIN) * stagnation_severity
             
-            print(f"🔄 Geração {generation}: Estagnação detectada ({stagnation_counter} gerações)!")
+            print(f"🔄 Geração {generation + 1}: Estagnação detectada ({stagnation_counter} gerações)!")
             print(f"   Injetando {injection_rate*100:.0f}% de diversidade na população...")
             
             # Calcular elite_size atual
@@ -1392,12 +1392,12 @@ def main(max_generations=10):
         # GERAÇÃO GUIADA: Após muita estagnação, gerar soluções das melhores
         # ============================================================================
         if stagnation_counter >= GUIDED_GENERATION_THRESHOLD:
-            print(f"🎯 Geração {generation}: Estagnação severa ({stagnation_counter} gerações)!")
+            print(f"🎯 Geração {generation + 1}: Estagnação severa ({stagnation_counter} gerações)!")
             print(f"   Gerando soluções guiadas a partir das top {GUIDED_TOP_SOLUTIONS}...")
             
             # Gerar novas soluções guiadas
             top_solutions = population[:GUIDED_TOP_SOLUTIONS]
-            guided_solutions = generate_guided_solutions(top_solutions, depot_location, num_solutions=20)
+            guided_solutions = generate_guided_solutions(top_solutions, depot_location, service_points, num_solutions=20)
             
             # Substituir piores soluções por guiadas
             population = population[:POPULATION_SIZE - 20] + guided_solutions
@@ -1456,8 +1456,7 @@ def main(max_generations=10):
         draw_depot(screen, depot_location)
         
         # Imprimir os dados da melhor solução a cada geração para monitoramento
-        # Exibir generation + 1 para mostrar gerações de 1 a MAX_GENERATIONS
-        print(f"Geração {generation + 1}: Fitness = {best_fitness:.2f}")
+        print(f"Geração {generation}: Fitness = {best_fitness:.2f}")
         for vehicle in best_solution.vehicles:
             hours = int(vehicle.total_time // 60)
             minutes = int(vehicle.total_time % 60)

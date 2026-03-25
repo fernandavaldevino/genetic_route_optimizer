@@ -79,26 +79,21 @@ class RouteAssistantBot:
     
     def _calculate_end_day(self, vehicle_data: Dict) -> int:
         """ Calcula o dia de término baseado na última parada """
-        if not vehicle_data.get('stops'):
+        stops = vehicle_data.get('stops', [])
+        if not stops:
             return 1
         
-        # Pega o horário de início e da última parada
+        # Pega o horário de início
         start_time = vehicle_data.get('start_time', '08:00')
-        last_stop = vehicle_data['stops'][-1]
-        last_time = last_stop.get('time', '08:00')
         
         # Converte para minutos
         start_hours, start_mins = map(int, start_time.split(':'))
-        start_total_mins = start_hours * 60 + start_mins
-        
-        last_hours, last_mins = map(int, last_time.split(':'))
-        last_total_mins = last_hours * 60 + last_mins
+        current_time = start_hours * 60 + start_mins
         
         # Calcula o dia baseado nos horários
         current_day = 1
-        current_time = start_total_mins
         
-        for stop in vehicle_data['stops']:
+        for stop in stops:
             stop_time = stop.get('time', '08:00')
             stop_hours, stop_mins = map(int, stop_time.split(':'))
             stop_total_mins = stop_hours * 60 + stop_mins
@@ -197,11 +192,11 @@ class RouteAssistantBot:
             },
             "vehicle_2": {
                 "driver": "Motorista 2",
-                "total_stops": 8,
-                "total_distance": 62.3,
-                "estimated_time": "5h 15min",
+                "total_stops": 0,
+                "total_distance": 0.0,
+                "estimated_time": "0h 0min",
                 "start_time": "08:00",
-                "end_time": "13:15",
+                "end_time": "08:00",
                 "stops": []
             }
         }
@@ -661,7 +656,7 @@ class RouteAssistantBot:
             completed_text += "🎉 ROTA CONCLUÍDA!\n\nTodas as paradas foram atendidas!"
         
         # Enviar mensagem
-        await update.message.reply_text(completed_text, reply_markup=self._get_keyboard(context))
+        await update.message.reply_text(completed_text, parse_mode='Markdown', reply_markup=self._get_keyboard(context))
     
     async def next_stop_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """ Comando /proxima - Próxima parada """
@@ -805,8 +800,7 @@ class RouteAssistantBot:
             completed = current_index
             remaining = total_stops - current_index
             
-            # Marcar que a confirmação foi solicitada
-            context.user_data['cancel_confirmation_requested'] = True
+            # NÃO setar a flag aqui — só o callback _confirm_cancel_callback deve setá-la
             
             # Criar teclado de confirmação
             confirmation_keyboard = InlineKeyboardMarkup([
@@ -923,11 +917,16 @@ class RouteAssistantBot:
             # Criar um objeto Update modificado que simula uma mensagem normal
             # Isso garante que o contexto seja preservado corretamente
             class FakeMessage:
-                def __init__(self, original_message, parent_context):
+                def __init__(self, original_message, parent_context, parent_bot):
                     self._original = original_message
                     self._context = parent_context
+                    self._parent_bot = parent_bot
                     self.chat = original_message.chat
                     self.message_id = original_message.message_id
+
+                def __getattr__(self, name):
+                    """Delega qualquer atributo não definido ao objeto original"""
+                    return getattr(self._original, name)
                 
                 async def reply_text(self, text, **kwargs):
                     # Garantir que o reply_markup seja atualizado com o teclado correto
@@ -939,8 +938,7 @@ class RouteAssistantBot:
                     # Isso garante que mensagens importantes (como conclusão de rota) sejam sempre visíveis
                     await self._original.reply_text(text, **kwargs)
             
-            fake_message = FakeMessage(query.message, context)
-            fake_message._parent_bot = self  # Adicionar referência ao bot
+            fake_message = FakeMessage(query.message, context, self)
             
             fake_update = Update(
                 update_id=update.update_id,
