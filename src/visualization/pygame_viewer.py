@@ -609,8 +609,7 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
     y_pos += 70
     
     # Informações gerais
-    # generation representa o índice da próxima geração (0-based)
-    # Número de gerações executadas = generation (pois executamos 0, 1, 2, ..., generation-1)
+    # Exibir generation para mostrar o número correto de gerações executadas
     info_texts = [
         (f"Gerações: {generation}", BLACK),
         (f"Fitness: {best_fitness:.2f}", BLACK),
@@ -976,7 +975,7 @@ def main():
     population = generate_priority_aware_population(service_points, POPULATION_SIZE)
 
     best_fitness_history = []
-    generation = 0
+    generation = 0  # Começa em 0, será incrementado para 1 no início do primeiro loop
     optimization_complete = False
     last_improvement_generation = 0
     generations_without_improvement = 0   # contador de estagnação
@@ -1002,7 +1001,7 @@ def main():
                     generations_without_improvement = 0
                     start_time = pygame.time.get_ticks() / 1000.0
         
-        # Verificar se atingiu o critério de parada antes de executar a geração
+        # Verificar se atingiu o critério de parada
         # Modo normal: generation >= MAX_GENERATIONS
         # Modo infinito (MAX_GENERATIONS == -1): 5000 gerações sem melhoria
         stop_condition = False
@@ -1097,7 +1096,7 @@ def main():
         current_best_fitness = fitness_values[0]
         
         # Preservar melhor solução global (nunca perde a melhor já encontrada)
-        if generation == 0:
+        if generation == 0:  # Primeira geração
             best_route = copy.deepcopy(current_best_route)
             best_fitness = current_best_fitness
             last_improvement_generation = 0
@@ -1181,7 +1180,8 @@ def main():
         draw_service_points(screen, service_points, NODE_RADIUS, start_points_by_day=start_points_by_day)
         
         # Imprimir informações no console a cada geração
-        print(f"Geração {generation}: Fitness = {best_fitness:.2f}")
+        # Exibir generation + 1 para mostrar gerações de 1 a MAX_GENERATIONS
+        print(f"Geração {generation + 1}: Fitness = {best_fitness:.2f}")
         
         # Verificar se todos os pontos estão na rota (apenas a cada 50 gerações para não poluir)
         if generation % 50 == 0:
@@ -1229,7 +1229,7 @@ def main():
         # ── 2-opt periódico apenas na melhor solução global ───────────
         # Aplicado raramente para não forçar convergência; polirá a melhor
         # solução encontrada pelo crossover sem contaminar a diversidade da população.
-        if generation > 0 and generation % opt2_interval == 0:
+        if generation > 1 and generation % opt2_interval == 0:
             optimized = two_opt_global(best_route)
             opt_fitness = calculate_constrained_fitness(
                 optimized, speed=VEHICLE_SPEED, priority_deadline=MINUTES_PER_DAY
@@ -1301,13 +1301,13 @@ def main():
 
         population = new_population
         
+        # Incrementar geração no final do loop (após processar tudo)
+        if not optimization_complete:
+            generation += 1
+        
         # Atualizar display
         pygame.display.flip()
         clock.tick(FPS)
-        
-        # Incrementar geração APENAS se não terminou
-        if not optimization_complete:
-            generation += 1
     
     # Finalizar
     pygame.quit()

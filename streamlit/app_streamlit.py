@@ -231,7 +231,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
                     running = False
         
         # Verificar se atingiu o critério de parada
-        # Modo normal: generation > max_generations
+        # Modo normal: generation >= max_generations
         # Modo infinito (max_generations == -1): 5000 gerações sem melhoria
         stop_condition = False
         if max_generations == -1:
@@ -239,7 +239,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
             stop_condition = (generation - last_improvement_generation) >= 5000
         else:
             # Modo normal: parar após max_generations
-            stop_condition = generation > max_generations
+            stop_condition = generation >= max_generations
         
         if stop_condition and not optimization_complete:
             optimization_complete = True
@@ -333,7 +333,7 @@ def run_pygame_with_full_visualization(service_points_file, progress_file, scree
             minutes = int(total_time % 60)
             num_points = len([p for p in best_route if p.id != 0])
             
-            print(f"Geração {generation}: Fitness = {best_fitness:.2f}")
+            print(f"Geração {generation + 1}: Fitness = {best_fitness:.2f}")
             print(f"  Veículo: {num_points} pontos, Dist={distance_km:.1f} km, Tempo={hours}h{minutes:02d}")
             print()
         
@@ -1369,6 +1369,7 @@ def main():
                     
                     st.session_state.fitness_history = final_data['fitness_history']
                     st.session_state.elapsed_time = final_data.get('elapsed_time', 0)
+                    st.session_state.generation = final_data.get('generation', len(final_data['fitness_history']))
                     st.session_state.screenshot_file = screenshot_file
                     st.session_state.optimization_done = True
                     
@@ -1697,7 +1698,12 @@ def main():
                 with col_opt1:
                     st.metric("Última Geração com Otimização", f"{last_improvement_gen}")
                 with col_opt2:
-                    total_generations = len(st.session_state.fitness_history) - 1
+                    # Usar o valor de generation salvo no progress_file
+                    # generation representa o total de gerações executadas (1 a MAX_GENERATIONS)
+                    if 'generation' in st.session_state:
+                        total_generations = st.session_state.generation
+                    else:
+                        total_generations = len(st.session_state.fitness_history)
                     st.metric("Total de Gerações", f"{total_generations}")
                 with col_opt3:
                     if total_generations > 0:

@@ -566,6 +566,7 @@ def draw_final_solution_frame(screen, best_solution, best_fitness, generation, d
     y_pos += 70
     
     # Informações gerais
+    # generation é exibido diretamente (gerações de 1 a MAX_GENERATIONS)
     info_text = font_medium.render(f"Gerações: {generation}", True, BLACK)
     screen.blit(info_text, (left_x, y_pos))
     y_pos += 40
@@ -1176,7 +1177,7 @@ def main(max_generations=10):
             if MAX_GENERATIONS > 0 and generation >= MAX_GENERATIONS:
                 # Modo normal: parar ao atingir número de gerações
                 print(f"\n{'='*60}")
-                print(f"CRITÉRIO DE PARADA ATINGIDO: {generation} gerações")
+                print(f"CRITÉRIO DE PARADA ATINGIDO: {MAX_GENERATIONS} gerações")
                 print(f"{'='*60}")
                 print(f"Melhor Fitness Final: {best_fitness:.2f}")
                 for vehicle in best_solution.vehicles:
@@ -1215,6 +1216,8 @@ def main(max_generations=10):
                 print(f"Screenshot salvo em: {screenshot_file}")
                 
                 # Salvar dados para o Streamlit
+                # generation já foi incrementado, então salvamos generation
+                # Mas para exibição, usamos generation - 1 na tela final
                 with open(progress_file, 'wb') as f:
                     pickle.dump({
                         'generation': generation,
@@ -1453,7 +1456,8 @@ def main(max_generations=10):
         draw_depot(screen, depot_location)
         
         # Imprimir os dados da melhor solução a cada geração para monitoramento
-        print(f"Geração {generation}: Fitness = {best_fitness:.2f}")
+        # Exibir generation + 1 para mostrar gerações de 1 a MAX_GENERATIONS
+        print(f"Geração {generation + 1}: Fitness = {best_fitness:.2f}")
         for vehicle in best_solution.vehicles:
             hours = int(vehicle.total_time // 60)
             minutes = int(vehicle.total_time % 60)
