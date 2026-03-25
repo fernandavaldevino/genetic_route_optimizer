@@ -5,6 +5,7 @@ Carrega dados reais das rotas otimizadas para fornecer ao bot
 
 import json
 import pickle
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -23,6 +24,7 @@ class RouteDataIntegration:
         
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.current_route = None
+        self._lock = threading.Lock()  # Bug #7: Proteção de concorrência
     
     def load_latest_route(self) -> Optional[Dict]:
         """ Carrega a rota mais recente salva """
@@ -43,17 +45,18 @@ class RouteDataIntegration:
     def save_route(self, route_data: Dict, filename: Optional[str] = None) -> bool:
         """ Salva dados de uma rota """
         try:
-            if filename is None:
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                filename = f'route_{timestamp}.json'
-            
-            filepath = self.data_dir / filename
-            
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(route_data, f, indent=2, ensure_ascii=False)
-            
-            self.current_route = route_data
-            return True
+            with self._lock:  # Proteção de concorrência
+                if filename is None:
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    filename = f'route_{timestamp}.json'
+                
+                filepath = self.data_dir / filename
+                
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    json.dump(route_data, f, indent=2, ensure_ascii=False)
+                
+                self.current_route = route_data
+                return True
         except Exception as e:
             print(f"Erro ao salvar rota: {e}")
             return False
@@ -102,6 +105,10 @@ class RouteDataIntegration:
                                          distance_km: float,
                                          num_vehicles: int = 1) -> Dict:
         """ Converte resultado da otimização para formato do bot """
+        # Criar mapeamento de ID para objeto ServicePoint
+        from src.core.service_points import calculate_distance, calculate_travel_time
+        id_to_point = {p.id: p for p in service_points}
+        
         route_data = {
             'date': datetime.now().isoformat(),
             'fitness': fitness,
@@ -117,8 +124,8 @@ class RouteDataIntegration:
             first_stop_time = None
             last_stop_end_time = None
             
-            for idx, point_idx in enumerate(best_route, 1):
-                point = service_points[point_idx]
+            for idx, point_id in enumerate(best_route, 1):
+                point = id_to_point[point_id]  # Usar mapeamento em vez de índice
                 
                 # Guardar horário da primeira parada
                 if first_stop_time is None:
@@ -129,7 +136,7 @@ class RouteDataIntegration:
                     'id': idx,
                     'type': service_type,
                     'priority': point.priority.value,
-                    'address': f"Ponto {point_idx} - {service_type}",
+                    'address': f"Ponto {point.id} - {service_type}",
                     'coordinates': {'x': point.location[0], 'y': point.location[1]},
                     'time': f"{int(current_time // 60):02d}:{int(current_time % 60):02d}",
                     'duration': f"{int(point.service_duration)} min",
@@ -139,8 +146,14 @@ class RouteDataIntegration:
                 
                 stops.append(stop)
                 
-                # Atualizar tempo (adicionar duração da parada + tempo de viagem)
-                current_time += point.service_duration + 10
+                # Calcular tempo de viagem real
+                if idx < len(best_route):
+                    next_point_id = best_route[idx]
+                    next_point = id_to_point[next_point_id]
+                    travel_time = calculate_travel_time(point.location, next_point.location, speed=60.0)
+                    current_time += point.service_duration + travel_time
+                else:
+                    current_time += point.service_duration
                 last_stop_end_time = current_time
             
             # Calcular tempo total de trabalho e agrupar paradas por dia
@@ -212,15 +225,15 @@ class RouteDataIntegration:
                 stops = []
                 current_time = 8 * 60
                 
-                for idx, point_idx in enumerate(vehicle_route, 1):
-                    point = service_points[point_idx]
+                for idx, point_id in enumerate(vehicle_route, 1):
+                    point = id_to_point[point_id]  # Usar mapeamento
                     service_type = self._get_service_type_from_priority(point)
                     
                     stop = {
                         'id': idx,
                         'type': service_type,
                         'priority': point.priority.value,
-                        'address': f"Ponto {point_idx} - {service_type}",
+                        'address': f"Ponto {point_id} - {service_type}",
                         'coordinates': {'x': point.location[0], 'y': point.location[1]},
                         'time': f"{int(current_time // 60):02d}:{int(current_time % 60):02d}",
                         'duration': f"{int(point.service_duration)} min",
@@ -229,7 +242,15 @@ class RouteDataIntegration:
                     }
                     
                     stops.append(stop)
-                    current_time += point.service_duration + 10
+                    
+                    # Calcular tempo de viagem real
+                    if idx < len(vehicle_route):
+                        next_point_id = vehicle_route[idx]
+                        next_point = id_to_point[next_point_id]
+                        travel_time = calculate_travel_time(point.location, next_point.location, speed=60.0)
+                        current_time += point.service_duration + travel_time
+                    else:
+                        current_time += point.service_duration
                 
                 # Calcular tempo total considerando múltiplos dias e agrupar paradas por dia
                 days = []
@@ -271,11 +292,18 @@ class RouteDataIntegration:
                     day_time = (last_mins + last_duration) - first_mins
                     total_time_minutes += day_time
                 
+                # Calcular distância real por veículo
+                vehicle_distance = 0.0
+                for j in range(len(vehicle_route) - 1):
+                    p1 = id_to_point[vehicle_route[j]]
+                    p2 = id_to_point[vehicle_route[j + 1]]
+                    vehicle_distance += calculate_distance(p1.location, p2.location) * 0.1
+                
                 vehicle_data = {
                     'id': vehicle_id,
                     'driver': f'Motorista {vehicle_id}',
                     'total_stops': len(stops),
-                    'total_distance': round(distance_km / 2, 2),
+                    'total_distance': round(vehicle_distance, 2),  # Distância real
                     'estimated_time': f"{total_time_minutes // 60}h {total_time_minutes % 60}min",
                     'start_time': '08:00',
                     'end_time': f"{int(current_time // 60):02d}:{int(current_time % 60):02d}",

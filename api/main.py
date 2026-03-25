@@ -7,6 +7,8 @@ import os
 import sys
 import time
 import random
+import asyncio
+import json
 from pathlib import Path
 from datetime import datetime
 from typing import List, Optional, Dict, Any
@@ -38,6 +40,7 @@ from src.core.genetic_algorithm import (
     constrained_mutate,
     sort_population_by_fitness
 )
+from src.constants import PRIORITY_DEADLINE_1V, PRIORITY_DEADLINE_2V
 from telegram_bot.route_integration import RouteDataIntegration
 
 # Criar aplicação FastAPI
@@ -115,115 +118,125 @@ async def health_check():
 async def optimize_route(request: OptimizationRequest):
     """ Otimiza a rota de atendimento usando algoritmo genético """
     try:
-        start_time = time.time()
-        
-        # Criar depósito
-        depot_loc = request.depot_location or (250.0, 250.0)
-        depot = create_service_point(0, depot_loc, 'regular', None)
-        depot.service_duration = 0.0
-        
-        # Criar pontos de serviço
-        service_points = [depot]
-        for point_input in request.service_points:
-            point = create_service_point(
-                id=point_input.id,
-                location=point_input.location,
-                service_type=point_input.service_type.value,
-                time_window=point_input.time_window
-            )
-            service_points.append(point)
-        
-        # Executar algoritmo genético
-        # Gerar população inicial
-        population = generate_priority_aware_population(
-            service_points,
-            request.population_size
-        )
-        
-        # Evoluir população
-        for generation in range(request.generations):
-            # Calcular fitness
-            fitness_values = [
-                calculate_constrained_fitness(route, speed=60.0, priority_deadline=1440.0)
-                for route in population
-            ]
-            
-            # Ordenar por fitness
-            population, fitness_values = sort_population_by_fitness(population, fitness_values)
-            
-            # Elitismo: manter os 20% melhores
-            elite_size = max(1, request.population_size // 5)
-            new_population = population[:elite_size]
-            
-            # Gerar nova população
-            while len(new_population) < request.population_size:
-                # Seleção por torneio
-                tournament_size = 3
-                tournament = random.sample(list(zip(population, fitness_values)), tournament_size)
-                parent1 = min(tournament, key=lambda x: x[1])[0]
-                
-                tournament = random.sample(list(zip(population, fitness_values)), tournament_size)
-                parent2 = min(tournament, key=lambda x: x[1])[0]
-                
-                # Crossover
-                child = constrained_order_crossover(parent1, parent2)
-                
-                # Mutação
-                child = constrained_mutate(child, mutation_probability=0.1)
-                
-                new_population.append(child)
-            
-            population = new_population
-        
-        # Obter melhor solução
-        fitness_values = [
-            calculate_constrained_fitness(route, speed=60.0, priority_deadline=1440.0)
-            for route in population
-        ]
-        best_idx = fitness_values.index(min(fitness_values))
-        best_route = population[best_idx]
-        best_fitness = fitness_values[best_idx]
-        
-        # Calcular distância total
-        total_distance = 0.0
-        for i in range(len(best_route) - 1):
-            p1 = best_route[i]
-            p2 = best_route[i + 1]
-            total_distance += calculate_distance(p1.location, p2.location) * 0.1  # Converter para km
-        
-        # Converter rota de objetos para índices
-        best_route_indices = [point.id for point in best_route[1:]]  # Remover depósito
-        
-        # Converter para formato do bot
-        route_data = route_integration.convert_from_optimization_result(
-            best_route=best_route_indices,
-            service_points=service_points,
-            fitness=best_fitness,
-            distance_km=total_distance,
-            num_vehicles=request.num_vehicles
-        )
-        
-        # Salvar rota
-        route_integration.save_route(route_data)
-        
-        execution_time = time.time() - start_time
-        
-        # Preparar resposta
-        return OptimizationResponse(
-            success=True,
-            message="Otimização concluída com sucesso",
-            date=route_data['date'],
-            fitness=route_data['fitness'],
-            num_vehicles=route_data['num_vehicles'],
-            vehicles=route_data['vehicles'],
-            execution_time=round(execution_time, 2)
-        )
+        # Executar otimização em thread separada para não bloquear event loop
+        result = await asyncio.to_thread(_run_optimization, request)
+        return result
         
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro na otimização: {str(e)}"
         )
+
+
+def _run_optimization(request: OptimizationRequest):
+    """ Função síncrona que executa a otimização """
+    start_time = time.time()
+    
+    # Criar depósito
+    depot_loc = request.depot_location or (250.0, 250.0)
+    depot = create_service_point(0, depot_loc, 'regular', None)
+    depot.service_duration = 0.0
+    
+    # Criar pontos de serviço
+    service_points = [depot]
+    for point_input in request.service_points:
+        point = create_service_point(
+            id=point_input.id,
+            location=point_input.location,
+            service_type=point_input.service_type.value,
+            time_window=point_input.time_window
+        )
+        service_points.append(point)
+    
+    # Usar constantes centralizadas para priority_deadline
+    priority_deadline = PRIORITY_DEADLINE_1V if request.num_vehicles == 1 else PRIORITY_DEADLINE_2V
+    
+    # Executar algoritmo genético
+    # Gerar população inicial
+    population = generate_priority_aware_population(
+        service_points,
+        request.population_size
+    )
+    
+    # Evoluir população
+    for generation in range(request.generations):
+        # Calcular fitness
+        fitness_values = [
+            calculate_constrained_fitness(route, speed=60.0, priority_deadline=priority_deadline)
+            for route in population
+        ]
+        
+        # Ordenar por fitness
+        population, fitness_values = sort_population_by_fitness(population, fitness_values)
+        
+        # Elitismo: manter os 20% melhores
+        elite_size = max(1, request.population_size // 5)
+        new_population = population[:elite_size]
+        
+        # Gerar nova população
+        while len(new_population) < request.population_size:
+            # Seleção por torneio
+            tournament_size = 3
+            tournament = random.sample(list(zip(population, fitness_values)), tournament_size)
+            parent1 = min(tournament, key=lambda x: x[1])[0]
+            
+            tournament = random.sample(list(zip(population, fitness_values)), tournament_size)
+            parent2 = min(tournament, key=lambda x: x[1])[0]
+            
+            # Crossover
+            child = constrained_order_crossover(parent1, parent2)
+            
+            # Mutação
+            child = constrained_mutate(child, mutation_probability=0.1)
+            
+            new_population.append(child)
+        
+        population = new_population
+    
+    # Obter melhor solução
+    fitness_values = [
+        calculate_constrained_fitness(route, speed=60.0, priority_deadline=priority_deadline)
+        for route in population
+    ]
+    best_idx = fitness_values.index(min(fitness_values))
+    best_route = population[best_idx]
+    best_fitness = fitness_values[best_idx]
+    
+    # Calcular distância total
+    total_distance = 0.0
+    for i in range(len(best_route) - 1):
+        p1 = best_route[i]
+        p2 = best_route[i + 1]
+        total_distance += calculate_distance(p1.location, p2.location) * 0.1  # Converter para km
+    
+    # Converter rota de objetos para índices
+    best_route_indices = [point.id for point in best_route[1:]]  # Remover depósito
+    
+    # Converter para formato do bot
+    route_data = route_integration.convert_from_optimization_result(
+        best_route=best_route_indices,
+        service_points=service_points,
+        fitness=best_fitness,
+        distance_km=total_distance,
+        num_vehicles=request.num_vehicles
+    )
+    
+    # Salvar rota
+    route_integration.save_route(route_data)
+    
+    execution_time = time.time() - start_time
+    
+    # Preparar resposta
+    return OptimizationResponse(
+        success=True,
+        message="Otimização concluída com sucesso",
+        date=route_data['date'],
+        fitness=route_data['fitness'],
+        num_vehicles=route_data['num_vehicles'],
+        vehicles=route_data['vehicles'],
+        execution_time=round(execution_time, 2)
+    )
 
 
 @app.get(
@@ -240,15 +253,19 @@ async def list_routes():
         
         routes = []
         for route_file in route_files:
-            import json
-            with open(route_file, 'r', encoding='utf-8') as f:
-                route_data = json.load(f)
-                routes.append({
-                    'filename': route_file.name,
-                    'date': route_data.get('date'),
-                    'num_vehicles': route_data.get('num_vehicles'),
-                    'fitness': route_data.get('fitness')
-                })
+            # Tratar JSON corrompido
+            try:
+                with open(route_file, 'r', encoding='utf-8') as f:
+                    route_data = json.load(f)
+                    routes.append({
+                        'filename': route_file.name,
+                        'date': route_data.get('date'),
+                        'num_vehicles': route_data.get('num_vehicles'),
+                        'fitness': route_data.get('fitness')
+                    })
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"⚠️ Arquivo corrompido ignorado: {route_file.name}: {e}")
+                continue
         
         return RouteListResponse(
             routes=routes,

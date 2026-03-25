@@ -1176,7 +1176,7 @@ def main(max_generations=10):
             if MAX_GENERATIONS > 0 and generation >= MAX_GENERATIONS:
                 # Modo normal: parar ao atingir número de gerações
                 print(f"\n{'='*60}")
-                print(f"CRITÉRIO DE PARADA ATINGIDO: {MAX_GENERATIONS} gerações")
+                print(f"CRITÉRIO DE PARADA ATINGIDO: {generation} gerações")
                 print(f"{'='*60}")
                 print(f"Melhor Fitness Final: {best_fitness:.2f}")
                 for vehicle in best_solution.vehicles:

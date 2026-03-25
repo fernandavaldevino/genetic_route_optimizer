@@ -33,8 +33,9 @@ class TimeWindow:
         if self.is_valid_time(arrival_time):
             return 0.0
         elif arrival_time > self.end_time:
-            # Chegar atrasado: penalidade MUITO ALTA (viola compromisso)
-            return (arrival_time - self.end_time) * 5000  # Era 50, agora 5000
+            # Limitar penalidade em 24h para evitar valores astronomicamente altos
+            delay = min(arrival_time - self.end_time, 1440.0)  # Cap em 24h
+            return delay * 5000
         else:
             # Chegar cedo: sem penalidade (pode esperar)
             return 0.0

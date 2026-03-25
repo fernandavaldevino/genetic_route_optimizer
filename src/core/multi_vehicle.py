@@ -7,17 +7,13 @@ Gerencia 2 veículos para atender todos os pontos em até 1 dia
 """
 
 from typing import List, Tuple, Dict, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import copy
 import random
 from .service_points import ServicePoint, ServicePriority, calculate_distance, calculate_travel_time
-from ..constants import N_POINTS
 
 # Ponto de partida/depósito (será definido dinamicamente)
 DEPOT_LOCATION: Optional[Tuple[float, float]] = None
-
-# Mapeamento global de pontos para clusters (mantém divisão K-means)
-POINT_TO_CLUSTER: Dict[int, int] = {}
 
 
 @dataclass
@@ -27,11 +23,7 @@ class VehicleRoute:
     route: List[ServicePoint]
     total_distance: float = 0.0
     total_time: float = 0.0
-    arrival_times: List[float] = None
-    
-    def __post_init__(self):
-        if self.arrival_times is None:
-            self.arrival_times = []
+    arrival_times: List[float] = field(default_factory=list)  # Bug #24: Usar field(default_factory)
 
 
 @dataclass
@@ -39,6 +31,7 @@ class MultiVehicleSolution:
     """ Representa uma solução completa com múltiplos veículos """
     vehicles: List[VehicleRoute]
     total_fitness: float = float('inf')
+    point_to_cluster: Dict[int, int] = field(default_factory=dict)  # Bug #16: Remover estado global
     
     def get_all_points(self) -> List[ServicePoint]:
         """ Retorna todos os pontos de todas as rotas """
@@ -301,8 +294,12 @@ def count_route_crossings(vehicles: List[VehicleRoute]) -> int:
 
 
 def validate_solution(solution: MultiVehicleSolution,
-                      expected_points: int = N_POINTS) -> Tuple[bool, str]:
+                      expected_points: Optional[int] = None) -> Tuple[bool, str]:
     """ Valida se solução tem exatamente os pontos esperados sem duplicação """
+    # Tornar expected_points parametrizável
+    if expected_points is None:
+        expected_points = len(solution.get_all_points())
+    
     point_ids = solution.get_point_ids()
     total_points = len(point_ids)
     
@@ -322,6 +319,7 @@ def validate_solution(solution: MultiVehicleSolution,
 
 def calculate_multi_vehicle_fitness(solution: MultiVehicleSolution,
                                     depot_location: Tuple[float, float],
+                                    expected_points: Optional[int] = None,
                                     start_time: float = 450.0,          # 7:30h (7*60 + 30 = 450 min)
                                     priority_deadline: float = 720.0,   # 12h (meio-dia)
                                     speed: float = 60.0) -> float:
@@ -329,15 +327,19 @@ def calculate_multi_vehicle_fitness(solution: MultiVehicleSolution,
     Calcula fitness para solução com múltiplos veículos
     
     Restrições:
-    - Todos os 20 pontos devem estar presentes sem duplicação
+    - Todos os pontos devem estar presentes sem duplicação
     - Pontos prioritários devem ser atendidos até 12h (720 min)
     - Todos os pontos devem ser atendidos em 1 dia (até 18h = 1080 min)
     - Minimizar distância total
     - Balancear carga entre veículos
     - Veículos partem e retornam ao depósito
     """
+    # Usar expected_points parametrizável
+    if expected_points is None:
+        expected_points = len(solution.get_all_points())
+    
     # VALIDAÇÃO CRÍTICA: Verificar unicidade de pontos
-    is_valid, error_msg = validate_solution(solution, expected_points=N_POINTS)
+    is_valid, error_msg = validate_solution(solution, expected_points=expected_points)
     if not is_valid:
         # Penalidade forte para soluções inválidas
         return float('inf')
@@ -474,12 +476,11 @@ def _build_nearest_neighbor_route(points: List[ServicePoint],
 def fix_cluster_assignment(solution: MultiVehicleSolution,
                            service_points: List[ServicePoint]) -> MultiVehicleSolution:
     """
-    Corrige atribuição de pontos aos veículos baseado no mapeamento K-means global
+    Corrige atribuição de pontos aos veículos baseado no mapeamento K-means
     Garante que cada ponto permaneça no cluster correto durante toda a evolução
     """
-    global POINT_TO_CLUSTER
-    
-    if not POINT_TO_CLUSTER:
+    # Usar mapeamento da solução em vez de global
+    if not solution.point_to_cluster:
         # Se não há mapeamento, retornar solução sem alteração
         return solution
     
@@ -495,7 +496,7 @@ def fix_cluster_assignment(solution: MultiVehicleSolution,
     
     # Redistribuir pontos para clusters corretos
     for point in all_solution_points:
-        correct_cluster = POINT_TO_CLUSTER.get(point.id, 0)
+        correct_cluster = solution.point_to_cluster.get(point.id, 0)
         cluster_points[correct_cluster].append(point)
     
     # Criar veículos com pontos corretos
@@ -514,7 +515,7 @@ def fix_cluster_assignment(solution: MultiVehicleSolution,
         vehicle = VehicleRoute(vehicle_id=i + 1, route=route)
         corrected_vehicles.append(vehicle)
     
-    corrected_solution = MultiVehicleSolution(vehicles=corrected_vehicles)
+    corrected_solution = MultiVehicleSolution(vehicles=corrected_vehicles, point_to_cluster=solution.point_to_cluster)
     return corrected_solution
 
 
@@ -533,16 +534,15 @@ def create_initial_multi_vehicle_solution(service_points: List[ServicePoint],
     4. Veículos partem e retornam ao depósito
     5. Armazena cluster inicial (pode ser ajustado pelo algoritmo genético)
     """
-    global POINT_TO_CLUSTER
-
+    # Usar mapeamento local em vez de global
     # K-means executado via função centralizada (sem duplicação)
     _, all_points_groups = _compute_kmeans_clusters(service_points, depot_location, num_vehicles)
 
     # Armazenar mapeamento de pontos para clusters
-    POINT_TO_CLUSTER.clear()
+    point_to_cluster = {}
     for cluster_id, group in enumerate(all_points_groups):
         for point in group:
-            POINT_TO_CLUSTER[point.id] = cluster_id
+            point_to_cluster[point.id] = cluster_id
     
     # Para cada grupo, construir rota com ALTA DIVERSIDADE
     # Usar nearest neighbor APENAS se apply_2opt=True (soluções de qualidade)
@@ -602,7 +602,7 @@ def create_initial_multi_vehicle_solution(service_points: List[ServicePoint],
         vehicle = VehicleRoute(vehicle_id=i + 1, route=route)
         vehicles.append(vehicle)
     
-    solution = MultiVehicleSolution(vehicles=vehicles)
+    solution = MultiVehicleSolution(vehicles=vehicles, point_to_cluster=point_to_cluster)
     calculate_multi_vehicle_fitness(solution, depot_location)
     
     return solution
@@ -619,16 +619,15 @@ def generate_multi_vehicle_population(service_points: List[ServicePoint],
     A diversidade é gerada por embaralhamento dentro de cada cluster,
     evitando re-executar K-means population_size várias vezes.
     """
-    global POINT_TO_CLUSTER
-
+    # Usar mapeamento local em vez de global
     # K-means executado UMA VEZ — base fixa para toda a população inicial
     _, clusters = _compute_kmeans_clusters(service_points, depot_location, num_vehicles)
 
-    # Armazenar mapeamento global de pontos para clusters
-    POINT_TO_CLUSTER.clear()
+    # Armazenar mapeamento de pontos para clusters
+    point_to_cluster = {}
     for cluster_id, group in enumerate(clusters):
         for point in group:
-            POINT_TO_CLUSTER[point.id] = cluster_id
+            point_to_cluster[point.id] = cluster_id
 
     population = []
 
@@ -660,7 +659,7 @@ def generate_multi_vehicle_population(service_points: List[ServicePoint],
             route = priority_route + regular_points
             vehicles.append(VehicleRoute(vehicle_id=v_idx + 1, route=route))
 
-        solution = MultiVehicleSolution(vehicles=vehicles)
+        solution = MultiVehicleSolution(vehicles=vehicles, point_to_cluster=point_to_cluster)
         
         # Validar e reparar solução inicial para garantir ordem de prioridades
         solution = validate_and_repair_multi_vehicle_solution(solution, service_points)
@@ -783,43 +782,45 @@ def multi_vehicle_crossover(parent1: MultiVehicleSolution,
 
 def validate_and_repair_multi_vehicle_solution(solution: MultiVehicleSolution,
                                                  all_service_points: List[ServicePoint]) -> MultiVehicleSolution:
-    """ 
+    """
     Valida e repara solução multi-veículo para garantir que seja válida
     Garante:
     1. Todos os pontos estão presentes sem duplicação
     2. Ordem de prioridades é respeitada em cada veículo (EME → VIO → MED → POS → REG)
     3. Cada veículo tem uma rota válida
     """
+    # Remover duplicatas globais (entre veículos) primeiro
+    global_seen = set()
+    for vehicle in solution.vehicles:
+        unique_route = []
+        for point in vehicle.route:
+            if point.id not in global_seen:
+                global_seen.add(point.id)
+                unique_route.append(point)
+        vehicle.route = unique_route
+    
     # Coletar todos os pontos da solução
     all_points_in_solution = solution.get_all_points()
     point_ids_in_solution = {p.id for p in all_points_in_solution}
     expected_point_ids = {p.id for p in all_service_points}
     
-    # Verificar se há pontos faltando ou duplicados
-    missing_points = expected_point_ids - point_ids_in_solution
+    # Verificar se há pontos faltando
+    missing_ids = expected_point_ids - point_ids_in_solution
     
-    # Se há pontos faltando, redistribuir todos os pontos
-    if missing_points:
+    # Se há pontos faltando, redistribuir
+    if missing_ids:
         # Criar mapeamento de ID para ponto
         id_to_point = {p.id: p for p in all_service_points}
+        missing_points = [id_to_point[pid] for pid in missing_ids]
         
-        # Redistribuir pontos igualmente entre veículos
-        num_vehicles = len(solution.vehicles)
-        points_per_vehicle = len(all_service_points) // num_vehicles
-        
-        # Embaralhar pontos para redistribuição aleatória
-        shuffled_points = list(all_service_points)
-        random.shuffle(shuffled_points)
-        
-        # Criar novas rotas
-        for i, vehicle in enumerate(solution.vehicles):
-            start_idx = i * points_per_vehicle
-            end_idx = start_idx + points_per_vehicle if i < num_vehicles - 1 else len(shuffled_points)
-            vehicle.route = shuffled_points[start_idx:end_idx]
+        # Distribuir pontos faltantes ao veículo com menos pontos
+        for mp in missing_points:
+            smallest_vehicle = min(solution.vehicles, key=lambda v: len(v.route))
+            smallest_vehicle.route.append(mp)
     
     # Reorganizar cada veículo para respeitar prioridades
     for vehicle in solution.vehicles:
-        # Remover duplicatas mantendo ordem
+        # Remover duplicatas locais mantendo ordem
         seen = set()
         unique_route = []
         for point in vehicle.route:

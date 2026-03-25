@@ -121,9 +121,13 @@ class RouteAssistantBot:
         if "vehicles" in self.route_data:
             # Formato novo (com integração)
             vehicles = self.route_data["vehicles"]
+            # Melhorar validação e logging
             if vehicle_id <= len(vehicles):
                 return vehicles[vehicle_id - 1]
-            return vehicles[0] if vehicles else None
+            elif vehicles:
+                print(f"⚠️ vehicle_id={vehicle_id} inválido, usando veículo 1")
+                return vehicles[0]
+            return None
         else:
             # Formato antigo (dados de exemplo)
             return self.route_data.get(f"vehicle_{vehicle_id}", self.route_data.get("vehicle_1"))
@@ -626,6 +630,9 @@ class RouteAssistantBot:
                     f"📅 Próximo dia: A primeira entrega amanhã será às {next_time}\n\n"
                     f"💡 Use /proxima quando estiver pronto para continuar amanhã"
                 )
+                # Adicionar return para enviar mensagem com parse_mode correto
+                await update.message.reply_text(completed_text, parse_mode='Markdown', reply_markup=self._get_keyboard(context))
+                return
             else:
                 # Mesmo dia, continuar normalmente
                 priority_emoji = {
