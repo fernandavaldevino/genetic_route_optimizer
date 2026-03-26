@@ -67,5 +67,9 @@ route*.json
 key.json
 
 
+# Deployment scripts with sensitive data
+setup_vm_streamlit.sh
+deploy_gcp.sh
+
 # API
 api.pid

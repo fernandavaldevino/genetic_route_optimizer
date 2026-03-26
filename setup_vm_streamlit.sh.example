@@ -1,0 +1,169 @@
+#!/bin/bash
+# Script EXEMPLO para criar VM e deployar Streamlit no Google Compute Engine
+# 
+# INSTRUÇÕES:
+# 1. Copie este arquivo para setup_vm_streamlit.sh
+# 2. Configure suas variáveis de ambiente ou arquivo .env
+# 3. Execute: ./setup_vm_streamlit.sh
+
+set -e
+
+PROJECT_ID="seu-project-id-aqui"
+ZONE="us-central1-a"
+VM_NAME="streamlit-app"
+MACHINE_TYPE="e2-medium"  # 2 vCPUs, 4GB RAM
+
+# Carregar variáveis do .env local (se existir)
+if [ -f ".env" ]; then
+    echo "Carregando variáveis do arquivo .env local..."
+    export $(grep -v '^#' .env | xargs)
+else
+    echo "⚠️  Arquivo .env não encontrado. As chaves precisarão ser configuradas manualmente na VM."
+fi
+
+# Detectar usuário do GitHub automaticamente (ou usar variável de ambiente)
+GITHUB_USER="${GITHUB_USER:-seu-usuario-github}"
+
+echo "=========================================="
+echo "Criando VM para Streamlit"
+echo "GitHub User: $GITHUB_USER"
+echo "=========================================="
+
+# Criar VM
+gcloud compute instances create $VM_NAME \
+    --project=$PROJECT_ID \
+    --zone=$ZONE \
+    --machine-type=$MACHINE_TYPE \
+    --network-interface=network-tier=PREMIUM,stack-type=IPV4_ONLY,subnet=default \
+    --maintenance-policy=MIGRATE \
+    --provisioning-model=STANDARD \
+    --scopes=https://www.googleapis.com/auth/cloud-platform \
+    --tags=http-server,https-server,streamlit \
+    --create-disk=auto-delete=yes,boot=yes,device-name=$VM_NAME,image-family=debian-12,image-project=debian-cloud,mode=rw,size=20,type=pd-balanced \
+    --no-shielded-secure-boot \
+    --shielded-vtpm \
+    --shielded-integrity-monitoring \
+    --labels=app=streamlit \
+    --reservation-affinity=any
+
+echo ""
+echo "=========================================="
+echo "Criando regra de firewall para porta 8501"
+echo "=========================================="
+
+# Criar regra de firewall para Streamlit (porta 8501)
+gcloud compute firewall-rules create allow-streamlit \
+    --project=$PROJECT_ID \
+    --direction=INGRESS \
+    --priority=1000 \
+    --network=default \
+    --action=ALLOW \
+    --rules=tcp:8501 \
+    --source-ranges=0.0.0.0/0 \
+    --target-tags=streamlit || echo "Regra de firewall já existe"
+
+echo ""
+echo "=========================================="
+echo "Aguardando VM iniciar..."
+echo "=========================================="
+sleep 30
+
+echo ""
+echo "=========================================="
+echo "Instalando dependências na VM..."
+echo "=========================================="
+
+# Script de instalação para executar na VM
+gcloud compute ssh $VM_NAME --zone=$ZONE --project=$PROJECT_ID --tunnel-through-iap --ssh-flag="-o StrictHostKeyChecking=no" --command="
+set -e
+
+CURRENT_USER=\$(whoami)
+echo \"=== Usuário atual: \$CURRENT_USER ===\"
+
+echo '=== Atualizando sistema ==='
+sudo apt-get update
+sudo apt-get install -y python3-pip python3-venv git
+
+echo '=== Clonando repositório ==='
+cd ~
+if [ -d 'genetic_route_optimizer' ]; then
+    cd genetic_route_optimizer
+    git pull
+else
+    git clone https://github.com/$GITHUB_USER/genetic_route_optimizer.git
+    cd genetic_route_optimizer
+fi
+
+echo '=== Criando ambiente virtual ==='
+python3 -m venv venv
+source venv/bin/activate
+
+echo '=== Instalando dependências Python ==='
+pip install --upgrade pip
+pip install -r requirements.txt
+
+echo '=== Criando arquivo .env com chaves do ambiente local ==='
+cat > .env << 'EOF'
+# Configurações da aplicação
+OPENAI_API_KEY=${OPENAI_API_KEY:-sua_chave_openai_aqui}
+TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-seu_token_telegram_aqui}
+TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-seu_bot_username_aqui}
+EOF
+
+echo '=== Criando serviço systemd para Streamlit ==='
+sudo tee /etc/systemd/system/streamlit.service > /dev/null << SYSTEMD_EOF
+[Unit]
+Description=Streamlit App
+After=network.target
+
+[Service]
+Type=simple
+User=\$CURRENT_USER
+WorkingDirectory=/home/\$CURRENT_USER/genetic_route_optimizer
+Environment=\"PATH=/home/\$CURRENT_USER/genetic_route_optimizer/venv/bin\"
+ExecStart=/home/\$CURRENT_USER/genetic_route_optimizer/venv/bin/streamlit run streamlit/app_streamlit.py --server.port=8501 --server.address=0.0.0.0
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+SYSTEMD_EOF
+
+echo '=== Habilitando e iniciando serviço ==='
+sudo systemctl daemon-reload
+sudo systemctl enable streamlit
+sudo systemctl start streamlit
+
+echo '=== Verificando status ==='
+sudo systemctl status streamlit --no-pager
+"
+
+echo ""
+echo "=========================================="
+echo "Obtendo IP externo da VM..."
+echo "=========================================="
+
+EXTERNAL_IP=$(gcloud compute instances describe $VM_NAME \
+    --zone=$ZONE \
+    --project=$PROJECT_ID \
+    --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+
+echo ""
+echo "=========================================="
+echo "✅ DEPLOY CONCLUÍDO!"
+echo "=========================================="
+echo ""
+echo "URL do Streamlit: http://$EXTERNAL_IP:8501"
+echo ""
+echo "Comandos úteis:"
+echo "  - Ver logs: gcloud compute ssh $VM_NAME --zone=$ZONE --project=$PROJECT_ID --command='sudo journalctl -u streamlit -f'"
+echo "  - Reiniciar: gcloud compute ssh $VM_NAME --zone=$ZONE --project=$PROJECT_ID --command='sudo systemctl restart streamlit'"
+echo "  - Parar VM: gcloud compute instances stop $VM_NAME --zone=$ZONE --project=$PROJECT_ID"
+echo "  - Iniciar VM: gcloud compute instances start $VM_NAME --zone=$ZONE --project=$PROJECT_ID"
+echo "  - Deletar VM: gcloud compute instances delete $VM_NAME --zone=$ZONE --project=$PROJECT_ID"
+echo ""
+echo "⚠️  IMPORTANTE: Edite o arquivo .env na VM com suas chaves:"
+echo "  gcloud compute ssh $VM_NAME --zone=$ZONE --project=$PROJECT_ID"
+echo "  cd genetic_route_optimizer"
+echo "  nano .env"
+echo ""
