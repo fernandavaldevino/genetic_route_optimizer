@@ -144,15 +144,9 @@ PRIORITY_NAMES = {
 # ============================================================================
 
 # Horários em minutos desde 00:00
-WORK_START_TIME = 480            # 8h (8 * 60)
-WORK_END_TIME = 1080             # 18h (18 * 60)
+WORK_START_TIME = 480            # 8:00h (8 * 60) — para 1 e 2 veículos
+WORK_END_TIME = 1080             # 18:00h (18 * 60) — para 1 e 2 veículos
 MINUTES_PER_DAY = 1440           # 24h em minutos
-
-# Horários de trabalho por modo
-WORK_START_TIME_1V = 480         # 8:00h — modo 1 veículo
-WORK_END_TIME_1V = 1080          # 18:00h — modo 1 veículo
-WORK_START_TIME_2V = 450         # 7:30h — modo 2 veículos (início mais cedo para cumprir deadline 12h)
-WORK_END_TIME_2V = 1080          # 18:00h — modo 2 veículos
 
 # Janelas de tempo para tipos específicos (1 veículo)
 VIOLENCE_TIME_WINDOW = (480, 720)      # 8h às 12h (4h)

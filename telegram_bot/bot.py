@@ -800,8 +800,6 @@ class RouteAssistantBot:
             completed = current_index
             remaining = total_stops - current_index
             
-            # NÃO setar a flag aqui — só o callback _confirm_cancel_callback deve setá-la
-            
             # Criar teclado de confirmação
             confirmation_keyboard = InlineKeyboardMarkup([
                 [

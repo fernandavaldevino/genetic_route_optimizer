@@ -54,7 +54,7 @@ def calculate_vehicle_route_time_and_distance(route: List[ServicePoint],
     
     Nota: Modo 2 veículos usa work_start=450 (7:30h) por padrão.
     Os valores padrão são definidos centralmente em src/constants.py
-    (WORK_START_TIME_2V, WORK_END_TIME_2V).
+    (WORK_START_TIME, WORK_END_TIME).
     """
     if not route:
         return 0.0, 0.0, []

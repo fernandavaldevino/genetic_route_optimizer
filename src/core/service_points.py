@@ -140,13 +140,13 @@ def calculate_distance(point1: Tuple[float, float], point2: Tuple[float, float])
 
 
 def calculate_travel_time(point1: Tuple[float, float], point2: Tuple[float, float],
-                          speed: float = 60.0, scale_factor: float = 0.1) -> float:
+                          speed: float = 80.0, scale_factor: float = 0.1) -> float:
     """
     Calcula tempo de viagem entre dois pontos
     
     Args:
         point1, point2: Coordenadas dos pontos
-        speed: Velocidade média em km/h (default: 60 km/h)
+        speed: Velocidade média em km/h (default: 80 km/h)
         scale_factor: Fator de escala para converter coordenadas em km (default: 0.1 = 1 unidade = 100m)
     
     Returns:
