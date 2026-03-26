@@ -173,24 +173,29 @@ Documentação completa: [`README_LLM.md`](docs/README_LLM.md)
 Documentação completa: [`README_TESTS.md`](docs/README_TESTS.md)
 
 - ✅ **Cobertura de Testes Abrangente**:
-  - **265 testes automatizados**
+  - **264 testes automatizados**
   - **Cobertura geral: ~55%**
   - **Cobertura de módulos críticos: ~75%**
 
 - ✅ **Testes por Módulo**:
-  - **Core - Algoritmo Genético**: 95%+ cobertura
-  - **Core - Service Points**: 95%+ cobertura
-  - **API REST**: 90%+ cobertura
-  - **Cloud/Deployment**: 85%+ cobertura
-  - **LLM Integration**: 70%+ cobertura
-  - **Telegram Bot**: 60%+ cobertura
+  - **Core - Algoritmo Genético**: 95%+ cobertura (32 testes)
+  - **Core - Service Points**: 95%+ cobertura (20 testes)
+  - **API REST**: 90%+ cobertura (57 testes)
+  - **Cloud/Deployment**: 85%+ cobertura (33 testes)
+  - **Telegram Bot**: 75%+ cobertura (32 testes)
+  - **LLM Integration**: 70%+ cobertura (55 testes)
+  - **Integração E2E**: 80%+ cobertura (16 testes)
+  - **Streamlit**: 30%+ cobertura (17 testes)
+  - **Elitismo Dinâmico**: 100% cobertura (2 testes)
 
 - ✅ **Tipos de Testes**:
-  - Testes unitários (64 testes)
-  - Testes de integração (18 testes)
-  - Testes de API avançados (21 testes)
-  - Testes de deployment (38 testes)
-  - Testes de LLM (múltiplos provedores)
+  - Testes unitários (54 testes)
+  - Testes de integração (16 testes)
+  - Testes de API (57 testes: básicos, avançados e integração)
+  - Testes de deployment (33 testes)
+  - Testes de Telegram Bot (32 testes)
+  - Testes de LLM (55 testes: múltiplos provedores)
+  - Testes de interface (17 testes)
 
 - ✅ **Ferramentas de Teste**:
   - pytest com fixtures compartilhadas
@@ -556,28 +561,71 @@ class OptimizationRequest(BaseModel):
 
 ### Comandos Disponíveis
 
+**Comandos de Rota:**
 - `/start` - Iniciar o bot e exibir mensagem de boas-vindas
+- `/iniciar_rota` - Iniciar rota do dia
+- `/proxima` - Ver próxima parada
+- `/concluido` - Marcar parada como concluída
+- `/concluir_rota` - Finalizar rota do dia
+- `/encerrar_rota` - Encerrar rota sem concluir todas as paradas
+- `/recarregar` - Recarregar rota mais recente
+
+**Comandos de Consulta:**
 - `/help` - Exibir ajuda e lista de comandos disponíveis
-- `/optimize` - Iniciar processo de otimização de rotas
-- `/status` - Verificar status do sistema e serviços
-- `/routes` - Listar rotas salvas
-- `/info` - Informações sobre o algoritmo genético
+- `/rota` - Ver rota completa (todas as paradas)
+- `/paradas` - Número total de paradas
+- `/instrucoes` - Instruções gerais de transporte
+
+**Tipos de Atendimento:**
+- 🔴 **EME** - Emergência Obstétrica (Prioridade 1)
+- 🟠 **VIO** - Violência Doméstica (Prioridade 2)
+- 🔵 **MED** - Medicamento Hormonal (Prioridade 3)
+- 🟣 **POS** - Pós-Parto (Prioridade 4)
+- ⚫ **REG** - Regular (Prioridade 5)
+
+### Funcionalidades
+
+- ✅ **Suporte Multi-Veículos**: Selecione veículo 1 ou 2 com `/start` ou `/start veiculo2`
+- ✅ **Teclados Interativos**: Botões inline para navegação rápida
+- ✅ **Agrupamento por Dias**: Rotas multi-dia são agrupadas automaticamente
+- ✅ **Integração com Otimização**: Carrega automaticamente rotas otimizadas de `data/routes/`
+- ✅ **Confirmação de Encerramento**: Proteção contra encerramento acidental da rota
 
 ### Exemplo de Uso
 
 ```
-Usuário: /optimize
-Bot: Envie os pontos de serviço no formato:
-     x1,y1,demanda1,prioridade1
-     x2,y2,demanda2,prioridade2
+Usuário: /start
+Bot: 👋 Bem-vindo ao Assistente de Rotas!
+     🟢 Veículo 1
+     
+     🤖 Sou seu assistente virtual para informações sobre rotas...
+     [Botões: Ver Rota | Iniciar Rota | Instruções | Ajuda]
 
-Usuário: 10,20,5,2
-         30,40,3,1
-         
-Bot: ✅ Rota otimizada!
-     Distância total: 45.23 km
-     Tempo estimado: 1h 23min
-     [Mapa da rota]
+Usuário: [Clica em "Iniciar Rota"]
+Bot: 🚀 ROTA INICIADA!
+     
+     📊 Resumo do Dia:
+     • Total de paradas: 12
+     • Distância total: 85.5 km
+     • Tempo estimado: 6h 30min
+     ...
+
+Usuário: /proxima
+Bot: ➡️ PRÓXIMA PARADA (12 restantes)
+     
+     🔴 Parada 1 - EME
+     🎯 Prioridade 1
+     
+     📍 Endereço: Rua das Flores, 123
+     🕐 Horário: 08:15
+     ⏱️ Duração: 30 min
+     ...
+
+Usuário: /concluido
+Bot: ✅ Atendimento 1 concluído!
+     
+     ➡️ PRÓXIMA PARADA (11 restantes)
+     ...
 ```
 
 ## 🧪 Execução de Testes
@@ -667,44 +715,48 @@ start htmlcov/index.html     # Windows
 ```
 tests/
 ├── conftest.py                    # Fixtures compartilhadas
-├── test_genetic_algorithm.py      # Testes do algoritmo genético (95%+)
-├── test_elitism_verification.py   # Testes de verificação do elitismo dinâmico
-├── test_service_points.py         # Testes de pontos de serviço (95%+)
-├── test_api.py                    # Testes da API REST (90%+)
-├── test_api_advanced.py           # Testes avançados da API
-├── test_api_integration.py        # Testes de integração da API
-├── test_cloud_deployment.py       # Testes de Cloud/Deploy
-├── test_integration.py            # Testes de integração end-to-end
-├── test_restrictions.py           # Testes de restrições
-├── test_telegram_bot.py           # Testes do bot do Telegram
-├── test_streamlit_utils.py        # Testes de utilitários Streamlit
-└── test_llm/                      # Testes de integração LLM
-    ├── test_providers.py          # Testes de provedores (OpenAI, Ollama)
-    ├── test_generators.py         # Testes de geradores
-    ├── test_llm_integration.py    # Testes de integração LLM
-    ├── test_openai_provider.py    # Testes específicos OpenAI
-    └── test_ollama_provider.py    # Testes específicos Ollama
+├── test_service_points.py         # 20 testes - Pontos de serviço (95%+)
+├── test_genetic_algorithm.py      # 32 testes - Algoritmo genético (95%+)
+├── test_elitism_verification.py   # 2 testes - Elitismo dinâmico (100%)
+├── test_streamlit_utils.py        # 17 testes - Utilitários Streamlit (30%+)
+├── test_integration.py            # 8 testes - Integração end-to-end (80%+)
+├── test_restrictions.py           # 8 testes - Restrições e validações (80%+)
+├── test_api.py                    # 24 testes - API REST básica (90%+)
+├── test_api_advanced.py           # 22 testes - API REST avançada (90%+)
+├── test_api_integration.py        # 11 testes - Integração da API (90%+)
+├── test_cloud_deployment.py       # 33 testes - Cloud/Deploy (85%+)
+├── test_telegram_bot.py           # 32 testes - Bot do Telegram (75%+)
+└── test_llm/                      # 55 testes - Integração LLM (70%+)
+    ├── test_providers.py          # 2 testes - Factory e base
+    ├── test_openai_provider.py    # 16 testes - OpenAI
+    ├── test_ollama_provider.py    # 17 testes - Ollama
+    ├── test_generators.py         # 3 testes - Geradores
+    └── test_llm_integration.py    # 17 testes - Integração completa
 ```
+
+**Total: 264 testes em 17 arquivos**
 
 ### Cobertura de Testes por Módulo
 
-| Módulo | Cobertura | Arquivos de Teste | Status |
-|:-------|:---------:|:------------------|:------:|
-| **🧬 Core - Algoritmo Genético** | `95%+` | [`test_genetic_algorithm.py`](tests/test_genetic_algorithm.py) | 🟢 Excelente |
-| **📍 Core - Service Points** | `95%+` | [`test_service_points.py`](tests/test_service_points.py) | 🟢 Excelente |
-| **🚗 Core - Multi-Vehicle** | `0%` | ⚠️ Pendente | 🔴 Crítico |
-| **🌐 API REST** | `90%+` | [`test_api.py`](tests/test_api.py), [`test_api_advanced.py`](tests/test_api_advanced.py) | 🟢 Excelente |
-| **☁️ Cloud/Deployment** | `85%+` | [`test_cloud_deployment.py`](tests/test_cloud_deployment.py) | 🟢 Muito Bom |
-| **💬 Telegram Bot** | `60%+` | [`test_telegram_bot.py`](tests/test_telegram_bot.py) | 🟡 Bom |
-| **🤖 LLM Integration** | `70%+` | [`test_llm/*`](tests/test_llm/) | 🟢 Bom |
-| **🎨 Visualization** | `5%` | ⚠️ Limitado | 🟠 Baixo |
-| **📊 Streamlit** | `20%` | [`test_streamlit_utils.py`](tests/test_streamlit_utils.py) | 🟠 Baixo |
+| Módulo | Cobertura | Testes | Arquivos de Teste | Status |
+|:-------|:---------:|:------:|:------------------|:------:|
+| **🧬 Core - Algoritmo Genético** | `95%+` | 32 | [`test_genetic_algorithm.py`](tests/test_genetic_algorithm.py) | 🟢 Excelente |
+| **📍 Core - Service Points** | `95%+` | 20 | [`test_service_points.py`](tests/test_service_points.py) | 🟢 Excelente |
+| **🚗 Core - Multi-Vehicle** | `0%` | 0 | ⚠️ Pendente | 🔴 Crítico |
+| **🌐 API REST** | `90%+` | 57 | [`test_api.py`](tests/test_api.py), [`test_api_advanced.py`](tests/test_api_advanced.py), [`test_api_integration.py`](tests/test_api_integration.py) | 🟢 Excelente |
+| **☁️ Cloud/Deployment** | `85%+` | 33 | [`test_cloud_deployment.py`](tests/test_cloud_deployment.py) | 🟢 Muito Bom |
+| **💬 Telegram Bot** | `75%+` | 32 | [`test_telegram_bot.py`](tests/test_telegram_bot.py) | 🟢 Muito Bom |
+| **🤖 LLM Integration** | `70%+` | 55 | [`test_llm/*`](tests/test_llm/) (5 arquivos) | 🟢 Bom |
+| **🔗 Integração E2E** | `80%+` | 16 | [`test_integration.py`](tests/test_integration.py), [`test_restrictions.py`](tests/test_restrictions.py) | 🟢 Muito Bom |
+| **🎨 Visualization** | `5%` | 0 | ⚠️ Limitado | 🟠 Baixo |
+| **📊 Streamlit** | `30%+` | 17 | [`test_streamlit_utils.py`](tests/test_streamlit_utils.py) | 🟡 Razoável |
+| **⚡ Elitismo Dinâmico** | `100%` | 2 | [`test_elitism_verification.py`](tests/test_elitism_verification.py) | 🟢 Excelente |
 
 ### Estatísticas de Testes
 
-- **Total de Testes:** 265
+- **Total de Testes:** 264
 - **Total de Arquivos de Teste:** 16
-- **Total de Classes de Teste:** 70+
+- **Total de Classes de Teste:** 73+
 - **Cobertura Geral:** ~55%
 - **Cobertura de Módulos Críticos:** ~75%
 

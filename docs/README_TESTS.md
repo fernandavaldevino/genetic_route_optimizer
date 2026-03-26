@@ -34,7 +34,7 @@
 
 ## Visão Geral
 
-Este diretório contém os **263 testes automatizados** do projeto, organizados de forma modular usando pytest. A cobertura geral é de **~55%**, com módulos críticos atingindo **~75%** de cobertura.
+Este diretório contém os **264 testes automatizados** do projeto, organizados de forma modular usando pytest. A cobertura geral é de **~55%**, com módulos críticos atingindo **~75%** de cobertura.
 
 **📖 Para informações resumidas sobre testes, consulte a seção [Execução de Testes](../README.md#-execução-de-testes) no README principal.**
 
@@ -43,24 +43,27 @@ Este diretório contém os **263 testes automatizados** do projeto, organizados 
 ```
 tests/
 ├── conftest.py                    # Configuração e fixtures compartilhadas
-├── test_service_points.py         # Testes unitários para pontos de serviço
-├── test_genetic_algorithm.py      # Testes para algoritmo genético (unitários + edge cases)
-├── test_elitism_verification.py   # Testes de verificação do elitismo dinâmico (1V e 2V)
-├── test_streamlit_utils.py        # Testes para utilitários do Streamlit
-├── test_integration.py            # Testes de integração end-to-end
-├── test_restrictions.py           # Testes de integração legados
-├── test_api.py                    # Testes da API REST
-├── test_api_advanced.py           # Testes avançados da API
-├── test_api_integration.py        # Testes de integração da API
-├── test_cloud_deployment.py       # Testes de Cloud/Deploy
-├── test_telegram_bot.py           # Testes do bot do Telegram
-└── test_llm/                      # Testes de integração LLM
-    ├── test_providers.py          # Testes de provedores (OpenAI, Ollama)
-    ├── test_generators.py         # Testes de geradores
-    ├── test_llm_integration.py    # Testes de integração LLM
-    ├── test_openai_provider.py    # Testes específicos OpenAI
-    └── test_ollama_provider.py    # Testes específicos Ollama
+├── test_service_points.py         # 20 testes - Pontos de serviço
+├── test_genetic_algorithm.py      # 32 testes - Algoritmo genético
+├── test_elitism_verification.py   # 2 testes - Elitismo dinâmico (1V e 2V)
+├── test_streamlit_utils.py        # 17 testes - Utilitários do Streamlit
+├── test_integration.py            # 8 testes - Integração end-to-end
+├── test_restrictions.py           # 8 testes - Restrições e validações
+├── test_api.py                    # 24 testes - API REST básica
+├── test_api_advanced.py           # 22 testes - API REST avançada
+├── test_api_integration.py        # 11 testes - Integração da API
+├── test_cloud_deployment.py       # 33 testes - Cloud/Deploy
+├── test_telegram_bot.py           # 32 testes - Bot do Telegram
+└── test_llm/                      # 55 testes - Integração LLM
+    ├── test_providers.py          # 2 testes - Factory e base
+    ├── test_openai_provider.py    # 16 testes - OpenAI (básicos + integração)
+    ├── test_ollama_provider.py    # 17 testes - Ollama (básicos + integração)
+    ├── test_generators.py         # 3 testes - Geradores de conteúdo
+    ├── test_llm_integration.py    # 17 testes - Integração completa
+    └── llm_integration_example.py # Exemplo de uso (não é teste)
 ```
+
+**Total: 264 testes em 17 arquivos**
 
 ## 🧪 Módulos de Teste
 
@@ -72,7 +75,7 @@ Arquivo de configuração do pytest com fixtures compartilhadas:
 - `priority_ordered_route`: Rota ordenada por prioridade
 - `priority_reversed_route`: Rota com prioridades invertidas
 
-### 2. `test_service_points.py`
+### 2. `test_service_points.py` (20 testes)
 Testa o módulo [`src/core/service_points.py`](../src/core/service_points.py):
 - **TestServicePointCreation**: Criação de pontos de diferentes tipos
 - **TestPriorityOrdering**: Ordenação por prioridade
@@ -80,7 +83,7 @@ Testa o módulo [`src/core/service_points.py`](../src/core/service_points.py):
 - **TestTemperatureControl**: Controle de temperatura para medicamentos
 - **TestDistanceCalculation**: Cálculo de distâncias euclidianas
 
-### 3. `test_genetic_algorithm.py`
+### 3. `test_genetic_algorithm.py` (32 testes)
 Testa o módulo [`src/core/genetic_algorithm.py`](../src/core/genetic_algorithm.py):
 - **TestFitnessCalculation**: Cálculo de fitness com restrições
 - **TestPopulationGeneration**: Geração de população com viés de prioridade
@@ -88,7 +91,7 @@ Testa o módulo [`src/core/genetic_algorithm.py`](../src/core/genetic_algorithm.
 - **TestGeneticOperators**: Crossover e mutação
 - **TestRouteCalculations**: Cálculos de tempo e distância de rotas
 
-### 3.1. `test_elitism_verification.py`
+### 4. `test_elitism_verification.py` (2 testes)
 Testa a implementação do elitismo dinâmico para 1 e 2 veículos:
 - **test_elitism_1v**: Verifica elitismo dinâmico para 1 veículo
   - Elite size cresce de 1 para 2 indivíduos (50% das gerações)
@@ -98,45 +101,62 @@ Testa a implementação do elitismo dinâmico para 1 e 2 veículos:
   - Validação em diferentes estágios (início, meio, fim)
 - **Execução**: Pode ser executado diretamente com `python tests/test_elitism_verification.py`
 
-### 4. `test_streamlit_utils.py`
+### 5. `test_streamlit_utils.py` (17 testes)
 Testa funções utilitárias do [`streamlit/app_streamlit.py`](../streamlit/app_streamlit.py):
 - **TestTimeFormatting**: Formatação de minutos para HH:MM
 - **TestDayCalculation**: Cálculo de dia a partir de minutos
 - **TestServicePointsCreation**: Criação aleatória de pontos de serviço
 
-### 5. `test_integration.py`
+### 6. `test_integration.py` (8 testes)
 Testes de integração end-to-end:
 - **TestEndToEndOptimization**: Ciclo completo de otimização
 - **TestIntegrationWithConstraints**: Integração com restrições
 - **TestRobustness**: Testes de robustez e estabilidade
 
-### 6. `test_api.py`
+### 7. `test_restrictions.py` (8 testes)
+Testes de restrições e validações:
+- **TestPriorityRestrictions**: Validação de prioridades
+- **TestTimeWindowRestrictions**: Validação de janelas de tempo
+- **TestTemperatureRestrictions**: Validação de controle de temperatura
+
+### 8. `test_api.py` (24 testes)
 Testa a API REST ([`api/main.py`](../api/main.py)):
 - **TestHealthEndpoint**: Health check da API
 - **TestOptimizationEndpoint**: Endpoint de otimização
 - **TestErrorHandling**: Tratamento de erros
 - **TestValidation**: Validação de dados de entrada
 
-### 7. `test_telegram_bot.py`
-Testa o Bot do Telegram ([`telegram_bot/bot.py`](../telegram_bot/bot.py)):
-- **TestBotCommands**: Comandos do bot (/start, /help, /optimize, etc.)
-- **TestBotIntegration**: Integração com sistema de rotas
-- **TestWebhookHandler**: Handler de webhooks
+### 9. `test_api_advanced.py` (22 testes)
+Testes avançados da API REST:
+- **TestAdvancedScenarios**: Cenários complexos
+- **TestEdgeCases**: Casos extremos
+- **TestPerformance**: Testes de performance
 
-### 8. `test_cloud_deployment.py`
+### 10. `test_api_integration.py` (11 testes)
+Testes de integração da API:
+- **TestAPIIntegration**: Integração completa com algoritmo genético
+- **TestMultiVehicleAPI**: Testes com múltiplos veículos
+
+### 11. `test_telegram_bot.py` (32 testes)
+Testa o Bot do Telegram ([`telegram_bot/bot.py`](../telegram_bot/bot.py)):
+- **TestRouteDataIntegration** (15 testes): Integração de dados de rota
+- **TestTelegramBotCommands** (15 testes): Comandos do bot
+- **TestRouteDataValidation** (2 testes): Validação de dados
+
+### 12. `test_cloud_deployment.py` (33 testes)
 Testa configurações de Cloud/Deploy:
 - **TestDockerfile**: Validação do Dockerfile
 - **TestCloudBuild**: Configuração do Cloud Build
 - **TestTerraform**: Validação de arquivos Terraform
 - **TestEnvironmentVariables**: Variáveis de ambiente
 
-### 9. `test_llm/`
+### 13. `test_llm/` (55 testes em 5 arquivos)
 Testes de integração com LLMs:
-- **test_providers.py**: Testes de provedores (OpenAI, Ollama)
-- **test_generators.py**: Testes de geradores de conteúdo
-- **test_llm_integration.py**: Testes de integração completa
-- **test_openai_provider.py**: Testes específicos OpenAI (básicos + integração)
-- **test_ollama_provider.py**: Testes específicos Ollama (básicos + integração)
+- **test_providers.py** (2 testes): Testes de factory e base
+- **test_openai_provider.py** (16 testes): Testes OpenAI (básicos + integração)
+- **test_ollama_provider.py** (17 testes): Testes Ollama (básicos + integração)
+- **test_generators.py** (3 testes): Testes de geradores de conteúdo
+- **test_llm_integration.py** (17 testes): Testes de integração completa
 
 ## 🚀 Como Executar os Testes
 
@@ -251,66 +271,82 @@ pytest tests/ -s
 
 ### Estatísticas Gerais
 
-- **Total de Testes:** 265
+- **Total de Testes:** 264
 - **Total de Arquivos de Teste:** 16
-- **Total de Classes de Teste:** 70+
+- **Total de Classes de Teste:** 73+
 - **Cobertura Geral:** ~55%
 - **Cobertura de Módulos Críticos:** ~75%
 
 ### Cobertura por Módulo
 
-| Módulo | Cobertura | Arquivos de Teste | Status |
-|:-------|:---------:|:------------------|:------:|
-| **🧬 Core - Algoritmo Genético** | `95%+` | [`test_genetic_algorithm.py`](../tests/test_genetic_algorithm.py) | 🟢 Excelente |
-| **📍 Core - Service Points** | `95%+` | [`test_service_points.py`](../tests/test_service_points.py) | 🟢 Excelente |
-| **🚗 Core - Multi-Vehicle** | `0%` | ⚠️ Pendente | 🔴 Crítico |
-| **🌐 API REST** | `90%+` | [`test_api.py`](../tests/test_api.py), [`test_api_advanced.py`](../tests/test_api_advanced.py) | 🟢 Excelente |
-| **☁️ Cloud/Deployment** | `85%+` | [`test_cloud_deployment.py`](../tests/test_cloud_deployment.py) | 🟢 Muito Bom |
-| **💬 Telegram Bot** | `60%+` | [`test_telegram_bot.py`](../tests/test_telegram_bot.py) | 🟡 Bom |
-| **🤖 LLM Integration** | `70%+` | [`test_llm/*`](../tests/test_llm/) | 🟢 Bom |
-| **🎨 Visualization** | `5%` | ⚠️ Limitado | 🟠 Baixo |
-| **📊 Streamlit** | `20%` | [`test_streamlit_utils.py`](../tests/test_streamlit_utils.py) | 🟠 Baixo |
+| Módulo | Cobertura | Testes | Arquivos de Teste | Status |
+|:-------|:---------:|:------:|:------------------|:------:|
+| **🧬 Core - Algoritmo Genético** | `95%+` | 32 | [`test_genetic_algorithm.py`](../tests/test_genetic_algorithm.py) | 🟢 Excelente |
+| **📍 Core - Service Points** | `95%+` | 20 | [`test_service_points.py`](../tests/test_service_points.py) | 🟢 Excelente |
+| **🚗 Core - Multi-Vehicle** | `0%` | 0 | ⚠️ Pendente | 🔴 Crítico |
+| **🌐 API REST** | `90%+` | 57 | [`test_api.py`](../tests/test_api.py), [`test_api_advanced.py`](../tests/test_api_advanced.py), [`test_api_integration.py`](../tests/test_api_integration.py) | 🟢 Excelente |
+| **☁️ Cloud/Deployment** | `85%+` | 33 | [`test_cloud_deployment.py`](../tests/test_cloud_deployment.py) | 🟢 Muito Bom |
+| **💬 Telegram Bot** | `75%+` | 32 | [`test_telegram_bot.py`](../tests/test_telegram_bot.py) | 🟢 Muito Bom |
+| **🤖 LLM Integration** | `70%+` | 55 | [`test_llm/*`](../tests/test_llm/) (5 arquivos) | 🟢 Bom |
+| **🔗 Integração E2E** | `80%+` | 16 | [`test_integration.py`](../tests/test_integration.py), [`test_restrictions.py`](../tests/test_restrictions.py) | 🟢 Muito Bom |
+| **🎨 Visualization** | `5%` | 0 | ⚠️ Limitado | 🟠 Baixo |
+| **📊 Streamlit** | `30%+` | 17 | [`test_streamlit_utils.py`](../tests/test_streamlit_utils.py) | 🟡 Razoável |
+| **⚡ Elitismo Dinâmico** | `100%` | 2 | [`test_elitism_verification.py`](../tests/test_elitism_verification.py) | 🟢 Excelente |
 
 ### Testes por Categoria
 
-#### Testes Unitários (66 testes)
-- ✅ **Pontos de Serviço** (25 testes): Criação, validação, ordenação por prioridade
-- ✅ **Janelas de Tempo** (4 testes): Validação e penalidades
-- ✅ **Controle de Temperatura** (3 testes): Validação de rotas com medicamentos
-- ✅ **Cálculo de Distância** (5 testes): Distâncias euclidianas
-- ✅ **Algoritmo Genético** (27 testes):
-  - Cálculo de fitness com restrições (8 testes + edge cases)
-  - Geração de população com viés (4 testes + edge cases)
-  - Operadores genéticos: crossover e mutação (10 testes + edge cases)
-  - Cálculos de tempo e distância (5 testes + edge cases)
+#### Testes Unitários (54 testes)
+- ✅ **Pontos de Serviço** (20 testes): Criação, validação, ordenação por prioridade
+- ✅ **Algoritmo Genético** (32 testes):
+  - Cálculo de fitness com restrições
+  - Geração de população com viés de prioridade
+  - Operadores genéticos: crossover e mutação
+  - Cálculos de tempo e distância de rotas
+  - Edge cases e validações
 - ✅ **Elitismo Dinâmico** (2 testes):
-  - Verificação de elitismo para 1 veículo (1 teste)
-  - Verificação de elitismo para 2 veículos (1 teste)
+  - Verificação de elitismo para 1 veículo
+  - Verificação de elitismo para 2 veículos
 
-#### Testes de Interface (13 testes)
-- ✅ **Streamlit Utils**: Formatação de tempo, cálculo de dias, criação de pontos
+#### Testes de Interface (17 testes)
+- ✅ **Streamlit Utils** (17 testes): Formatação de tempo, cálculo de dias, criação de pontos
 
-#### Testes de Integração (18 testes)
-- ✅ **End-to-End** (2 testes): Ciclo completo de otimização, evolução multi-geracional
-- ✅ **Restrições** (3 testes): Prioridade, temperatura, janelas de tempo
-- ✅ **Robustez** (3 testes): População grande, muitas gerações, distâncias extremas
-- ✅ **Legados** (10 testes): Testes de integração do sistema original
+#### Testes de Integração (16 testes)
+- ✅ **End-to-End** (8 testes): Ciclo completo de otimização, evolução multi-geracional
+- ✅ **Restrições** (8 testes): Prioridade, temperatura, janelas de tempo, robustez
 
-#### Testes de API (60+ testes)
-- ✅ **API Básica** (20+ testes): Endpoints, validação, health checks
-- ✅ **API Avançada** (21 testes): Casos complexos, edge cases
-- ✅ **API Integração** (19+ testes): Integração com algoritmo genético
+#### Testes de API (57 testes)
+- ✅ **API Básica** (24 testes): Endpoints, validação, health checks
+- ✅ **API Avançada** (22 testes): Casos complexos, edge cases
+- ✅ **API Integração** (11 testes): Integração com algoritmo genético
 
-#### Testes de Cloud/Deploy (38 testes)
+#### Testes de Cloud/Deploy (33 testes)
 - ✅ **Dockerfile**: Validação de configuração
 - ✅ **Cloud Build**: Configuração de CI/CD
 - ✅ **Terraform**: Infraestrutura como código
 - ✅ **Variáveis de Ambiente**: Configurações
 
-#### Testes de LLM (70+ testes)
-- ✅ **Provedores**: OpenAI e Ollama
-- ✅ **Geradores**: Manual, Roteiro, Q&A
-- ✅ **Integração**: Testes end-to-end com LLMs
+#### Testes de Telegram Bot (32 testes)
+- ✅ **RouteDataIntegration** (15 testes):
+  - Salvamento e carregamento de rotas
+  - Conversão de resultados de otimização
+  - Formatação de dados para 1 e 2 veículos
+  - Validação de estrutura de dados
+- ✅ **Comandos do Bot** (15 testes):
+  - `/start`, `/help`, `/rota`, `/paradas`
+  - `/iniciar_rota`, `/proxima`, `/concluido`
+  - `/concluir_rota`, `/recarregar`
+  - Seleção de veículo (1 ou 2)
+  - Teclados interativos (inicial e ativo)
+- ✅ **Validação de Dados** (2 testes):
+  - Estrutura de dados de rota
+  - Mapeamento de tipos de prioridade
+
+#### Testes de LLM (55 testes)
+- ✅ **Provedores Base** (2 testes): Testes de factory e base
+- ✅ **OpenAI Provider** (16 testes): Testes básicos e de integração
+- ✅ **Ollama Provider** (17 testes): Testes básicos e de integração
+- ✅ **Geradores** (3 testes): Manual, Roteiro, Q&A
+- ✅ **Integração LLM** (17 testes): Testes end-to-end com LLMs
 
 ## 🔧 Configuração do pytest
 
