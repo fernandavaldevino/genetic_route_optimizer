@@ -1,5 +1,5 @@
 # Dependências do Sistema de Otimização de Rotas
-# Requer Python 3.12 ou superior
+# Requer Python 3.11 ou superior
 
 # Visualização
 pygame>=2.5.0

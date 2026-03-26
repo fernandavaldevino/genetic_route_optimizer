@@ -5,6 +5,7 @@ Versão otimizada para deploy no GCP (sem polling)
 
 import os
 import sys
+import asyncio
 from pathlib import Path
 from typing import Dict, Optional
 from dotenv import load_dotenv
@@ -55,23 +56,23 @@ class WebhookRouteAssistant:
         # Importar e configurar handlers do bot original
         from telegram_bot.bot import RouteAssistantBot
         
-        # Criar instância temporária apenas para copiar os handlers
-        temp_bot = RouteAssistantBot(self.token, use_real_data=True)
+        # Manter referência persistente para evitar garbage collection
+        self._bot_instance = RouteAssistantBot(self.token, use_real_data=True)
         
         # Copiar todos os handlers configurados
-        self.app.add_handler(CommandHandler("start", temp_bot.start_command))
-        self.app.add_handler(CommandHandler("help", temp_bot.help_command))
-        self.app.add_handler(CommandHandler("rota", temp_bot.route_command))
-        self.app.add_handler(CommandHandler("paradas", temp_bot.stops_command))
-        self.app.add_handler(CommandHandler("proxima", temp_bot.next_stop_command))
-        self.app.add_handler(CommandHandler("instrucoes", temp_bot.instructions_command))
-        self.app.add_handler(CommandHandler("iniciar_rota", temp_bot.start_route_command))
-        self.app.add_handler(CommandHandler("concluido", temp_bot.complete_stop_command))
-        self.app.add_handler(CommandHandler("concluir_rota", temp_bot.finish_route_command))
-        self.app.add_handler(CommandHandler("encerrar_rota", temp_bot.cancel_route_command))
-        self.app.add_handler(CommandHandler("recarregar", temp_bot.reload_command))
-        self.app.add_handler(CallbackQueryHandler(temp_bot.button_callback))
-        self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, temp_bot.handle_message))
+        self.app.add_handler(CommandHandler("start", self._bot_instance.start_command))
+        self.app.add_handler(CommandHandler("help", self._bot_instance.help_command))
+        self.app.add_handler(CommandHandler("rota", self._bot_instance.route_command))
+        self.app.add_handler(CommandHandler("paradas", self._bot_instance.stops_command))
+        self.app.add_handler(CommandHandler("proxima", self._bot_instance.next_stop_command))
+        self.app.add_handler(CommandHandler("instrucoes", self._bot_instance.instructions_command))
+        self.app.add_handler(CommandHandler("iniciar_rota", self._bot_instance.start_route_command))
+        self.app.add_handler(CommandHandler("concluido", self._bot_instance.complete_stop_command))
+        self.app.add_handler(CommandHandler("concluir_rota", self._bot_instance.finish_route_command))
+        self.app.add_handler(CommandHandler("encerrar_rota", self._bot_instance.cancel_route_command))
+        self.app.add_handler(CommandHandler("recarregar", self._bot_instance.reload_command))
+        self.app.add_handler(CallbackQueryHandler(self._bot_instance.button_callback))
+        self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._bot_instance.handle_message))
         
         # Inicializar a aplicação
         await self.app.initialize()
@@ -102,13 +103,21 @@ class WebhookRouteAssistant:
 
 # Instância global do webhook handler (singleton)
 _webhook_handler: Optional[WebhookRouteAssistant] = None
+_webhook_lock = asyncio.Lock()
 
 
 async def get_webhook_handler() -> WebhookRouteAssistant:
-    """ Obtém ou cria a instância global do webhook handler """
+    """ Obtém ou cria a instância global do webhook handler (thread-safe) """
     global _webhook_handler
     
-    if _webhook_handler is None:
+    if _webhook_handler is not None:
+        return _webhook_handler
+
+    async with _webhook_lock:
+        # Double-check após adquirir o lock
+        if _webhook_handler is not None:
+            return _webhook_handler
+
         token = os.getenv("TELEGRAM_BOT_TOKEN")
         if not token:
             raise ValueError("TELEGRAM_BOT_TOKEN não configurado no .env")

@@ -36,7 +36,7 @@ class ServicePointInput(BaseModel):
 
 class OptimizationRequest(BaseModel):
     """ Requisição para otimização de rota """
-    service_points: List[ServicePointInput] = Field(..., description="Lista de pontos de serviço")
+    service_points: List[ServicePointInput] = Field(..., min_length=1, description="Lista de pontos de serviço")
     num_vehicles: int = Field(1, ge=1, le=2, description="Número de veículos (1 ou 2)")
     population_size: int = Field(100, ge=50, le=500, description="Tamanho da população do algoritmo genético")
     generations: int = Field(200, ge=100, le=1000, description="Número de gerações")
