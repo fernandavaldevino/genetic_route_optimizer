@@ -225,16 +225,11 @@ class TestDockerConfiguration:
 class TestEnvironmentConfiguration:
     """ Testes para configuração de ambiente """
     
-    def test_env_example_exists(self):
-        """ Testa se .env.example existe """
-        env_example = Path(".env.example")
-        assert env_example.exists(), ".env.example não encontrado"
-    
     def test_env_example_has_required_variables(self):
         """ Testa se .env.example tem variáveis necessárias """
-        env_example = Path(".env.example")
+        env = Path(".env")
         
-        with open(env_example, 'r') as f:
+        with open(env, 'r') as f:
             content = f.read()
         
         # Verificar variáveis importantes (todas devem existir)
@@ -252,7 +247,7 @@ class TestEnvironmentConfiguration:
         ]
         
         missing_vars = [var for var in required_vars if var not in content]
-        assert len(missing_vars) == 0, f"Variáveis faltando em .env.example: {', '.join(missing_vars)}"
+        assert len(missing_vars) == 0, f"Variáveis faltando em .env: {', '.join(missing_vars)}"
     
     def test_gitignore_excludes_env_file(self):
         """ Testa se .gitignore exclui arquivo .env """

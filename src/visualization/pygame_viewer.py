@@ -609,7 +609,7 @@ def draw_completion_screen(screen, generation, best_fitness, best_route, arrival
     y_pos += 70
     
     # Informações gerais
-    # No modo infinito, generation contém o número real de gerações executadas
+    # Exibir generation para mostrar o número correto de gerações executadas
     info_texts = [
         (f"Gerações: {generation}", BLACK),
         (f"Fitness: {best_fitness:.2f}", BLACK),
@@ -975,7 +975,7 @@ def main():
     population = generate_priority_aware_population(service_points, POPULATION_SIZE)
 
     best_fitness_history = []
-    generation = 0
+    generation = 0  # Começa em 0, será incrementado para 1 no início do primeiro loop
     optimization_complete = False
     last_improvement_generation = 0
     generations_without_improvement = 0   # contador de estagnação
@@ -1002,28 +1002,60 @@ def main():
                     start_time = pygame.time.get_ticks() / 1000.0
         
         # Verificar se atingiu o critério de parada
-        # Modo normal: generation > MAX_GENERATIONS
+        # Modo normal: generation >= MAX_GENERATIONS
         # Modo infinito (MAX_GENERATIONS == -1): 5000 gerações sem melhoria
         stop_condition = False
         stop_message = ""
         
-        if MAX_GENERATIONS == -1:
-            # Modo infinito: parar após 5000 gerações sem melhoria
-            stop_condition = (generation - last_improvement_generation) >= 5000
+        if not optimization_complete:
+            if MAX_GENERATIONS == -1:
+                # Modo infinito: parar após 5000 gerações sem melhoria
+                stop_condition = (generation - last_improvement_generation) >= 5000
+                if stop_condition:
+                    stop_message = f"5000 gerações sem melhoria (última melhoria na geração {last_improvement_generation})"
+            else:
+                # Modo normal: parar após MAX_GENERATIONS
+                stop_condition = generation >= MAX_GENERATIONS
+                if stop_condition:
+                    stop_message = f"{MAX_GENERATIONS} gerações"
+            
             if stop_condition:
-                stop_message = f"5000 gerações sem melhoria (última melhoria na geração {last_improvement_generation})"
-        else:
-            # Modo normal: parar após MAX_GENERATIONS
-            stop_condition = generation > MAX_GENERATIONS
-            if stop_condition:
-                stop_message = f"{MAX_GENERATIONS} gerações"
-        
-        if stop_condition and not optimization_complete:
-            optimization_complete = True
-            print(f"\n{'='*60}")
-            print(f"OTIMIZAÇÃO CONCLUÍDA: {stop_message}")
-            print(f"Fitness final: {best_fitness:.2f}")
-            print(f"{'='*60}\n")
+                optimization_complete = True
+                print(f"\n{'='*60}")
+                print(f"OTIMIZAÇÃO CONCLUÍDA: {stop_message}")
+                print(f"Fitness final: {best_fitness:.2f}")
+                print(f"{'='*60}\n")
+            
+            # Salvar rota para o bot do Telegram
+            try:
+                from telegram_bot.route_integration import RouteDataIntegration
+                from src.core.genetic_algorithm import calculate_route_time_and_distance
+                
+                integration = RouteDataIntegration()
+                
+                # Calcular distância total
+                total_distance, total_time, _ = calculate_route_time_and_distance(best_route, speed=VEHICLE_SPEED)
+                distance_km = total_distance * 0.1
+                
+                # Converter para formato do bot (sem depósito na lista de IDs)
+                best_route_ids = [p.id for p in best_route if p.id != 0]
+                
+                # Converter resultado para formato do bot
+                route_data = integration.convert_from_optimization_result(
+                    best_route=best_route_ids,
+                    service_points=service_points,
+                    fitness=best_fitness,
+                    distance_km=distance_km,
+                    num_vehicles=1
+                )
+                
+                # Salvar rota
+                if integration.save_route(route_data):
+                    print("✅ Rota salva para o bot do Telegram!")
+                else:
+                    print("⚠️ Erro ao salvar rota para o bot")
+            except Exception as e:
+                print(f"⚠️ Erro ao salvar rota para o bot: {e}")
         
         # Se otimização completa, mostrar tela de conclusão
         if optimization_complete:
@@ -1064,7 +1096,7 @@ def main():
         current_best_fitness = fitness_values[0]
         
         # Preservar melhor solução global (nunca perde a melhor já encontrada)
-        if generation == 0:
+        if generation == 0:  # Primeira geração
             best_route = copy.deepcopy(current_best_route)
             best_fitness = current_best_fitness
             last_improvement_generation = 0
@@ -1148,7 +1180,8 @@ def main():
         draw_service_points(screen, service_points, NODE_RADIUS, start_points_by_day=start_points_by_day)
         
         # Imprimir informações no console a cada geração
-        print(f"Geração {generation}: Fitness = {best_fitness:.2f}")
+        # Exibir generation + 1 para mostrar gerações de 1 a MAX_GENERATIONS
+        print(f"Geração {generation + 1}: Fitness = {best_fitness:.2f}")
         
         # Verificar se todos os pontos estão na rota (apenas a cada 50 gerações para não poluir)
         if generation % 50 == 0:
@@ -1196,7 +1229,7 @@ def main():
         # ── 2-opt periódico apenas na melhor solução global ───────────
         # Aplicado raramente para não forçar convergência; polirá a melhor
         # solução encontrada pelo crossover sem contaminar a diversidade da população.
-        if generation > 0 and generation % opt2_interval == 0:
+        if generation > 1 and generation % opt2_interval == 0:
             optimized = two_opt_global(best_route)
             opt_fitness = calculate_constrained_fitness(
                 optimized, speed=VEHICLE_SPEED, priority_deadline=MINUTES_PER_DAY
@@ -1267,7 +1300,10 @@ def main():
             new_population.append(child)
 
         population = new_population
-        generation += 1
+        
+        # Incrementar geração no final do loop (após processar tudo)
+        if not optimization_complete:
+            generation += 1
         
         # Atualizar display
         pygame.display.flip()

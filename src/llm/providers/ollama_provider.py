@@ -18,7 +18,7 @@ class OllamaProvider(BaseLLMProvider):
 
 
     def __post_init__(self):
-        self.client = ollama.Client(host=self.base_url)
+        self.client = ollama.Client(host=self.base_url, timeout=60.0)
 
     
     def generate_text(self,
@@ -79,8 +79,16 @@ class OllamaProvider(BaseLLMProvider):
             # Tenta listar os modelos disponíveis
             models_response = self.client.list()
 
-            # Verifica se o modelo escolhido está disponível
-            available_models = [m.model for m in models_response.get('models', [])]
+            # Compatível com diferentes versões da biblioteca ollama
+            if hasattr(models_response, 'models'):
+                # Versão mais recente: objeto ListResponse
+                available_models = [m.model for m in models_response.models]
+            elif isinstance(models_response, dict):
+                # Versão antiga: dicionário
+                available_models = [m.get('model', m.get('name', '')) for m in models_response.get('models', [])]
+            else:
+                # Fallback: tentar converter para lista
+                available_models = []
             
             # Aceita tanto "llama2" quanto "llama2:latest"
             model_found = self.model in available_models or f"{self.model}:latest" in available_models

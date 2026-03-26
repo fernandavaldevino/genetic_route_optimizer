@@ -11,10 +11,10 @@ class OpenAIProvider(BaseLLMProvider):
     api_key: str
     model: str
     temperature: float = 0.7
-    client: openai.OpenAI = field(default=None)
+    client: openai.OpenAI = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
-        self.client = openai.OpenAI(api_key=self.api_key)
+        self.client = openai.OpenAI(api_key=self.api_key, timeout=30.0, max_retries=3)
 
     
     def generate_text(self, prompt: str, max_tokens: Optional[int] = None, system_message: Optional[str] = None) -> str:

@@ -116,9 +116,8 @@ def calculate_constrained_fitness(route: List[ServicePoint],
     # Fitness base: distância sem multiplicador — penalidades expressas em "unidades de distância equivalente"
     fitness = total_distance
 
-    # Penalidade por violação de ordem de prioridade (posição relativa na rota)
-    # Valor moderado: 100/violação — o GA pode "comprar" uma violação se economizar
-    # mais de 100 unidades de distância (ex: ponto REG literalmente no caminho entre dois EME).
+    # A ordem de prioridades DEVE ser respeitada (EME → VIO → MED → POS → REG)
+    # Exceção: pode atender ponto de menor prioridade se estiver no caminho E não atrapalhar time_window
     priority_order = [
         ServicePriority.EMERGENCY_OBSTETRIC,
         ServicePriority.DOMESTIC_VIOLENCE,
@@ -139,7 +138,8 @@ def calculate_constrained_fitness(route: List[ServicePoint],
         nxt_pos = priority_positions[nxt_p]
         if cur_pos and nxt_pos:
             if min(nxt_pos) < max(cur_pos):
-                priority_order_penalty += (max(cur_pos) - min(nxt_pos)) * 100
+                # Penalidade 500 por violação - equilibrada com outras penalidades
+                priority_order_penalty += (max(cur_pos) - min(nxt_pos)) * 500
 
     # Penalidade leve por gaps dentro do mesmo grupo (incentiva pontos de mesma prioridade juntos)
     gap_penalty = 0.0
@@ -154,6 +154,9 @@ def calculate_constrained_fitness(route: List[ServicePoint],
     # Cada minuto de atraso ≈ 30 unidades de distância (proporcional à distância base)
     time_window_penalty = 0.0
     for point, arrival_time in zip(route, arrival_times):
+        # Filtrar depósito
+        if point.id == 0:
+            continue
         if point.time_window and arrival_time > point.time_window.end_time:
             minutes_late = arrival_time - point.time_window.end_time
             time_window_penalty += minutes_late * 30
@@ -168,6 +171,9 @@ def calculate_constrained_fitness(route: List[ServicePoint],
     ]
     
     for point, arrival_time in zip(route, arrival_times):
+        # Filtrar depósito
+        if point.id == 0:
+            continue
         if point.priority in priority_types:
             # Penalidade forte por passar do deadline: ≈ 150 unidades de distância por minuto
             # (mais grave que atraso de janela de tempo, menos que restrição hard)
@@ -312,6 +318,7 @@ def constrained_order_crossover(parent1: List[ServicePoint],
             p2_groups[pt.priority].append(pt)
 
     def _ox(seq1: List[ServicePoint], seq2: List[ServicePoint]) -> List[ServicePoint]:
+        # Garantir que todos os pontos sejam preservados
         n = len(seq1)
         if n <= 1:
             return seq1[:]
@@ -319,7 +326,14 @@ def constrained_order_crossover(parent1: List[ServicePoint],
         b = random.randint(a, n - 1)
         inherited = seq1[a:b + 1]
         inherited_ids = {pt.id for pt in inherited}
+        # Usar seq1 como fallback para pontos não encontrados em seq2
         remainder = [pt for pt in seq2 if pt.id not in inherited_ids]
+        remainder_ids = {pt.id for pt in remainder}
+        missing = [pt for pt in seq1 if pt.id not in inherited_ids and pt.id not in remainder_ids]
+        remainder.extend(missing)
+        # Garantir que remainder tem exatamente n - len(inherited) elementos
+        expected_remainder_size = n - len(inherited)
+        remainder = remainder[:expected_remainder_size]
         return remainder[:a] + inherited + remainder[a:]
 
     child: List[ServicePoint] = []
